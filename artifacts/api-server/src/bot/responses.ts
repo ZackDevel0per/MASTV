@@ -122,12 +122,14 @@ _Selecciona la opción que necesitas_`,
 💰 Bs 29
 
 Para completar tu activación:
-1. Realiza un pago de *Bs 29*
-2. Espera validación automática
-3. Recibirás tus credenciales
+1️⃣ Realiza tu pago de *Bs 29* por Yape o QR
+2️⃣ Cuando termines, escribe *VERIFICAR*
+3️⃣ El bot te pedirá tu nombre y el monto exacto
+4️⃣ ¡Recibirás tus credenciales al instante!
 
-_Una vez realizado el pago, escribe:_ *VERIFICAR*
+⚠️ _El nombre debe ser exactamente como aparece en tu comprobante_
 
+*VERIFICAR* → Verificar mi pago
 *1* → Volver al menú`,
     },
   ],
@@ -139,12 +141,14 @@ _Una vez realizado el pago, escribe:_ *VERIFICAR*
 💰 Bs 82
 
 Para completar tu activación:
-1. Realiza un pago de *Bs 82*
-2. Espera validación automática
-3. Recibirás tus credenciales
+1️⃣ Realiza tu pago de *Bs 82* por Yape o QR
+2️⃣ Cuando termines, escribe *VERIFICAR*
+3️⃣ El bot te pedirá tu nombre y el monto exacto
+4️⃣ ¡Recibirás tus credenciales al instante!
 
-_Una vez realizado el pago, escribe:_ *VERIFICAR*
+⚠️ _El nombre debe ser exactamente como aparece en tu comprobante_
 
+*VERIFICAR* → Verificar mi pago
 *1* → Volver al menú`,
     },
   ],
@@ -156,12 +160,14 @@ _Una vez realizado el pago, escribe:_ *VERIFICAR*
 💰 Bs 155 🎁 +1 mes gratis (Total: 7 meses)
 
 Para completar tu activación:
-1. Realiza un pago de *Bs 155*
-2. Espera validación automática
-3. Recibirás tus credenciales
+1️⃣ Realiza tu pago de *Bs 155* por Yape o QR
+2️⃣ Cuando termines, escribe *VERIFICAR*
+3️⃣ El bot te pedirá tu nombre y el monto exacto
+4️⃣ ¡Recibirás tus credenciales al instante!
 
-_Una vez realizado el pago, escribe:_ *VERIFICAR*
+⚠️ _El nombre debe ser exactamente como aparece en tu comprobante_
 
+*VERIFICAR* → Verificar mi pago
 *1* → Volver al menú`,
     },
   ],
@@ -173,12 +179,14 @@ _Una vez realizado el pago, escribe:_ *VERIFICAR*
 💰 Bs 300 🎁 +2 meses gratis (Total: 14 meses)
 
 Para completar tu activación:
-1. Realiza un pago de *Bs 300*
-2. Espera validación automática
-3. Recibirás tus credenciales
+1️⃣ Realiza tu pago de *Bs 300* por Yape o QR
+2️⃣ Cuando termines, escribe *VERIFICAR*
+3️⃣ El bot te pedirá tu nombre y el monto exacto
+4️⃣ ¡Recibirás tus credenciales al instante!
 
-_Una vez realizado el pago, escribe:_ *VERIFICAR*
+⚠️ _El nombre debe ser exactamente como aparece en tu comprobante_
 
+*VERIFICAR* → Verificar mi pago
 *1* → Volver al menú`,
     },
   ],
@@ -210,12 +218,14 @@ _Una vez realizado el pago, escribe:_ *VERIFICAR*
 💰 Bs 35
 
 Para completar tu activación:
-1. Realiza un pago de *Bs 35*
-2. Espera validación automática
-3. Recibirás tus credenciales
+1️⃣ Realiza tu pago de *Bs 35* por Yape o QR
+2️⃣ Cuando termines, escribe *VERIFICAR*
+3️⃣ El bot te pedirá tu nombre y el monto exacto
+4️⃣ ¡Recibirás tus credenciales al instante!
 
-_Una vez realizado el pago, escribe:_ *VERIFICAR*
+⚠️ _El nombre debe ser exactamente como aparece en tu comprobante_
 
+*VERIFICAR* → Verificar mi pago
 *1* → Volver al menú`,
     },
   ],
@@ -227,12 +237,14 @@ _Una vez realizado el pago, escribe:_ *VERIFICAR*
 💰 Bs 100
 
 Para completar tu activación:
-1. Realiza un pago de *Bs 100*
-2. Espera validación automática
-3. Recibirás tus credenciales
+1️⃣ Realiza tu pago de *Bs 100* por Yape o QR
+2️⃣ Cuando termines, escribe *VERIFICAR*
+3️⃣ El bot te pedirá tu nombre y el monto exacto
+4️⃣ ¡Recibirás tus credenciales al instante!
 
-_Una vez realizado el pago, escribe:_ *VERIFICAR*
+⚠️ _El nombre debe ser exactamente como aparece en tu comprobante_
 
+*VERIFICAR* → Verificar mi pago
 *1* → Volver al menú`,
     },
   ],
@@ -244,12 +256,14 @@ _Una vez realizado el pago, escribe:_ *VERIFICAR*
 💰 Bs 190 🎁 +1 mes gratis (Total: 7 meses)
 
 Para completar tu activación:
-1. Realiza un pago de *Bs 190*
-2. Espera validación automática
-3. Recibirás tus credenciales
+1️⃣ Realiza tu pago de *Bs 190* por Yape o QR
+2️⃣ Cuando termines, escribe *VERIFICAR*
+3️⃣ El bot te pedirá tu nombre y el monto exacto
+4️⃣ ¡Recibirás tus credenciales al instante!
 
-_Una vez realizado el pago, escribe:_ *VERIFICAR*
+⚠️ _El nombre debe ser exactamente como aparece en tu comprobante_
 
+*VERIFICAR* → Verificar mi pago
 *1* → Volver al menú`,
     },
   ],
@@ -261,12 +275,14 @@ _Una vez realizado el pago, escribe:_ *VERIFICAR*
 💰 Bs 380 🎁 +2 meses gratis (Total: 14 meses)
 
 Para completar tu activación:
-1. Realiza un pago de *Bs 380*
-2. Espera validación automática
-3. Recibirás tus credenciales
+1️⃣ Realiza tu pago de *Bs 380* por Yape o QR
+2️⃣ Cuando termines, escribe *VERIFICAR*
+3️⃣ El bot te pedirá tu nombre y el monto exacto
+4️⃣ ¡Recibirás tus credenciales al instante!
 
-_Una vez realizado el pago, escribe:_ *VERIFICAR*
+⚠️ _El nombre debe ser exactamente como aparece en tu comprobante_
 
+*VERIFICAR* → Verificar mi pago
 *1* → Volver al menú`,
     },
   ],
@@ -298,12 +314,14 @@ _Una vez realizado el pago, escribe:_ *VERIFICAR*
 💰 Bs 40
 
 Para completar tu activación:
-1. Realiza un pago de *Bs 40*
-2. Espera validación automática
-3. Recibirás tus credenciales
+1️⃣ Realiza tu pago de *Bs 40* por Yape o QR
+2️⃣ Cuando termines, escribe *VERIFICAR*
+3️⃣ El bot te pedirá tu nombre y el monto exacto
+4️⃣ ¡Recibirás tus credenciales al instante!
 
-_Una vez realizado el pago, escribe:_ *VERIFICAR*
+⚠️ _El nombre debe ser exactamente como aparece en tu comprobante_
 
+*VERIFICAR* → Verificar mi pago
 *1* → Volver al menú`,
     },
   ],
@@ -315,12 +333,14 @@ _Una vez realizado el pago, escribe:_ *VERIFICAR*
 💰 Bs 115
 
 Para completar tu activación:
-1. Realiza un pago de *Bs 115*
-2. Espera validación automática
-3. Recibirás tus credenciales
+1️⃣ Realiza tu pago de *Bs 115* por Yape o QR
+2️⃣ Cuando termines, escribe *VERIFICAR*
+3️⃣ El bot te pedirá tu nombre y el monto exacto
+4️⃣ ¡Recibirás tus credenciales al instante!
 
-_Una vez realizado el pago, escribe:_ *VERIFICAR*
+⚠️ _El nombre debe ser exactamente como aparece en tu comprobante_
 
+*VERIFICAR* → Verificar mi pago
 *1* → Volver al menú`,
     },
   ],
@@ -332,12 +352,14 @@ _Una vez realizado el pago, escribe:_ *VERIFICAR*
 💰 Bs 225 🎁 +1 mes gratis (Total: 7 meses)
 
 Para completar tu activación:
-1. Realiza un pago de *Bs 225*
-2. Espera validación automática
-3. Recibirás tus credenciales
+1️⃣ Realiza tu pago de *Bs 225* por Yape o QR
+2️⃣ Cuando termines, escribe *VERIFICAR*
+3️⃣ El bot te pedirá tu nombre y el monto exacto
+4️⃣ ¡Recibirás tus credenciales al instante!
 
-_Una vez realizado el pago, escribe:_ *VERIFICAR*
+⚠️ _El nombre debe ser exactamente como aparece en tu comprobante_
 
+*VERIFICAR* → Verificar mi pago
 *1* → Volver al menú`,
     },
   ],
@@ -349,12 +371,14 @@ _Una vez realizado el pago, escribe:_ *VERIFICAR*
 💰 Bs 440 🎁 +2 meses gratis (Total: 14 meses)
 
 Para completar tu activación:
-1. Realiza un pago de *Bs 440*
-2. Espera validación automática
-3. Recibirás tus credenciales
+1️⃣ Realiza tu pago de *Bs 440* por Yape o QR
+2️⃣ Cuando termines, escribe *VERIFICAR*
+3️⃣ El bot te pedirá tu nombre y el monto exacto
+4️⃣ ¡Recibirás tus credenciales al instante!
 
-_Una vez realizado el pago, escribe:_ *VERIFICAR*
+⚠️ _El nombre debe ser exactamente como aparece en tu comprobante_
 
+*VERIFICAR* → Verificar mi pago
 *1* → Volver al menú`,
     },
   ],

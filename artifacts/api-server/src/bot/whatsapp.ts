@@ -46,7 +46,8 @@ import {
 } from "./responses.js";
 import { enviarImagen } from "./media-handler.js";
 import { crearCuentaEnCRM, verificarDemoExistente, PLAN_ID_MAP } from "./crm-service.js";
-import { registrarPedido, obtenerPedido, marcarEntregado } from "./payment-store.js";
+import { registrarPedido } from "./payment-store.js";
+import { buscarYUsarPago } from "./sheets.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const AUTH_FOLDER = path.join(__dirname, "../../auth_info_baileys");
@@ -67,6 +68,9 @@ interface EstadoConversacion {
   ultimoComando: string;
   planSeleccionado?: string;
   hora: number;
+  // Para el flujo de verificación de pago por Google Sheets
+  esperandoVerificacion?: "nombre" | "monto";
+  nombreVerificacion?: string;
 }
 
 const conversaciones: Record<string, EstadoConversacion> = {};
@@ -288,7 +292,7 @@ async function manejarMensaje(jid: string, texto: string) {
       return;
     }
 
-    // ─── CONFIRMAR (desactivado): redirigir al flujo correcto ──────
+    // ─── CONFIRMAR: redirigir al flujo correcto ────────────────────
     if (textoUpper === "CONFIRMAR") {
       await sock!.sendMessage(jid, {
         text: `ℹ️ Para verificar tu pago, escribe *VERIFICAR*.\n\nSi aún no has realizado el pago, elige tu plan escribiendo *1* y sigue las instrucciones.`,
@@ -296,52 +300,112 @@ async function manejarMensaje(jid: string, texto: string) {
       return;
     }
 
-    // ─── VERIFICAR: Comprobar si el pago fue registrado ────────────
-    if (textoUpper === "VERIFICAR") {
+    // ─── Flujo de verificación paso 2: esperando NOMBRE ────────────
+    if (estadoAnterior?.esperandoVerificacion === "nombre") {
+      const nombreIngresado = texto.trim();
+      conversaciones[jid] = {
+        ultimoComando: "ESPERANDO_MONTO",
+        planSeleccionado: estadoAnterior.planSeleccionado,
+        hora: Date.now(),
+        esperandoVerificacion: "monto",
+        nombreVerificacion: nombreIngresado,
+      };
+      await sock!.sendMessage(jid, {
+        text: `✍️ *Nombre registrado:* _${nombreIngresado}_\n\n💰 Ahora dime el *monto exacto* que pagaste.\n\nEscríbelo solo como número, por ejemplo: *29.00* o *29*`,
+      });
+      return;
+    }
+
+    // ─── Flujo de verificación paso 3: esperando MONTO ─────────────
+    if (estadoAnterior?.esperandoVerificacion === "monto") {
+      const montoIngresado = parseFloat(texto.trim().replace(",", "."));
+      const nombre = estadoAnterior.nombreVerificacion ?? "";
+      const planSeleccionado = estadoAnterior.planSeleccionado;
       const telefono = jid.replace("@s.whatsapp.net", "");
-      const pedido = obtenerPedido(telefono);
 
-      if (!pedido || pedido.estado === "pendiente") {
+      if (isNaN(montoIngresado)) {
         await sock!.sendMessage(jid, {
-          text: `🔍 *Verificando tu pago...*\n\n⚠️ No encontramos ningún pago registrado para tu número todavía.\n\nSi ya realizaste el pago, espera unos minutos y vuelve a intentarlo.\n\nSi el problema persiste, escribe *3* para contactar soporte.`,
+          text: `⚠️ No entendí ese monto. Escríbelo solo como número, por ejemplo: *29.00* o *82*`,
         });
         return;
       }
 
-      if (pedido.estado === "entregado") {
-        await sock!.sendMessage(jid, {
-          text: `✅ Tu cuenta ya fue entregada anteriormente.\n\nSi tienes algún problema para acceder, escribe *3* para soporte.`,
-        });
-        return;
-      }
+      await sock!.sendMessage(jid, {
+        text: `🔍 _Buscando tu pago en el sistema..._`,
+      });
 
-      if (pedido.estado === "pagado") {
-        const planInfo = PLAN_ID_MAP[pedido.plan];
+      try {
+        const pagoEncontrado = await buscarYUsarPago(nombre, montoIngresado);
+
+        if (!pagoEncontrado) {
+          conversaciones[jid] = {
+            ultimoComando: "VERIFICACION_FALLIDA",
+            planSeleccionado,
+            hora: Date.now(),
+          };
+          await sock!.sendMessage(jid, {
+            text: `❌ *No encontramos tu pago*\n\nBuscamos:\n👤 Nombre: _${nombre}_\n💰 Monto: _Bs ${montoIngresado}_\n\nVerifica que:\n• El nombre sea *exactamente* como aparece en tu comprobante Yape\n• El monto sea exacto, sin redondeos\n\nEscribe *VERIFICAR* para intentarlo de nuevo o *3* para soporte.`,
+          });
+          return;
+        }
+
+        // Pago encontrado → crear cuenta
+        if (!planSeleccionado || !PLAN_ID_MAP[planSeleccionado]) {
+          await sock!.sendMessage(jid, {
+            text: `✅ *Pago confirmado.*\n\nSin embargo, no tenemos registrado qué plan elegiste.\n\nPor favor escribe el código de tu plan (ej: *P1*, *Q2*, *R3*) o escribe *3* para que te ayudemos.`,
+          });
+          conversaciones[jid] = { ultimoComando: "PAGO_CONFIRMADO_SIN_PLAN", planSeleccionado: undefined, hora: Date.now() };
+          return;
+        }
+
+        const planInfo = PLAN_ID_MAP[planSeleccionado];
         await sock!.sendMessage(jid, {
-          text: `✅ *Pago confirmado. Creando tu cuenta...*\n\n📋 Plan: ${planInfo?.nombre ?? pedido.plan}\n💰 Monto: Bs ${pedido.monto}\n\n_Por favor espera unos segundos..._`,
+          text: `✅ *¡Pago confirmado!*\n\n📋 Plan: ${planInfo.nombre}\n💰 Monto: Bs ${montoIngresado}\n\n⏳ _Creando tu cuenta, espera unos segundos..._`,
         });
+
         const resultado = await crearCuentaEnCRM(
-          pedido.plan,
+          planSeleccionado,
           `Cliente_${telefono}`,
           `${telefono}@zktv.bo`,
           telefono
         );
+
         if (resultado.ok && resultado.usuario) {
           const mensajeActivacion = ACTIVACION_EXITOSA({
             usuario: resultado.usuario,
             contrasena: resultado.contrasena ?? "",
-            plan: resultado.plan ?? pedido.plan,
+            plan: resultado.plan ?? planInfo.nombre,
             servidor: resultado.servidor,
           });
           await sock!.sendMessage(jid, { text: mensajeActivacion });
-          marcarEntregado(telefono, resultado.usuario);
           conversaciones[jid] = { ultimoComando: "CUENTA_CREADA", planSeleccionado: undefined, hora: Date.now() };
         } else {
           await sock!.sendMessage(jid, {
-            text: `⚠️ *Hubo un problema al crear tu cuenta*\n\n${resultado.mensaje}\n\nEscribe *3* para que te ayudemos.`,
+            text: `⚠️ *Pago confirmado pero hubo un problema al crear tu cuenta*\n\n${resultado.mensaje}\n\nEscribe *3* para que te ayudemos de inmediato.`,
           });
+          conversaciones[jid] = { ultimoComando: "ERROR_CRM", planSeleccionado, hora: Date.now() };
         }
+      } catch (err) {
+        console.error("❌ Error verificando pago en Sheets:", err);
+        await sock!.sendMessage(jid, {
+          text: `⚠️ Hubo un error al consultar tu pago. Intenta de nuevo en un momento o escribe *3* para soporte.`,
+        });
+        conversaciones[jid] = { ultimoComando: "ERROR_SHEETS", planSeleccionado, hora: Date.now() };
       }
+      return;
+    }
+
+    // ─── VERIFICAR: Iniciar flujo multi-paso ───────────────────────
+    if (textoUpper === "VERIFICAR") {
+      conversaciones[jid] = {
+        ultimoComando: "ESPERANDO_NOMBRE",
+        planSeleccionado: estadoAnterior?.planSeleccionado,
+        hora: Date.now(),
+        esperandoVerificacion: "nombre",
+      };
+      await sock!.sendMessage(jid, {
+        text: `🔐 *Verificación de pago*\n\nPara confirmar tu pago necesito dos datos que aparecen en tu comprobante de Yape:\n\n*Paso 1 de 2:*\n👤 ¿Cuál es tu *nombre completo* exactamente como aparece en el comprobante?\n\n_Escríbelo tal cual, en mayúsculas o minúsculas._`,
+      });
       return;
     }
 

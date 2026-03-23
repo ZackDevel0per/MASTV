@@ -11,6 +11,7 @@ import {
 import { confirmarPago, marcarEntregado, buscarPedidoPorMonto } from "../bot/payment-store.js";
 import { crearCuentaEnCRM, PLAN_ID_MAP } from "../bot/crm-service.js";
 import { ACTIVACION_EXITOSA } from "../bot/responses.js";
+import { registrarPagoYape } from "../bot/sheets.js";
 import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
@@ -212,14 +213,15 @@ router.post("/bot/pago", async (req, res) => {
 });
 
 // ═════════════════════════════════════════════════════════
-// PAGO VIA NOTIFICACION QR (Tasker lee la notificación bancaria)
+// PAGO VIA NOTIFICACION YAPE/QR (Tasker lee la notificación)
 // ═════════════════════════════════════════════════════════
-// Tasker debe enviar:
+// Tasker envía el texto completo de la notificación:
 //   { token, notificacion: "QR DE NOMBRE te enviò Bs. 29.00" }
-//   ó directamente: { token, nombre: "NOMBRE", monto: 29.00 }
+//   ó los campos separados: { token, nombre: "NOMBRE", monto: 29.00 }
 //
-// El servidor extrae nombre y monto, busca el pedido pendiente
-// que coincida con ese monto y entrega las credenciales.
+// El servidor guarda el pago en Google Sheets (Nombre + Monto + Usado=NO).
+// La activación ocurre después cuando el cliente escribe VERIFICAR en WhatsApp
+// y confirma su nombre exacto y monto exacto.
 // ═════════════════════════════════════════════════════════
 router.post("/bot/pago-qr", async (req, res) => {
   if (!verificarToken(req, res)) return;
@@ -236,74 +238,44 @@ router.post("/bot/pago-qr", async (req, res) => {
     if (!matchNombre || !matchMonto) {
       res.status(400).json({
         ok: false,
-        mensaje: 'Formato de notificación no reconocido. Esperado: "QR DE NOMBRE te enviò Bs. MONTO"',
+        mensaje: 'Formato no reconocido. Esperado: "QR DE NOMBRE te enviò Bs. MONTO"',
         notificacion,
       });
       return;
     }
-    nombre = matchNombre[1]!.trim();
+    nombre = matchNombre[1]!.trim().toUpperCase();
     montoNum = parseFloat(matchMonto[1]!.replace(",", "."));
   } else {
-    nombre = req.body.nombre ? String(req.body.nombre).trim() : undefined;
+    nombre = req.body.nombre ? String(req.body.nombre).trim().toUpperCase() : undefined;
     montoNum = monto !== undefined ? parseFloat(String(monto)) : undefined;
   }
 
-  if (montoNum === undefined || isNaN(montoNum)) {
-    res.status(400).json({ ok: false, mensaje: "No se pudo determinar el monto del pago" });
+  if (!nombre) {
+    res.status(400).json({ ok: false, mensaje: "No se pudo extraer el nombre del pagador" });
     return;
   }
 
-  console.log(`📲 [TASKER-QR] Pago recibido: ${nombre ?? "?"} → Bs. ${montoNum}`);
+  if (montoNum === undefined || isNaN(montoNum)) {
+    res.status(400).json({ ok: false, mensaje: "No se pudo extraer el monto del pago" });
+    return;
+  }
+
+  console.log(`📲 [TASKER] Notificación recibida: ${nombre} → Bs. ${montoNum}`);
 
   try {
-    const pedido = buscarPedidoPorMonto(montoNum, nombre);
-    if (!pedido) {
-      res.status(404).json({
-        ok: false,
-        mensaje: `Ningún pedido pendiente con monto Bs. ${montoNum}`,
-        nombre,
-        monto: montoNum,
-      });
-      return;
-    }
-
-    const planInfo = PLAN_ID_MAP[pedido.plan];
-    console.log(`🚀 [TASKER-QR] Creando cuenta para ${pedido.telefono} → plan ${pedido.plan}`);
-    const resultado = await crearCuentaEnCRM(
-      pedido.plan,
-      `Cliente_${pedido.telefono}`,
-      `${pedido.telefono}@zktv.bo`,
-      pedido.telefono
-    );
-
-    if (!resultado.ok || !resultado.usuario) {
-      res.status(500).json({ ok: false, mensaje: `Error creando cuenta CRM: ${resultado.mensaje}` });
-      return;
-    }
-
-    const mensajeActivacion = ACTIVACION_EXITOSA({
-      usuario: resultado.usuario,
-      contrasena: resultado.contrasena ?? "",
-      plan: resultado.plan ?? planInfo?.nombre ?? pedido.plan,
-      servidor: resultado.servidor,
-    });
-    await enviarMensaje(pedido.telefono, mensajeActivacion);
-    marcarEntregado(pedido.telefono, resultado.usuario);
-
-    console.log(`✅ [TASKER-QR] Cuenta entregada a ${pedido.telefono}: ${resultado.usuario}`);
+    await registrarPagoYape(nombre, montoNum);
+    console.log(`✅ [TASKER] Pago guardado en Google Sheets: ${nombre} → Bs. ${montoNum}`);
     res.json({
       ok: true,
-      mensaje: "Pago confirmado, cuenta creada y credenciales enviadas",
-      telefono: pedido.telefono,
+      mensaje: "Pago registrado en Google Sheets. El cliente debe escribir VERIFICAR en WhatsApp.",
       nombre,
-      usuario: resultado.usuario,
-      plan: pedido.plan,
+      monto: montoNum,
     });
   } catch (error) {
-    console.error("Error procesando pago QR:", error);
+    console.error("Error registrando pago en Sheets:", error);
     res.status(500).json({
       ok: false,
-      mensaje: error instanceof Error ? error.message : "Error interno del servidor",
+      mensaje: error instanceof Error ? error.message : "Error al guardar en Google Sheets",
     });
   }
 });
