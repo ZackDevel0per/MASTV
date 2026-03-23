@@ -11,7 +11,7 @@ import {
 import { confirmarPago, marcarEntregado, buscarPedidoPorMonto } from "../bot/payment-store.js";
 import { crearCuentaEnCRM, PLAN_ID_MAP } from "../bot/crm-service.js";
 import { ACTIVACION_EXITOSA } from "../bot/responses.js";
-import { registrarPagoYape } from "../bot/sheets.js";
+import { registrarPagoYapeLocal, listarPagosYape } from "../bot/yape-store.js";
 import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
@@ -263,21 +263,29 @@ router.post("/bot/pago-qr", async (req, res) => {
   console.log(`📲 [TASKER] Notificación recibida: ${nombre} → Bs. ${montoNum}`);
 
   try {
-    await registrarPagoYape(nombre, montoNum);
-    console.log(`✅ [TASKER] Pago guardado en Google Sheets: ${nombre} → Bs. ${montoNum}`);
+    registrarPagoYapeLocal(nombre, montoNum);
     res.json({
       ok: true,
-      mensaje: "Pago registrado en Google Sheets. El cliente debe escribir VERIFICAR en WhatsApp.",
+      mensaje: "Pago registrado. El cliente debe escribir VERIFICAR en WhatsApp.",
       nombre,
       monto: montoNum,
     });
   } catch (error) {
-    console.error("Error registrando pago en Sheets:", error);
+    console.error("Error registrando pago:", error);
     res.status(500).json({
       ok: false,
-      mensaje: error instanceof Error ? error.message : "Error al guardar en Google Sheets",
+      mensaje: error instanceof Error ? error.message : "Error al registrar el pago",
     });
   }
+});
+
+// ═════════════════════════════════════════════════════════
+// DEBUG: Ver pagos registrados en memoria (solo desarrollo)
+// ═════════════════════════════════════════════════════════
+router.get("/bot/pagos-yape", (req, res) => {
+  if (!verificarToken(req, res)) return;
+  const pagos = listarPagosYape();
+  res.json({ ok: true, total: pagos.length, pagos });
 });
 
 // ═════════════════════════════════════════════════════════

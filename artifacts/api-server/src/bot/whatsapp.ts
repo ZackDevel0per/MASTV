@@ -47,7 +47,7 @@ import {
 import { enviarImagen } from "./media-handler.js";
 import { crearCuentaEnCRM, verificarDemoExistente, PLAN_ID_MAP } from "./crm-service.js";
 import { registrarPedido } from "./payment-store.js";
-import { buscarYUsarPago } from "./sheets.js";
+import { buscarYUsarPagoLocal } from "./yape-store.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const AUTH_FOLDER = path.join(__dirname, "../../auth_info_baileys");
@@ -335,7 +335,7 @@ async function manejarMensaje(jid: string, texto: string) {
       });
 
       try {
-        const pagoEncontrado = await buscarYUsarPago(nombre, montoIngresado);
+        const pagoEncontrado = buscarYUsarPagoLocal(nombre, montoIngresado);
 
         if (!pagoEncontrado) {
           conversaciones[jid] = {
