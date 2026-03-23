@@ -1,0 +1,13 @@
+HTTP/1.1 302 Found
+Server: nginx/1.18.0 (Ubuntu)
+Date: Mon, 23 Mar 2026 00:11:16 GMT
+Content-Type: text/html; charset=utf-8
+Transfer-Encoding: chunked
+Connection: keep-alive
+Cache-Control: private, must-revalidate
+Location: https://resellermastv.com:8443/lines
+pragma: no-cache
+expires: -1
+Vary: X-Inertia
+Set-Cookie: capp_name_session=eyJpdiI6InR1S3p0Wk1DRjVSWXpFTWVheHRNWHc9PSIsInZhbHVlIjoiUG1FK0dUbXVmZStGdThWUzR4YjJBbE4zNTZ6dUdxUFJ2VUlCR3JvZGdGV0ltNGZHY1dCY2I5bllOa0g2dVBIdUs4NU9rUkRkcGsyVHMzeE1qOVRGdkdBbjBMVW9XQk9sUjh3RzNuV0xRY1RSUURDdGZ0TWlDWnNnblZybWJkeGgiLCJtYWMiOiIzZmNiYjkxOGE0MTZkZmEwODcwYmYxNDgzNzc0YzU4ZjAzZWFiNGFjNTRjNGNlNzM5MGZkNGQ0ZmFhY2Y0NjE3IiwidGFnIjoiIn0%3D; expires=Mon, 23-Mar-2026 00:31:16 GMT; Max-Age=1200; path=/; httponly; samesite=lax
+
