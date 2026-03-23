@@ -67,6 +67,42 @@ export function confirmarPago(telefono: string, montoRecibido: number): Pedido |
   return pedido;
 }
 
+/**
+ * Busca un pedido pendiente cuyo monto coincida con el recibido (tolerancia 5%).
+ * Se usa cuando Tasker solo tiene el nombre y monto de la notificación,
+ * sin el número de teléfono del cliente.
+ * Devuelve el primer pedido que coincida, o null si no hay ninguno.
+ */
+export function buscarPedidoPorMonto(montoRecibido: number, nombrePagador?: string): Pedido | null {
+  let candidatos: Pedido[] = [];
+
+  for (const pedido of pedidos.values()) {
+    if (pedido.estado === "entregado" || pedido.estado === "pagado") continue;
+    const diferencia = Math.abs(pedido.monto - montoRecibido) / pedido.monto;
+    if (diferencia <= 0.05) {
+      candidatos.push(pedido);
+    }
+  }
+
+  if (candidatos.length === 0) {
+    console.warn(`⚠️  [PEDIDO] Ningún pedido pendiente con monto Bs. ${montoRecibido}`);
+    return null;
+  }
+
+  // Si hay más de un candidato con el mismo monto, tomar el más antiguo
+  // (el primero en haber hecho el pedido)
+  candidatos.sort((a, b) => a.creadoEn - b.creadoEn);
+  const pedido = candidatos[0]!;
+
+  pedido.estado = "pagado";
+  pedido.pagadoEn = Date.now();
+  console.log(
+    `✅ [PEDIDO] Pago confirmado por monto: ${pedido.telefono} → ${pedido.plan} (Bs ${montoRecibido})` +
+    (nombrePagador ? ` | Pagador: ${nombrePagador}` : "")
+  );
+  return pedido;
+}
+
 /** Marca un pedido como entregado (cuenta creada y enviada) */
 export function marcarEntregado(telefono: string, usuario: string): void {
   const pedido = pedidos.get(telefono);

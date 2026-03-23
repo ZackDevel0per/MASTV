@@ -8,7 +8,7 @@ import {
   enviarVideoPersonalizado,
   enviarMensaje,
 } from "../bot/whatsapp.js";
-import { confirmarPago, marcarEntregado } from "../bot/payment-store.js";
+import { confirmarPago, marcarEntregado, buscarPedidoPorMonto } from "../bot/payment-store.js";
 import { crearCuentaEnCRM, PLAN_ID_MAP } from "../bot/crm-service.js";
 import { ACTIVACION_EXITOSA } from "../bot/responses.js";
 import fs from "fs";
@@ -204,6 +204,103 @@ router.post("/bot/pago", async (req, res) => {
     });
   } catch (error) {
     console.error("Error procesando pago automático:", error);
+    res.status(500).json({
+      ok: false,
+      mensaje: error instanceof Error ? error.message : "Error interno del servidor",
+    });
+  }
+});
+
+// ═════════════════════════════════════════════════════════
+// PAGO VIA NOTIFICACION QR (Tasker lee la notificación bancaria)
+// ═════════════════════════════════════════════════════════
+// Tasker debe enviar:
+//   { token, notificacion: "QR DE NOMBRE te enviò Bs. 29.00" }
+//   ó directamente: { token, nombre: "NOMBRE", monto: 29.00 }
+//
+// El servidor extrae nombre y monto, busca el pedido pendiente
+// que coincida con ese monto y entrega las credenciales.
+// ═════════════════════════════════════════════════════════
+router.post("/bot/pago-qr", async (req, res) => {
+  if (!verificarToken(req, res)) return;
+
+  let nombre: string | undefined;
+  let montoNum: number | undefined;
+
+  const { notificacion, monto } = req.body;
+
+  if (notificacion) {
+    // Parsear texto: "QR DE NOMBRE te enviò Bs. 29.00"
+    const matchNombre = String(notificacion).match(/QR\s+DE\s+(.+?)\s+te\s+envi/i);
+    const matchMonto = String(notificacion).match(/Bs\.\s*([\d.,]+)/i);
+    if (!matchNombre || !matchMonto) {
+      res.status(400).json({
+        ok: false,
+        mensaje: 'Formato de notificación no reconocido. Esperado: "QR DE NOMBRE te enviò Bs. MONTO"',
+        notificacion,
+      });
+      return;
+    }
+    nombre = matchNombre[1]!.trim();
+    montoNum = parseFloat(matchMonto[1]!.replace(",", "."));
+  } else {
+    nombre = req.body.nombre ? String(req.body.nombre).trim() : undefined;
+    montoNum = monto !== undefined ? parseFloat(String(monto)) : undefined;
+  }
+
+  if (montoNum === undefined || isNaN(montoNum)) {
+    res.status(400).json({ ok: false, mensaje: "No se pudo determinar el monto del pago" });
+    return;
+  }
+
+  console.log(`📲 [TASKER-QR] Pago recibido: ${nombre ?? "?"} → Bs. ${montoNum}`);
+
+  try {
+    const pedido = buscarPedidoPorMonto(montoNum, nombre);
+    if (!pedido) {
+      res.status(404).json({
+        ok: false,
+        mensaje: `Ningún pedido pendiente con monto Bs. ${montoNum}`,
+        nombre,
+        monto: montoNum,
+      });
+      return;
+    }
+
+    const planInfo = PLAN_ID_MAP[pedido.plan];
+    console.log(`🚀 [TASKER-QR] Creando cuenta para ${pedido.telefono} → plan ${pedido.plan}`);
+    const resultado = await crearCuentaEnCRM(
+      pedido.plan,
+      `Cliente_${pedido.telefono}`,
+      `${pedido.telefono}@zktv.bo`,
+      pedido.telefono
+    );
+
+    if (!resultado.ok || !resultado.usuario) {
+      res.status(500).json({ ok: false, mensaje: `Error creando cuenta CRM: ${resultado.mensaje}` });
+      return;
+    }
+
+    const mensajeActivacion = ACTIVACION_EXITOSA({
+      usuario: resultado.usuario,
+      contrasena: resultado.contrasena ?? "",
+      plan: resultado.plan ?? planInfo?.nombre ?? pedido.plan,
+      servidor: resultado.servidor,
+    });
+    await enviarMensaje(pedido.telefono, mensajeActivacion);
+    marcarEntregado(pedido.telefono, resultado.usuario);
+
+    console.log(`✅ [TASKER-QR] Cuenta entregada a ${pedido.telefono}: ${resultado.usuario}`);
+    res.json({
+      ok: true,
+      mensaje: "Pago confirmado, cuenta creada y credenciales enviadas",
+      telefono: pedido.telefono,
+      nombre,
+      usuario: resultado.usuario,
+      plan: pedido.plan,
+    });
+  } catch (error) {
+    console.error("Error procesando pago QR:", error);
     res.status(500).json({
       ok: false,
       mensaje: error instanceof Error ? error.message : "Error interno del servidor",
