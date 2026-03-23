@@ -330,6 +330,24 @@ async function manejarMensaje(jid: string, texto: string) {
         return;
       }
 
+      // ── Validar que el monto coincida exactamente con el plan ──────
+      if (planSeleccionado && PLAN_ID_MAP[planSeleccionado]) {
+        const planInfo = PLAN_ID_MAP[planSeleccionado];
+        if (montoIngresado !== planInfo.monto) {
+          conversaciones[jid] = {
+            ultimoComando: "MONTO_INCORRECTO",
+            planSeleccionado,
+            hora: Date.now(),
+            esperandoVerificacion: "monto",
+            nombreVerificacion: nombre,
+          };
+          await sock!.sendMessage(jid, {
+            text: `❌ *El monto no corresponde al plan seleccionado*\n\n📋 Plan elegido: ${planInfo.nombre}\n💰 Monto esperado: *Bs ${planInfo.monto}*\n💸 Monto que indicaste: Bs ${montoIngresado}\n\nEl pago debe ser exactamente *Bs ${planInfo.monto}*.\n\n¿Cometiste un error al escribir? Ingresa de nuevo el monto exacto que aparece en tu comprobante:`,
+          });
+          return;
+        }
+      }
+
       await sock!.sendMessage(jid, {
         text: `🔍 _Buscando tu pago en el sistema..._`,
       });
