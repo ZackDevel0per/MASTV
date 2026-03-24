@@ -45,7 +45,7 @@ import {
   PALABRAS_SALUDO,
 } from "./responses.js";
 import { enviarImagen } from "./media-handler.js";
-import { crearCuentaEnCRM, verificarDemoExistente, PLAN_ID_MAP } from "./crm-service.js";
+import { crearCuentaEnCRM, renovarCuentaEnCRM, verificarDemoExistente, PLAN_ID_MAP } from "./crm-service.js";
 import { registrarPedido } from "./payment-store.js";
 import { buscarYUsarPagoLocal } from "./yape-store.js";
 
@@ -68,9 +68,11 @@ interface EstadoConversacion {
   ultimoComando: string;
   planSeleccionado?: string;
   hora: number;
-  // Para el flujo de verificación de pago por Google Sheets
   esperandoVerificacion?: "nombre" | "monto";
   nombreVerificacion?: string;
+  flujo?: "nuevo" | "renovar";
+  usuarioRenovar?: string;
+  esperandoUsuarioRenovar?: boolean;
 }
 
 const conversaciones: Record<string, EstadoConversacion> = {};
@@ -234,11 +236,13 @@ export async function conectarBot() {
 async function manejarMensaje(jid: string, texto: string) {
   const textoUpper = texto.toUpperCase().trim();
 
-  // Actualizar estado de conversación
+  // Actualizar estado de conversación (preservar campos del flujo activo)
   const estadoAnterior = conversaciones[jid];
   conversaciones[jid] = {
     ultimoComando: textoUpper,
     planSeleccionado: estadoAnterior?.planSeleccionado,
+    flujo: estadoAnterior?.flujo,
+    usuarioRenovar: estadoAnterior?.usuarioRenovar,
     hora: Date.now(),
   };
 
@@ -306,6 +310,8 @@ async function manejarMensaje(jid: string, texto: string) {
       conversaciones[jid] = {
         ultimoComando: "ESPERANDO_MONTO",
         planSeleccionado: estadoAnterior.planSeleccionado,
+        flujo: estadoAnterior.flujo,
+        usuarioRenovar: estadoAnterior.usuarioRenovar,
         hora: Date.now(),
         esperandoVerificacion: "monto",
         nombreVerificacion: nombreIngresado,
@@ -330,6 +336,9 @@ async function manejarMensaje(jid: string, texto: string) {
         return;
       }
 
+      const flujo = estadoAnterior.flujo ?? "nuevo";
+      const usuarioRenovar = estadoAnterior.usuarioRenovar;
+
       // ── Validar que el monto coincida exactamente con el plan ──────
       if (planSeleccionado && PLAN_ID_MAP[planSeleccionado]) {
         const planInfo = PLAN_ID_MAP[planSeleccionado];
@@ -337,6 +346,8 @@ async function manejarMensaje(jid: string, texto: string) {
           conversaciones[jid] = {
             ultimoComando: "MONTO_INCORRECTO",
             planSeleccionado,
+            flujo,
+            usuarioRenovar,
             hora: Date.now(),
             esperandoVerificacion: "monto",
             nombreVerificacion: nombre,
@@ -359,6 +370,8 @@ async function manejarMensaje(jid: string, texto: string) {
           conversaciones[jid] = {
             ultimoComando: "VERIFICACION_FALLIDA",
             planSeleccionado,
+            flujo,
+            usuarioRenovar,
             hora: Date.now(),
           };
           await sock!.sendMessage(jid, {
@@ -367,7 +380,6 @@ async function manejarMensaje(jid: string, texto: string) {
           return;
         }
 
-        // Pago encontrado → crear cuenta
         if (!planSeleccionado || !PLAN_ID_MAP[planSeleccionado]) {
           await sock!.sendMessage(jid, {
             text: `✅ *Pago confirmado.*\n\nSin embargo, no tenemos registrado qué plan elegiste.\n\nPor favor escribe el código de tu plan (ej: *P1*, *Q2*, *R3*) o escribe *3* para que te ayudemos.`,
@@ -377,39 +389,77 @@ async function manejarMensaje(jid: string, texto: string) {
         }
 
         const planInfo = PLAN_ID_MAP[planSeleccionado];
-        await sock!.sendMessage(jid, {
-          text: `✅ *¡Pago confirmado!*\n\n📋 Plan: ${planInfo.nombre}\n💰 Monto: Bs ${montoIngresado}\n\n⏳ _Creando tu cuenta, espera unos segundos..._`,
-        });
 
-        const resultado = await crearCuentaEnCRM(
-          planSeleccionado,
-          `Cliente_${telefono}`,
-          `${telefono}@zktv.bo`,
-          telefono
-        );
-
-        if (resultado.ok && resultado.usuario) {
-          const mensajeActivacion = ACTIVACION_EXITOSA({
-            usuario: resultado.usuario,
-            contrasena: resultado.contrasena ?? "",
-            plan: resultado.plan ?? planInfo.nombre,
-            servidor: resultado.servidor,
-          });
-          await sock!.sendMessage(jid, { text: mensajeActivacion });
-          conversaciones[jid] = { ultimoComando: "CUENTA_CREADA", planSeleccionado: undefined, hora: Date.now() };
-        } else {
+        if (flujo === "renovar" && usuarioRenovar) {
+          // ── Renovar cuenta existente ──────────────────────────────
           await sock!.sendMessage(jid, {
-            text: `⚠️ *Pago confirmado pero hubo un problema al crear tu cuenta*\n\n${resultado.mensaje}\n\nEscribe *3* para que te ayudemos de inmediato.`,
+            text: `✅ *¡Pago confirmado!*\n\n📋 Plan: ${planInfo.nombre}\n💰 Monto: Bs ${montoIngresado}\n👤 Usuario: ${usuarioRenovar}\n\n⏳ _Renovando tu cuenta, espera unos segundos..._`,
           });
-          conversaciones[jid] = { ultimoComando: "ERROR_CRM", planSeleccionado, hora: Date.now() };
+
+          const resultado = await renovarCuentaEnCRM(usuarioRenovar, planSeleccionado);
+
+          if (resultado.ok) {
+            await sock!.sendMessage(jid, {
+              text: `🎉 *¡Cuenta renovada exitosamente!*\n\n👤 Usuario: *${resultado.usuario}*\n🔑 Contraseña: *${resultado.contrasena}*\n📋 Plan: ${resultado.plan}\n\n✅ Tu servicio ha sido extendido. ¡Disfruta ZKTV! 🚀`,
+            });
+            conversaciones[jid] = { ultimoComando: "CUENTA_RENOVADA", planSeleccionado: undefined, hora: Date.now() };
+          } else {
+            await sock!.sendMessage(jid, {
+              text: `⚠️ *Pago confirmado pero hubo un problema al renovar tu cuenta*\n\n${resultado.mensaje}\n\nEscribe *3* para que te ayudemos de inmediato.`,
+            });
+            conversaciones[jid] = { ultimoComando: "ERROR_CRM_RENOVAR", planSeleccionado, hora: Date.now() };
+          }
+        } else {
+          // ── Crear cuenta nueva ────────────────────────────────────
+          await sock!.sendMessage(jid, {
+            text: `✅ *¡Pago confirmado!*\n\n📋 Plan: ${planInfo.nombre}\n💰 Monto: Bs ${montoIngresado}\n\n⏳ _Creando tu cuenta, espera unos segundos..._`,
+          });
+
+          const resultado = await crearCuentaEnCRM(
+            planSeleccionado,
+            `Cliente_${telefono}`,
+            `${telefono}@zktv.bo`,
+            telefono,
+          );
+
+          if (resultado.ok && resultado.usuario) {
+            const mensajeActivacion = ACTIVACION_EXITOSA({
+              usuario: resultado.usuario,
+              contrasena: resultado.contrasena ?? "",
+              plan: resultado.plan ?? planInfo.nombre,
+              servidor: resultado.servidor,
+            });
+            await sock!.sendMessage(jid, { text: mensajeActivacion });
+            conversaciones[jid] = { ultimoComando: "CUENTA_CREADA", planSeleccionado: undefined, hora: Date.now() };
+          } else {
+            await sock!.sendMessage(jid, {
+              text: `⚠️ *Pago confirmado pero hubo un problema al crear tu cuenta*\n\n${resultado.mensaje}\n\nEscribe *3* para que te ayudemos de inmediato.`,
+            });
+            conversaciones[jid] = { ultimoComando: "ERROR_CRM", planSeleccionado, hora: Date.now() };
+          }
         }
       } catch (err) {
-        console.error("❌ Error verificando pago en Sheets:", err);
+        console.error("❌ Error en verificación de pago:", err);
         await sock!.sendMessage(jid, {
           text: `⚠️ Hubo un error al consultar tu pago. Intenta de nuevo en un momento o escribe *3* para soporte.`,
         });
-        conversaciones[jid] = { ultimoComando: "ERROR_SHEETS", planSeleccionado, hora: Date.now() };
+        conversaciones[jid] = { ultimoComando: "ERROR_VERIFICACION", planSeleccionado, hora: Date.now() };
       }
+      return;
+    }
+
+    // ─── Flujo RENOVAR paso 2: esperando USUARIO existente ─────────
+    if (estadoAnterior?.esperandoUsuarioRenovar) {
+      const usuarioIngresado = texto.trim();
+      conversaciones[jid] = {
+        ultimoComando: "USUARIO_RENOVAR_CAPTURADO",
+        flujo: "renovar",
+        usuarioRenovar: usuarioIngresado,
+        hora: Date.now(),
+      };
+      await sock!.sendMessage(jid, {
+        text: `👤 *Usuario registrado:* _${usuarioIngresado}_\n\n📋 Ahora elige el plan para renovar:\n\n*1 DISPOSITIVO:*\n• *P1* — 1 mes — Bs 29\n• *P2* — 3 meses — Bs 82\n• *P3* — 6 meses — Bs 155\n• *P4* — 12 meses — Bs 300\n\n*2 DISPOSITIVOS:*\n• *Q1* — 1 mes — Bs 35\n• *Q2* — 3 meses — Bs 100\n• *Q3* — 6 meses — Bs 190\n• *Q4* — 12 meses — Bs 380\n\n*3 DISPOSITIVOS:*\n• *R1* — 1 mes — Bs 40\n• *R2* — 3 meses — Bs 115\n• *R3* — 6 meses — Bs 225\n• *R4* — 12 meses — Bs 440\n\nEscribe el código del plan (ej: *P1*, *Q2*, *R3*)`,
+      });
       return;
     }
 
@@ -418,11 +468,27 @@ async function manejarMensaje(jid: string, texto: string) {
       conversaciones[jid] = {
         ultimoComando: "ESPERANDO_NOMBRE",
         planSeleccionado: estadoAnterior?.planSeleccionado,
+        flujo: estadoAnterior?.flujo,
+        usuarioRenovar: estadoAnterior?.usuarioRenovar,
         hora: Date.now(),
         esperandoVerificacion: "nombre",
       };
       await sock!.sendMessage(jid, {
         text: `🔐 *Verificación de pago*\n\nPara confirmar tu pago necesito dos datos que aparecen en tu comprobante de Yape:\n\n*Paso 1 de 2:*\n👤 ¿Cuál es tu *nombre completo* exactamente como aparece en el comprobante?\n\n_Escríbelo tal cual, en mayúsculas o minúsculas._`,
+      });
+      return;
+    }
+
+    // ─── RENOVAR: Iniciar flujo de renovación ──────────────────────
+    if (textoUpper === "RENOVAR") {
+      conversaciones[jid] = {
+        ultimoComando: "ESPERANDO_USUARIO_RENOVAR",
+        flujo: "renovar",
+        esperandoUsuarioRenovar: true,
+        hora: Date.now(),
+      };
+      await sock!.sendMessage(jid, {
+        text: `🔄 *Renovación de cuenta*\n\n¿Cuál es tu *usuario actual*?\n\n_Escríbelo tal como lo recibiste cuando activaste tu cuenta (ej: zk59176930026)_`,
       });
       return;
     }
@@ -461,6 +527,8 @@ async function manejarMensaje(jid: string, texto: string) {
         conversaciones[jid] = {
           ultimoComando: textoUpper,
           planSeleccionado: textoUpper,
+          flujo: estadoAnterior?.flujo,
+          usuarioRenovar: estadoAnterior?.usuarioRenovar,
           hora: Date.now(),
         };
         const telefono = jid.replace("@s.whatsapp.net", "");

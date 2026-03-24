@@ -246,15 +246,14 @@ export async function crearCuentaEnCRM(
       }
 
       // Para demos: username determinístico basado en teléfono (Dzk + número)
-      // Para planes pagados: username único con timestamp
+      // Para planes pagados: zk + número de teléfono completo
       const esDemo = planComando.toUpperCase().startsWith("DEMO");
       let username: string;
       if (esDemo) {
         username = getDemoUsername(clienteTelefono);
       } else {
-        const tel = clienteTelefono.replace(/\D/g, "").slice(-8);
-        const ts = Date.now().toString(36);
-        username = `zktv_${tel}_${ts}`.toLowerCase().slice(0, 32);
+        const tel = clienteTelefono.replace(/\D/g, "");
+        username = `zk${tel}`;
       }
 
       // 4. POST /lines/store-with-package → crea la línea (302 si OK)
@@ -422,6 +421,134 @@ export async function verificarDemoExistente(
     console.error("[CRM] Error verificando demo existente:", err);
     return false;
   }
+}
+
+/** Busca una línea por username en la lista del CRM */
+async function buscarLineaPorUsername(
+  username: string,
+  sessionCookie: string,
+): Promise<{ id: string; username: string; password: string } | null> {
+  const r = await axios.get(`${CRM_BASE_URL}/api/line/list`, {
+    headers: {
+      ...BASE_HEADERS,
+      Cookie: sessionCookie,
+      Accept: "application/json",
+      "X-Requested-With": "XMLHttpRequest",
+    },
+    validateStatus: () => true,
+    timeout: 15_000,
+  });
+  const rawData = r.data;
+  const lineas: Array<{ id: string; username: string; password: string }> =
+    Array.isArray(rawData)
+      ? rawData
+      : Array.isArray(rawData?.data)
+        ? rawData.data
+        : [];
+  return lineas.find((l) => l.username === username) ?? null;
+}
+
+/**
+ * Renueva (extiende) una línea existente en el CRM.
+ * Equivale a usar la opción "Renew / Extend" del panel.
+ */
+export async function renovarCuentaEnCRM(
+  username: string,
+  planComando: string,
+): Promise<ResultadoCRM> {
+  const planInfo = PLAN_ID_MAP[planComando.toUpperCase()];
+  if (!planInfo) {
+    return { ok: false, mensaje: `Plan no reconocido: ${planComando}` };
+  }
+
+  for (let intento = 1; intento <= 2; intento++) {
+    try {
+      console.log(
+        `🔄 [CRM] Renovando cuenta username=${username} plan=${planComando} intento=${intento}`,
+      );
+
+      const sessionCookie = await getSession();
+
+      // 1. Buscar la línea por username para obtener su ID interno
+      const linea = await buscarLineaPorUsername(username, sessionCookie);
+      if (!linea) {
+        return {
+          ok: false,
+          mensaje: `No se encontró la cuenta *${username}* en el sistema. Verifica que el usuario sea correcto.`,
+        };
+      }
+
+      // 2. GET /lines/{id}/renew-with-package → CSRF fresco
+      const r1 = await axios.get(
+        `${CRM_BASE_URL}/lines/${linea.id}/renew-with-package`,
+        {
+          headers: { ...BASE_HEADERS, Cookie: sessionCookie },
+          maxRedirects: 2,
+          validateStatus: () => true,
+          timeout: 15_000,
+        },
+      );
+
+      const csrf = csrfFromHtml(r1.data as string);
+      if (!csrf || r1.status === 302) {
+        console.warn("⚠️  [CRM] Sesión expirada al renovar, reconectando...");
+        cachedSession = null;
+        continue;
+      }
+
+      // 3. POST /lines/{id}/renew-with-package → extiende la línea
+      const bodyParams = new URLSearchParams();
+      bodyParams.append("_token", csrf);
+      bodyParams.append("package", String(planInfo.id));
+
+      const r2 = await axios.post(
+        `${CRM_BASE_URL}/lines/${linea.id}/renew-with-package`,
+        bodyParams.toString(),
+        {
+          headers: {
+            ...BASE_HEADERS,
+            "Content-Type": "application/x-www-form-urlencoded",
+            Origin: CRM_BASE_URL,
+            Referer: `${CRM_BASE_URL}/lines/${linea.id}/renew-with-package`,
+            Cookie: sessionCookie,
+          },
+          maxRedirects: 0,
+          validateStatus: () => true,
+          timeout: 20_000,
+        },
+      );
+
+      console.log(`   [CRM] renew-with-package → HTTP ${r2.status}`);
+
+      if (r2.status !== 302 && r2.status !== 200) {
+        throw new Error(`HTTP inesperado al renovar: ${r2.status}`);
+      }
+
+      console.log(`✅ [CRM] Cuenta renovada: ${username} → ${planInfo.nombre}`);
+      return {
+        ok: true,
+        usuario: username,
+        contrasena: linea.password,
+        mensaje: "Cuenta renovada exitosamente",
+        plan: planInfo.nombre,
+        servidor: "http://mtv.bo:80 (en caso de usar IPTV SMARTERS PRO)",
+      };
+    } catch (err) {
+      console.error(`[CRM] Error renovando intento ${intento}:`, err);
+      if (intento === 1) {
+        cachedSession = null;
+        await new Promise((r) => setTimeout(r, 2000));
+        continue;
+      }
+      const msg = err instanceof Error ? err.message : "Error desconocido";
+      return { ok: false, mensaje: `Error al renovar: ${msg}` };
+    }
+  }
+
+  return {
+    ok: false,
+    mensaje: "No se pudo renovar la cuenta después de 2 intentos",
+  };
 }
 
 /** Verificar que el CRM es accesible */
