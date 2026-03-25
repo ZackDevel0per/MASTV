@@ -504,27 +504,33 @@ export async function renovarCuentaEnCRM(
         timeout: 15_000,
       });
 
-      const csrf = csrfFromHtml(r1.data as string);
+      const html1 = r1.data as string;
+      const csrf = csrfFromHtml(html1);
       if (!csrf || r1.status === 302) {
         console.warn("⚠️  [CRM] Sesión expirada al renovar, reconectando...");
         cachedSession = null;
         continue;
       }
 
+      // Extraer la URL de acción y _method del formulario real de la página
+      const formAction = formActionFromHtml(html1, CRM_BASE_URL) || `${CRM_BASE_URL}/lines/${linea.id}/renew-with-package`;
+      const formMethod = formMethodFromHtml(html1);
+      console.log(`   [CRM] Form action extraído: ${formAction} method=${formMethod || "POST"}`);
+
       // Actualizar cookie con la más reciente
       const updatedCookie = cookieFromHeaders(r1.headers as Record<string, unknown>);
       const activeCookie = updatedCookie || sessionCookie;
 
-      // 3. POST /lines/{id}/renew-with-package → renueva con el paquete multi-mes correcto
-      //    Equivale al flujo de creación: GET create-with-package → POST store-with-package
-      //    Aquí: GET renew-with-package → POST renew-with-package (misma URL)
-      const renewUrl = `${CRM_BASE_URL}/lines/${linea.id}/renew-with-package`;
+      // 3. POST al action URL extraído del formulario → renueva con el paquete multi-mes correcto
       const bodyParams = new URLSearchParams();
       bodyParams.append("_token", csrf);
       bodyParams.append("package", String(planInfo.id));
+      if (formMethod) {
+        bodyParams.append("_method", formMethod);
+      }
 
       const r2 = await axios.post(
-        renewUrl,
+        formAction,
         bodyParams.toString(),
         {
           headers: {
@@ -540,7 +546,7 @@ export async function renovarCuentaEnCRM(
         },
       );
 
-      console.log(`   [CRM] POST /lines/${linea.id}/renew-with-package → HTTP ${r2.status}`);
+      console.log(`   [CRM] POST ${formAction} → HTTP ${r2.status}`);
 
       if (r2.status !== 302 && r2.status !== 200) {
         const bodySnippet = typeof r2.data === "string" ? r2.data.substring(0, 200) : JSON.stringify(r2.data).substring(0, 200);
