@@ -511,22 +511,40 @@ export async function renovarCuentaEnCRM(
         continue;
       }
 
+      // Debug: extraer secciones JS relevantes para encontrar el endpoint AJAX real
+      const html = r1.data as string;
+      // Extraer contenido de todos los <script> inline
+      const scripts = [...html.matchAll(/<script\b[^>]*>([\s\S]*?)<\/script>/gi)].map(m => m[1]);
+      for (const script of scripts) {
+        if (/renew|package|ajax|fetch|\.post|url\s*:/i.test(script)) {
+          // Mostrar líneas del script que contengan URLs o palabras clave de renovación
+          const relevantLines = script.split("\n")
+            .filter(l => /renew|package|ajax|fetch|url\s*:|\.post\s*\(|route\s*\(/i.test(l))
+            .map(l => l.trim())
+            .filter(l => l.length > 0 && l.length < 300);
+          if (relevantLines.length > 0) {
+            console.log(`   [CRM DEBUG] JS relevante en renew-with-package:\n  ` + relevantLines.slice(0, 20).join("\n  "));
+          }
+        }
+      }
+
       // Actualizar cookie con la más reciente
       const updatedCookie = cookieFromHeaders(r1.headers as Record<string, unknown>);
       const activeCookie = updatedCookie || sessionCookie;
 
-      // 3. POST /lines/{id}/renew → endpoint AJAX del CRM con el paquete multi-mes correcto.
-      //    Solo se envían _token y package. NO se incluyen bouquet_ids[] porque el
-      //    endpoint de renovación los interpreta como paquetes adicionales (distinto
-      //    al de creación donde sí se necesitan para asignar canales).
-      const renewUrl = `${CRM_BASE_URL}/lines/${linea.id}/renew`;
-      const bodyParams = new URLSearchParams();
-      bodyParams.append("_token", csrf);
-      bodyParams.append("package", String(planInfo.id));
+      // 3. Intentar con _method=PUT (Laravel method spoofing) al endpoint renew-with-package.
+      //    El GET funciona pero POST directo da 405; la ruta puede ser PUT en el router de Laravel.
+      //    Si eso falla, caer al endpoint /renew con el paquete correcto.
+      const renewWithPackageUrl = `${CRM_BASE_URL}/lines/${linea.id}/renew-with-package`;
 
-      const r2 = await axios.post(
-        renewUrl,
-        bodyParams.toString(),
+      const bodyPut = new URLSearchParams();
+      bodyPut.append("_token", csrf);
+      bodyPut.append("_method", "PUT");
+      bodyPut.append("package", String(planInfo.id));
+
+      const rPut = await axios.post(
+        renewWithPackageUrl,
+        bodyPut.toString(),
         {
           headers: {
             ...BASE_HEADERS,
@@ -544,7 +562,38 @@ export async function renovarCuentaEnCRM(
         },
       );
 
-      console.log(`   [CRM] POST /lines/${linea.id}/renew → HTTP ${r2.status}`);
+      console.log(`   [CRM] PUT(spoofed) /lines/${linea.id}/renew-with-package → HTTP ${rPut.status}`);
+
+      // Si el PUT funciona (200 o 302), usarlo
+      // Si sigue dando 405, caer al /renew clásico
+      let r2 = rPut;
+      if (rPut.status === 405) {
+        console.log(`   [CRM] PUT no soportado, probando /renew clásico...`);
+        const renewUrl = `${CRM_BASE_URL}/lines/${linea.id}/renew`;
+        const bodyRenew = new URLSearchParams();
+        bodyRenew.append("_token", csrf);
+        bodyRenew.append("package", String(planInfo.id));
+        r2 = await axios.post(
+          renewUrl,
+          bodyRenew.toString(),
+          {
+            headers: {
+              ...BASE_HEADERS,
+              "Content-Type": "application/x-www-form-urlencoded",
+              "X-CSRF-TOKEN": csrf,
+              "X-Requested-With": "XMLHttpRequest",
+              Accept: "application/json, text/javascript, */*",
+              Origin: CRM_BASE_URL,
+              Referer: renewWithPackagePage,
+              Cookie: activeCookie,
+            },
+            maxRedirects: 0,
+            validateStatus: () => true,
+            timeout: 20_000,
+          },
+        );
+        console.log(`   [CRM] POST /lines/${linea.id}/renew → HTTP ${r2.status}`);
+      }
 
       if (r2.status !== 302 && r2.status !== 200) {
         const bodySnippet = typeof r2.data === "string" ? r2.data.substring(0, 200) : JSON.stringify(r2.data).substring(0, 200);
