@@ -3,9 +3,12 @@ import cors from "cors";
 import path from "path";
 import { fileURLToPath } from "url";
 import router from "./routes/index.js";
-import { conectarBot } from "./bot/whatsapp.js";
+import { conectarBot, enviarMensaje } from "./bot/whatsapp.js";
 import { inicializarHojas } from "./bot/sheets.js";
-import { iniciarGmailPolling } from "./bot/gmail-service.js";
+import { iniciarGmailPolling, setCallbackPagoDetectado } from "./bot/gmail-service.js";
+
+// Número de WhatsApp del administrador (recibe notificaciones de pagos)
+const ADMIN_WA = process.env["ADMIN_WHATSAPP"] || "59169741630";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -35,6 +38,19 @@ async function iniciarBot() {
   } catch (err) {
     console.error("❌ Error al iniciar el bot:", err);
   }
+
+  // Notificar al admin por WhatsApp cuando se detecte un pago via Gmail
+  setCallbackPagoDetectado((nombre, monto) => {
+    const jid = `${ADMIN_WA.replace(/\D/g, "")}@s.whatsapp.net`;
+    const msg =
+      `💰 *Nuevo pago detectado*\n\n` +
+      `👤 Nombre: *${nombre}*\n` +
+      `💵 Monto: *Bs ${monto}*\n\n` +
+      `_El cliente debe escribir *VERIFICAR* para activar su cuenta._`;
+    enviarMensaje(jid, msg).catch((err) =>
+      console.error("[APP] Error enviando notificación de pago al admin:", err)
+    );
+  });
 
   // Iniciar polling de Gmail (solo arranca si las credenciales están configuradas)
   iniciarGmailPolling();

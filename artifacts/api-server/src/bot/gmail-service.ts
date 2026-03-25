@@ -33,6 +33,15 @@ const INTERVALO_MS = 90_000; // 90 segundos entre cada revisión
 
 let intervalId: ReturnType<typeof setInterval> | null = null;
 let activo = false;
+
+// Callback opcional que se llama cuando se detecta un pago nuevo
+let callbackPagoDetectado: ((nombre: string, monto: number) => void) | null = null;
+
+/** Registra un callback que se ejecuta cada vez que se detecta un pago via Gmail */
+export function setCallbackPagoDetectado(fn: (nombre: string, monto: number) => void) {
+  callbackPagoDetectado = fn;
+}
+
 let ultimaRevision: Date | null = null;
 let totalProcesados = 0;
 let errorActual: string | null = null;
@@ -214,6 +223,13 @@ async function procesarCorreosNuevos() {
         console.log(`✅ [GMAIL] Pago detectado: ${datos.nombre} → Bs ${datos.monto}`);
         registrarPagoYapeLocal(datos.nombre, datos.monto);
         totalProcesados++;
+        if (callbackPagoDetectado) {
+          try {
+            callbackPagoDetectado(datos.nombre, datos.monto);
+          } catch (cbErr) {
+            console.error("[GMAIL] Error en callback de pago:", cbErr);
+          }
+        }
       } else {
         console.warn(`⚠️  [GMAIL] No se pudo extraer nombre/monto del correo ID ${id}`);
         console.warn(`📄 [GMAIL] Texto del correo: ${texto.substring(0, 300)}`);

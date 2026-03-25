@@ -493,9 +493,9 @@ export async function renovarCuentaEnCRM(
         };
       }
 
-      // 2. GET /lines/{id}/renew-with-package → CSRF fresco del formulario real
-      //    Este endpoint muestra el formulario de renovación con paquetes multi-mes,
-      //    igual que /lines/create-with-package para la creación de cuentas.
+      // 2. GET /lines/{id}/renew-with-package → CSRF fresco del formulario multi-mes
+      //    Esta página muestra el selector de paquetes igual que create-with-package.
+      //    El POST real va a /lines/{id}/renew vía AJAX (igual que el botón del panel).
       const renewWithPackagePage = `${CRM_BASE_URL}/lines/${linea.id}/renew-with-package`;
       const r1 = await axios.get(renewWithPackagePage, {
         headers: { ...BASE_HEADERS, Cookie: sessionCookie },
@@ -504,38 +504,38 @@ export async function renovarCuentaEnCRM(
         timeout: 15_000,
       });
 
-      const html1 = r1.data as string;
-      const csrf = csrfFromHtml(html1);
+      const csrf = csrfFromHtml(r1.data as string);
       if (!csrf || r1.status === 302) {
         console.warn("⚠️  [CRM] Sesión expirada al renovar, reconectando...");
         cachedSession = null;
         continue;
       }
 
-      // Extraer la URL de acción y _method del formulario real de la página
-      const formAction = formActionFromHtml(html1, CRM_BASE_URL) || `${CRM_BASE_URL}/lines/${linea.id}/renew-with-package`;
-      const formMethod = formMethodFromHtml(html1);
-      console.log(`   [CRM] Form action extraído: ${formAction} method=${formMethod || "POST"}`);
-
       // Actualizar cookie con la más reciente
       const updatedCookie = cookieFromHeaders(r1.headers as Record<string, unknown>);
       const activeCookie = updatedCookie || sessionCookie;
 
-      // 3. POST al action URL extraído del formulario → renueva con el paquete multi-mes correcto
+      // 3. POST /lines/{id}/renew → endpoint AJAX del CRM con el paquete multi-mes correcto.
+      //    Se incluyen bouquet_ids[] igual que en la creación para que el CRM asigne
+      //    todos los canales al renovar. Sin bouquets el paquete se aplica en blanco.
+      const renewUrl = `${CRM_BASE_URL}/lines/${linea.id}/renew`;
       const bodyParams = new URLSearchParams();
       bodyParams.append("_token", csrf);
       bodyParams.append("package", String(planInfo.id));
-      if (formMethod) {
-        bodyParams.append("_method", formMethod);
+      for (const bid of TODOS_LOS_BOUQUETS) {
+        bodyParams.append("bouquet_ids[]", bid);
       }
 
       const r2 = await axios.post(
-        formAction,
+        renewUrl,
         bodyParams.toString(),
         {
           headers: {
             ...BASE_HEADERS,
             "Content-Type": "application/x-www-form-urlencoded",
+            "X-CSRF-TOKEN": csrf,
+            "X-Requested-With": "XMLHttpRequest",
+            Accept: "application/json, text/javascript, */*",
             Origin: CRM_BASE_URL,
             Referer: renewWithPackagePage,
             Cookie: activeCookie,
@@ -546,7 +546,7 @@ export async function renovarCuentaEnCRM(
         },
       );
 
-      console.log(`   [CRM] POST ${formAction} → HTTP ${r2.status}`);
+      console.log(`   [CRM] POST /lines/${linea.id}/renew → HTTP ${r2.status}`);
 
       if (r2.status !== 302 && r2.status !== 200) {
         const bodySnippet = typeof r2.data === "string" ? r2.data.substring(0, 200) : JSON.stringify(r2.data).substring(0, 200);
