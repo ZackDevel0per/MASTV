@@ -511,20 +511,12 @@ export async function renovarCuentaEnCRM(
         continue;
       }
 
-      // Debug: extraer secciones JS relevantes para encontrar el endpoint AJAX real
+      // Debug: volcar TODO el contenido de scripts inline que contengan "renew" o "route"
       const html = r1.data as string;
-      // Extraer contenido de todos los <script> inline
       const scripts = [...html.matchAll(/<script\b[^>]*>([\s\S]*?)<\/script>/gi)].map(m => m[1]);
       for (const script of scripts) {
-        if (/renew|package|ajax|fetch|\.post|url\s*:/i.test(script)) {
-          // Mostrar líneas del script que contengan URLs o palabras clave de renovación
-          const relevantLines = script.split("\n")
-            .filter(l => /renew|package|ajax|fetch|url\s*:|\.post\s*\(|route\s*\(/i.test(l))
-            .map(l => l.trim())
-            .filter(l => l.length > 0 && l.length < 300);
-          if (relevantLines.length > 0) {
-            console.log(`   [CRM DEBUG] JS relevante en renew-with-package:\n  ` + relevantLines.slice(0, 20).join("\n  "));
-          }
+        if (/renew|route\s*=|chooseBouquet/i.test(script)) {
+          console.log(`   [CRM DEBUG] Script completo (renew):\n---\n${script.substring(0, 3000)}\n---`);
         }
       }
 
