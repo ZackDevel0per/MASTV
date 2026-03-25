@@ -34,7 +34,7 @@ router.get("/gmail/autorizar", (req: Request, res: Response) => {
   try {
     const replitDomain = process.env["REPLIT_DEV_DOMAIN"] ?? process.env["REPLIT_DOMAINS"];
     const redirectUri = replitDomain
-      ? `https://${replitDomain}:8080/api/gmail/callback`
+      ? `https://${replitDomain}/api/gmail/callback`
       : `${req.headers["x-forwarded-proto"] ?? "https"}://${req.headers["x-forwarded-host"] ?? req.headers["host"]}/api/gmail/callback`;
 
     const url = generarUrlAutorizacion(redirectUri);
@@ -90,7 +90,7 @@ router.get("/gmail/callback", async (req: Request, res: Response) => {
   try {
     const replitDomain = process.env["REPLIT_DEV_DOMAIN"] ?? process.env["REPLIT_DOMAINS"];
     const redirectUri = replitDomain
-      ? `https://${replitDomain}:8080/api/gmail/callback`
+      ? `https://${replitDomain}/api/gmail/callback`
       : `${req.headers["x-forwarded-proto"] ?? "https"}://${req.headers["x-forwarded-host"] ?? req.headers["host"]}/api/gmail/callback`;
 
     const refreshToken = await intercambiarCodigo(code, redirectUri);
