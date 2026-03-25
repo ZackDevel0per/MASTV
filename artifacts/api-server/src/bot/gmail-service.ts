@@ -85,32 +85,57 @@ interface DatosPago {
 
 /**
  * Intenta extraer nombre y monto del texto del correo.
+ *
  * Soporta múltiples formatos:
- *   "Nombre: JUAN PEREZ" + "Monto: 29.00"
- *   "nombre: juan perez" + "monto: Bs 29"
- *   "JUAN PEREZ te enviò Bs. 29.00" (formato Yape)
+ *
+ * Formato 1 — Banco BCB / Multiplica Extranet (formato principal):
+ *   Originante:  FABIAN YUCRA ADUVIRI
+ *   Monto Recibido:  Bs 1.00
+ *
+ * Formato 2 — Correo de prueba (texto plano):
+ *   Nombre: JUAN PEREZ
+ *   Monto: 29.00
+ *
+ * Formato 3 — Notificación Yape:
+ *   "QR DE NOMBRE te enviò Bs. 29.00"
  */
 function parsearCorreo(texto: string): DatosPago | null {
-  // ── Patrón 1: Nombre: XXX / Monto: YYY (formato de prueba) ────────────
-  const matchNombre = texto.match(/nombre\s*:\s*([^\n|,\-]+)/i);
+  // ── Patrón 1: Formato banco BCB/Multiplica ─────────────────────────────
+  // Extrae "Originante: NOMBRE" y "Monto Recibido: Bs MONTO"
+  const matchOriginante = texto.match(/Originante\s*[:\s]+([A-ZÁÉÍÓÚÑ\s]{3,60}?)(?:\s{2,}|\n|$)/i);
+  const matchMontoRecibido = texto.match(/Monto\s+Recibido\s*[:\s]+Bs\s*([\d.,]+)/i);
+
+  if (matchOriginante && matchMontoRecibido) {
+    const nombre = matchOriginante[1]!.trim().toUpperCase();
+    const monto = parseFloat(matchMontoRecibido[1]!.replace(",", "."));
+    if (nombre && !isNaN(monto) && monto > 0) {
+      console.log(`🏦 [GMAIL] Formato banco detectado: ${nombre} → Bs ${monto}`);
+      return { nombre, monto };
+    }
+  }
+
+  // ── Patrón 2: Nombre: XXX / Monto: YYY (correo de prueba) ────────────
+  const matchNombre = texto.match(/nombre\s*:\s*([^\n|,]+)/i);
   const matchMonto = texto.match(/monto\s*:\s*(?:bs\.?\s*)?([\d.,]+)/i);
 
   if (matchNombre && matchMonto) {
     const nombre = matchNombre[1]!.trim().toUpperCase();
     const monto = parseFloat(matchMonto[1]!.replace(",", "."));
     if (nombre && !isNaN(monto) && monto > 0) {
+      console.log(`📝 [GMAIL] Formato prueba detectado: ${nombre} → Bs ${monto}`);
       return { nombre, monto };
     }
   }
 
-  // ── Patrón 2: "QR DE NOMBRE te enviò Bs. MONTO" (notificación Yape) ───
-  const matchYape = texto.match(/(?:QR\s+DE\s+|de\s+)([A-ZÁÉÍÓÚÑ\s]+?)\s+te\s+envi[oò]/i);
+  // ── Patrón 3: "QR DE NOMBRE te enviò Bs. MONTO" (notificación Yape) ───
+  const matchYape = texto.match(/(?:QR\s+DE\s+)([A-ZÁÉÍÓÚÑ\s]+?)\s+te\s+envi[oò]/i);
   const matchMontoYape = texto.match(/Bs\.?\s*([\d.,]+)/i);
 
   if (matchYape && matchMontoYape) {
     const nombre = matchYape[1]!.trim().toUpperCase();
     const monto = parseFloat(matchMontoYape[1]!.replace(",", "."));
     if (nombre && !isNaN(monto) && monto > 0) {
+      console.log(`📱 [GMAIL] Formato Yape detectado: ${nombre} → Bs ${monto}`);
       return { nombre, monto };
     }
   }
