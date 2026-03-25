@@ -87,9 +87,9 @@ const COMANDOS_DUENO: Record<string, (jid: string) => Promise<string>> = {
   "/silenciados": async (_jid) => {
     if (chatsSilenciados.size === 0) return "📋 No hay chats silenciados.";
     const lista = [...chatsSilenciados]
-      .map((j) => `• ${j.replace("@s.whatsapp.net", "")}`)
+      .map((j, i) => `${i + 1}. ${j.replace("@s.whatsapp.net", "").replace("@g.us", "")}`)
       .join("\n");
-    return `📋 *Chats silenciados (${chatsSilenciados.size}):*\n${lista}`;
+    return `📋 *Chats silenciados (${chatsSilenciados.size}):*\n\n${lista}`;
   },
 };
 
