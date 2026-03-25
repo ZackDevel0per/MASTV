@@ -32,9 +32,35 @@ async function enviarVideo(jid: string, contenido: string, caption?: string) {
       await sock!.sendMessage(jid, { video: buffer, caption });
     } else {
       console.error(`❌ Video local no encontrado: ${contenido}`);
-      await sock!.sendMessage(jid, { text: `⚠️ Video no disponible temporalmente. Escribe *3* para soporte.` });
+      await enviarConDelay(jid, `⚠️ Video no disponible temporalmente. Escribe *3* para soporte.`);
     }
   }
+}
+
+/**
+ * Simula escritura humana antes de enviar un mensaje de texto.
+ * 1. Pequeña pausa de "reacción" (300-1200ms)
+ * 2. Muestra el indicador "escribiendo..." en WhatsApp
+ * 3. Espera un tiempo proporcional a la longitud del texto (entre 2s y 5s, con ruido aleatorio)
+ * 4. Detiene el indicador y envía el mensaje
+ *
+ * Esto reduce significativamente el riesgo de ban por comportamiento automatizado.
+ */
+async function enviarConDelay(jid: string, texto: string): Promise<void> {
+  // Pausa de "reacción" antes de empezar a escribir
+  await new Promise(r => setTimeout(r, 300 + Math.random() * 900));
+
+  // Mostrar indicador "escribiendo..."
+  await sock!.sendPresenceUpdate("composing", jid).catch(() => {});
+
+  // Duración del typing: ~30ms por carácter, mínimo 2s, máximo 5s, con ±300ms de ruido
+  const base = Math.min(Math.max(texto.length * 30, 2000), 5000);
+  const duracion = base + (Math.random() * 600 - 300);
+  await new Promise(r => setTimeout(r, duracion));
+
+  // Detener indicador y enviar
+  await sock!.sendPresenceUpdate("paused", jid).catch(() => {});
+  await sock!.sendMessage(jid, { text: texto });
 }
 import {
   SALUDO_INICIAL,
@@ -314,15 +340,11 @@ async function manejarMensaje(jid: string, texto: string) {
       // Verificar si ya existe una cuenta demo para este número
       const yaExisteDemo = await verificarDemoExistente(telefono);
       if (yaExisteDemo) {
-        await sock!.sendMessage(jid, {
-          text: `⚠️ *No es posible crear la cuenta*\n\nEste número ya generó una cuenta gratuita previamente.\n\nSi deseas disfrutar del servicio completo, escribe *1* para ver nuestros planes. 🚀`,
-        });
+        await enviarConDelay(jid, `⚠️ *No es posible crear la cuenta*\n\nEste número ya generó una cuenta gratuita previamente.\n\nSi deseas disfrutar del servicio completo, escribe *1* para ver nuestros planes. 🚀`);
         return;
       }
 
-      await sock!.sendMessage(jid, {
-        text: `⏳ *Creando tu cuenta de prueba...*\n\n🎁 ${planInfo.nombre}\n\n_Esto toma unos segundos, por favor espera..._`,
-      });
+      await enviarConDelay(jid, `⏳ *Creando tu cuenta de prueba...*\n\n🎁 ${planInfo.nombre}\n\n_Esto toma unos segundos, por favor espera..._`);
       const resultado = await crearCuentaEnCRM(
         planClave,
         `Demo_${telefono}`,
@@ -337,28 +359,22 @@ async function manejarMensaje(jid: string, texto: string) {
           plan: `🎁 ${resultado.plan ?? planInfo.nombre} (DEMO GRATUITO)`,
           servidor: resultado.servidor,
         });
-        await sock!.sendMessage(jid, { text: mensajeActivacion });
-        await sock!.sendMessage(jid, {
-          text: `💡 *¿Te gustó la prueba?*\n\nEscribe *1* para ver nuestros planes completos y contratar un servicio permanente. 🚀`,
-        });
+        await enviarConDelay(jid, mensajeActivacion);
+        await enviarConDelay(jid, `💡 *¿Te gustó la prueba?*\n\nEscribe *1* para ver nuestros planes completos y contratar un servicio permanente. 🚀`);
         conversaciones[jid] = {
           ultimoComando: "DEMO_CREADA",
           planSeleccionado: undefined,
           hora: Date.now(),
         };
       } else {
-        await sock!.sendMessage(jid, {
-          text: `⚠️ *No pudimos crear tu demo en este momento*\n\n${resultado.mensaje}\n\nEscribe *3* para contactar soporte.`,
-        });
+        await enviarConDelay(jid, `⚠️ *No pudimos crear tu demo en este momento*\n\n${resultado.mensaje}\n\nEscribe *3* para contactar soporte.`);
       }
       return;
     }
 
     // ─── CONFIRMAR: redirigir al flujo correcto ────────────────────
     if (textoUpper === "CONFIRMAR") {
-      await sock!.sendMessage(jid, {
-        text: `ℹ️ Para verificar tu pago, escribe *VERIFICAR*.\n\nSi aún no has realizado el pago, elige tu plan escribiendo *1* y sigue las instrucciones.`,
-      });
+      await enviarConDelay(jid, `ℹ️ Para verificar tu pago, escribe *VERIFICAR*.\n\nSi aún no has realizado el pago, elige tu plan escribiendo *1* y sigue las instrucciones.`);
       return;
     }
 
@@ -374,9 +390,7 @@ async function manejarMensaje(jid: string, texto: string) {
         esperandoVerificacion: "monto",
         nombreVerificacion: nombreIngresado,
       };
-      await sock!.sendMessage(jid, {
-        text: `✍️ *Nombre registrado:* _${nombreIngresado}_\n\n💰 Ahora dime el *monto exacto* que pagaste.\n\nEscríbelo solo como número, por ejemplo: *29.00* o *29*`,
-      });
+      await enviarConDelay(jid, `✍️ *Nombre registrado:* _${nombreIngresado}_\n\n💰 Ahora dime el *monto exacto* que pagaste.\n\nEscríbelo solo como número, por ejemplo: *29.00* o *29*`);
       return;
     }
 
@@ -388,9 +402,7 @@ async function manejarMensaje(jid: string, texto: string) {
       const telefono = jid.replace("@s.whatsapp.net", "");
 
       if (isNaN(montoIngresado)) {
-        await sock!.sendMessage(jid, {
-          text: `⚠️ No entendí ese monto. Escríbelo solo como número, por ejemplo: *29.00* o *82*`,
-        });
+        await enviarConDelay(jid, `⚠️ No entendí ese monto. Escríbelo solo como número, por ejemplo: *29.00* o *82*`);
         return;
       }
 
@@ -410,16 +422,12 @@ async function manejarMensaje(jid: string, texto: string) {
             esperandoVerificacion: "monto",
             nombreVerificacion: nombre,
           };
-          await sock!.sendMessage(jid, {
-            text: `❌ *El monto no corresponde al plan seleccionado*\n\n📋 Plan elegido: ${planInfo.nombre}\n💰 Monto esperado: *Bs ${planInfo.monto}*\n💸 Monto que indicaste: Bs ${montoIngresado}\n\nEl pago debe ser exactamente *Bs ${planInfo.monto}*.\n\n¿Cometiste un error al escribir? Ingresa de nuevo el monto exacto que aparece en tu comprobante:`,
-          });
+          await enviarConDelay(jid, `❌ *El monto no corresponde al plan seleccionado*\n\n📋 Plan elegido: ${planInfo.nombre}\n💰 Monto esperado: *Bs ${planInfo.monto}*\n💸 Monto que indicaste: Bs ${montoIngresado}\n\nEl pago debe ser exactamente *Bs ${planInfo.monto}*.\n\n¿Cometiste un error al escribir? Ingresa de nuevo el monto exacto que aparece en tu comprobante:`);
           return;
         }
       }
 
-      await sock!.sendMessage(jid, {
-        text: `🔍 _Buscando tu pago en el sistema..._`,
-      });
+      await enviarConDelay(jid, `🔍 _Buscando tu pago en el sistema..._`);
 
       try {
         const pagoEncontrado = buscarYUsarPagoLocal(nombre, montoIngresado);
@@ -432,16 +440,12 @@ async function manejarMensaje(jid: string, texto: string) {
             usuarioRenovar,
             hora: Date.now(),
           };
-          await sock!.sendMessage(jid, {
-            text: `❌ *No encontramos tu pago*\n\nBuscamos:\n👤 Nombre: _${nombre}_\n💰 Monto: _Bs ${montoIngresado}_\n\nVerifica que:\n• El nombre sea *exactamente* como aparece en tu comprobante Yape\n• El monto sea exacto, sin redondeos\n\nEscribe *VERIFICAR* para intentarlo de nuevo o *3* para soporte.`,
-          });
+          await enviarConDelay(jid, `❌ *No encontramos tu pago*\n\nBuscamos:\n👤 Nombre: _${nombre}_\n💰 Monto: _Bs ${montoIngresado}_\n\nVerifica que:\n• El nombre sea *exactamente* como aparece en tu comprobante Yape\n• El monto sea exacto, sin redondeos\n\nEscribe *VERIFICAR* para intentarlo de nuevo o *3* para soporte.`);
           return;
         }
 
         if (!planSeleccionado || !PLAN_ID_MAP[planSeleccionado]) {
-          await sock!.sendMessage(jid, {
-            text: `✅ *Pago confirmado.*\n\nSin embargo, no tenemos registrado qué plan elegiste.\n\nPor favor escribe el código de tu plan (ej: *P1*, *Q2*, *R3*) o escribe *3* para que te ayudemos.`,
-          });
+          await enviarConDelay(jid, `✅ *Pago confirmado.*\n\nSin embargo, no tenemos registrado qué plan elegiste.\n\nPor favor escribe el código de tu plan (ej: *P1*, *Q2*, *R3*) o escribe *3* para que te ayudemos.`);
           conversaciones[jid] = { ultimoComando: "PAGO_CONFIRMADO_SIN_PLAN", planSeleccionado: undefined, hora: Date.now() };
           return;
         }
@@ -450,28 +454,20 @@ async function manejarMensaje(jid: string, texto: string) {
 
         if (flujo === "renovar" && usuarioRenovar) {
           // ── Renovar cuenta existente ──────────────────────────────
-          await sock!.sendMessage(jid, {
-            text: `✅ *¡Pago confirmado!*\n\n📋 Plan: ${planInfo.nombre}\n💰 Monto: Bs ${montoIngresado}\n👤 Usuario: ${usuarioRenovar}\n\n⏳ _Renovando tu cuenta, espera unos segundos..._`,
-          });
+          await enviarConDelay(jid, `✅ *¡Pago confirmado!*\n\n📋 Plan: ${planInfo.nombre}\n💰 Monto: Bs ${montoIngresado}\n👤 Usuario: ${usuarioRenovar}\n\n⏳ _Renovando tu cuenta, espera unos segundos..._`);
 
           const resultado = await renovarCuentaEnCRM(usuarioRenovar, planSeleccionado);
 
           if (resultado.ok) {
-            await sock!.sendMessage(jid, {
-              text: `🎉 *¡Cuenta renovada exitosamente!*\n\n🔐 *Credenciales de acceso:*\n📛 Nombre: \`mastv\`\n👤 Usuario: \`${resultado.usuario}\`\n🔑 Contraseña: \`${resultado.contrasena}\`\n🌐 URL: \`${resultado.servidor || "http://mtv.bo:80"}\`\n\n📺 *Plan renovado:* ${resultado.plan}\n\n✅ Tu servicio ha sido extendido. ¡Disfruta ZKTV! 🚀`,
-            });
+            await enviarConDelay(jid, `🎉 *¡Cuenta renovada exitosamente!*\n\n🔐 *Credenciales de acceso:*\n📛 Nombre: \`mastv\`\n👤 Usuario: \`${resultado.usuario}\`\n🔑 Contraseña: \`${resultado.contrasena}\`\n🌐 URL: \`${resultado.servidor || "http://mtv.bo:80"}\`\n\n📺 *Plan renovado:* ${resultado.plan}\n\n✅ Tu servicio ha sido extendido. ¡Disfruta ZKTV! 🚀`);
             conversaciones[jid] = { ultimoComando: "CUENTA_RENOVADA", planSeleccionado: undefined, hora: Date.now() };
           } else {
-            await sock!.sendMessage(jid, {
-              text: `⚠️ *Pago confirmado pero hubo un problema al renovar tu cuenta*\n\n${resultado.mensaje}\n\nEscribe *3* para que te ayudemos de inmediato.`,
-            });
+            await enviarConDelay(jid, `⚠️ *Pago confirmado pero hubo un problema al renovar tu cuenta*\n\n${resultado.mensaje}\n\nEscribe *3* para que te ayudemos de inmediato.`);
             conversaciones[jid] = { ultimoComando: "ERROR_CRM_RENOVAR", planSeleccionado, hora: Date.now() };
           }
         } else {
           // ── Crear cuenta nueva ────────────────────────────────────
-          await sock!.sendMessage(jid, {
-            text: `✅ *¡Pago confirmado!*\n\n📋 Plan: ${planInfo.nombre}\n💰 Monto: Bs ${montoIngresado}\n\n⏳ _Creando tu cuenta, espera unos segundos..._`,
-          });
+          await enviarConDelay(jid, `✅ *¡Pago confirmado!*\n\n📋 Plan: ${planInfo.nombre}\n💰 Monto: Bs ${montoIngresado}\n\n⏳ _Creando tu cuenta, espera unos segundos..._`);
 
           const resultado = await crearCuentaEnCRM(
             planSeleccionado,
@@ -487,20 +483,16 @@ async function manejarMensaje(jid: string, texto: string) {
               plan: resultado.plan ?? planInfo.nombre,
               servidor: resultado.servidor,
             });
-            await sock!.sendMessage(jid, { text: mensajeActivacion });
+            await enviarConDelay(jid, mensajeActivacion);
             conversaciones[jid] = { ultimoComando: "CUENTA_CREADA", planSeleccionado: undefined, hora: Date.now() };
           } else {
-            await sock!.sendMessage(jid, {
-              text: `⚠️ *Pago confirmado pero hubo un problema al crear tu cuenta*\n\n${resultado.mensaje}\n\nEscribe *3* para que te ayudemos de inmediato.`,
-            });
+            await enviarConDelay(jid, `⚠️ *Pago confirmado pero hubo un problema al crear tu cuenta*\n\n${resultado.mensaje}\n\nEscribe *3* para que te ayudemos de inmediato.`);
             conversaciones[jid] = { ultimoComando: "ERROR_CRM", planSeleccionado, hora: Date.now() };
           }
         }
       } catch (err) {
         console.error("❌ Error en verificación de pago:", err);
-        await sock!.sendMessage(jid, {
-          text: `⚠️ Hubo un error al consultar tu pago. Intenta de nuevo en un momento o escribe *3* para soporte.`,
-        });
+        await enviarConDelay(jid, `⚠️ Hubo un error al consultar tu pago. Intenta de nuevo en un momento o escribe *3* para soporte.`);
         conversaciones[jid] = { ultimoComando: "ERROR_VERIFICACION", planSeleccionado, hora: Date.now() };
       }
       return;
@@ -515,9 +507,7 @@ async function manejarMensaje(jid: string, texto: string) {
         usuarioRenovar: usuarioIngresado,
         hora: Date.now(),
       };
-      await sock!.sendMessage(jid, {
-        text: `👤 *Usuario registrado:* _${usuarioIngresado}_\n\n📋 Ahora elige el plan para renovar:\n\n*1 DISPOSITIVO:*\n• *P1* — 1 mes — Bs 29\n• *P2* — 3 meses — Bs 82\n• *P3* — 6 meses — Bs 155\n• *P4* — 12 meses — Bs 300\n\n*2 DISPOSITIVOS:*\n• *Q1* — 1 mes — Bs 35\n• *Q2* — 3 meses — Bs 100\n• *Q3* — 6 meses — Bs 190\n• *Q4* — 12 meses — Bs 380\n\n*3 DISPOSITIVOS:*\n• *R1* — 1 mes — Bs 40\n• *R2* — 3 meses — Bs 115\n• *R3* — 6 meses — Bs 225\n• *R4* — 12 meses — Bs 440\n\nEscribe el código del plan (ej: *P1*, *Q2*, *R3*)`,
-      });
+      await enviarConDelay(jid, `👤 *Usuario registrado:* _${usuarioIngresado}_\n\n📋 Ahora elige el plan para renovar:\n\n*1 DISPOSITIVO:*\n• *P1* — 1 mes — Bs 29\n• *P2* — 3 meses — Bs 82\n• *P3* — 6 meses — Bs 155\n• *P4* — 12 meses — Bs 300\n\n*2 DISPOSITIVOS:*\n• *Q1* — 1 mes — Bs 35\n• *Q2* — 3 meses — Bs 100\n• *Q3* — 6 meses — Bs 190\n• *Q4* — 12 meses — Bs 380\n\n*3 DISPOSITIVOS:*\n• *R1* — 1 mes — Bs 40\n• *R2* — 3 meses — Bs 115\n• *R3* — 6 meses — Bs 225\n• *R4* — 12 meses — Bs 440\n\nEscribe el código del plan (ej: *P1*, *Q2*, *R3*)`);
       return;
     }
 
@@ -531,9 +521,7 @@ async function manejarMensaje(jid: string, texto: string) {
         hora: Date.now(),
         esperandoVerificacion: "nombre",
       };
-      await sock!.sendMessage(jid, {
-        text: `🔐 *Verificación de pago*\n\nPara confirmar tu pago necesito dos datos que aparecen en tu comprobante de Yape:\n\n*Paso 1 de 2:*\n👤 ¿Cuál es tu *nombre completo* exactamente como aparece en el comprobante?\n\n_Escríbelo tal cual, en mayúsculas o minúsculas._`,
-      });
+      await enviarConDelay(jid, `🔐 *Verificación de pago*\n\nPara confirmar tu pago necesito dos datos que aparecen en tu comprobante de Yape:\n\n*Paso 1 de 2:*\n👤 ¿Cuál es tu *nombre completo* exactamente como aparece en el comprobante?\n\n_Escríbelo tal cual, en mayúsculas o minúsculas._`);
       return;
     }
 
@@ -545,9 +533,7 @@ async function manejarMensaje(jid: string, texto: string) {
         esperandoUsuarioRenovar: true,
         hora: Date.now(),
       };
-      await sock!.sendMessage(jid, {
-        text: `🔄 *Renovación de cuenta*\n\n¿Cuál es tu *usuario actual*?\n\n_Escríbelo tal como lo recibiste cuando activaste tu cuenta (ej: zk59176930026)_`,
-      });
+      await enviarConDelay(jid, `🔄 *Renovación de cuenta*\n\n¿Cuál es tu *usuario actual*?\n\n_Escríbelo tal como lo recibiste cuando activaste tu cuenta (ej: zk59176930026)_`);
       return;
     }
 
@@ -556,7 +542,7 @@ async function manejarMensaje(jid: string, texto: string) {
       const respuestas = COMANDOS_ESPECIALES[textoUpper];
       for (const resp of respuestas) {
         if (resp.tipo === "text") {
-          await sock!.sendMessage(jid, { text: resp.contenido });
+          await enviarConDelay(jid, resp.contenido);
         } else if (resp.tipo === "video") {
           await enviarVideo(jid, resp.contenido, resp.caption);
         } else if (resp.tipo === "image") {
@@ -571,7 +557,7 @@ async function manejarMensaje(jid: string, texto: string) {
       const respuestas = RESPUESTAS_NUMEROS[textoUpper];
       for (const resp of respuestas) {
         if (resp.tipo === "text") {
-          await sock!.sendMessage(jid, { text: resp.contenido });
+          await enviarConDelay(jid, resp.contenido);
         } else if (resp.tipo === "video") {
           await enviarVideo(jid, resp.contenido, resp.caption);
         } else if (resp.tipo === "image") {
@@ -599,16 +585,15 @@ async function manejarMensaje(jid: string, texto: string) {
     // ─── Detectar saludos ───────────────────────────────────────────
     const esUnSaludo = PALABRAS_SALUDO.some((palabra) => textoUpper.includes(palabra));
     if (esUnSaludo) {
-      await sock!.sendMessage(jid, { text: SALUDO_INICIAL });
+      await enviarConDelay(jid, SALUDO_INICIAL);
       return;
     }
 
     // ─── Respuesta por defecto ──────────────────────────────────────
-    await sock!.sendMessage(jid, { text: RESPUESTA_DESCONOCIDA });
+    await enviarConDelay(jid, RESPUESTA_DESCONOCIDA);
   } catch (err) {
     console.error("❌ Error en manejarMensaje:", err);
-    await sock!
-      .sendMessage(jid, { text: "❌ Hubo un error. Por favor intenta de nuevo." })
+    await enviarConDelay(jid, "❌ Hubo un error. Por favor intenta de nuevo.")
       .catch((e) => console.error("Error enviando mensaje de error:", e));
   }
 }
