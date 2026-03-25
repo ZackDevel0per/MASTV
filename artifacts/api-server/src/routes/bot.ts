@@ -9,7 +9,7 @@ import {
   enviarMensaje,
 } from "../bot/whatsapp.js";
 import { confirmarPago, marcarEntregado, buscarPedidoPorMonto } from "../bot/payment-store.js";
-import { crearCuentaEnCRM, PLAN_ID_MAP } from "../bot/crm-service.js";
+import { crearCuentaEnCRM, PLAN_ID_MAP, debugRenewPage } from "../bot/crm-service.js";
 import { ACTIVACION_EXITOSA } from "../bot/responses.js";
 import { registrarPagoYapeLocal, listarPagosYape } from "../bot/yape-store.js";
 import fs from "fs";
