@@ -410,10 +410,10 @@ async function manejarMensaje(jid: string, texto: string) {
       const flujo = estadoAnterior.flujo ?? "nuevo";
       const usuarioRenovar = estadoAnterior.usuarioRenovar;
 
-      // ── Validar que el monto coincida exactamente con el plan ──────
+      // ── Validar que el monto corresponda al plan (tolerancia +1 Bs) ──────
       if (planSeleccionado && PLAN_ID_MAP[planSeleccionado]) {
         const planInfo = PLAN_ID_MAP[planSeleccionado];
-        if (montoIngresado !== planInfo.monto) {
+        if (montoIngresado < planInfo.monto || montoIngresado > planInfo.monto + 1) {
           conversaciones[jid] = {
             ultimoComando: "MONTO_INCORRECTO",
             planSeleccionado,
@@ -455,7 +455,7 @@ async function manejarMensaje(jid: string, texto: string) {
 
         if (flujo === "renovar" && usuarioRenovar) {
           // ── Renovar cuenta existente ──────────────────────────────
-          await enviarConDelay(jid, `✅ *¡Pago confirmado!*\n\n📋 Plan: ${planInfo.nombre}\n💰 Monto: Bs ${montoIngresado}\n👤 Usuario: ${usuarioRenovar}\n\n⏳ _Renovando tu cuenta, espera unos segundos..._`);
+          await enviarConDelay(jid, `✅ *¡Pago confirmado!*\n\n📋 Plan: ${planInfo.nombre}\n💰 Monto: Bs ${planInfo.monto}\n👤 Usuario: ${usuarioRenovar}\n\n⏳ _Renovando tu cuenta, espera unos segundos..._`);
 
           const resultado = await renovarCuentaEnCRM(usuarioRenovar, planSeleccionado);
 
@@ -468,7 +468,7 @@ async function manejarMensaje(jid: string, texto: string) {
           }
         } else {
           // ── Crear cuenta nueva ────────────────────────────────────
-          await enviarConDelay(jid, `✅ *¡Pago confirmado!*\n\n📋 Plan: ${planInfo.nombre}\n💰 Monto: Bs ${montoIngresado}\n\n⏳ _Creando tu cuenta, espera unos segundos..._`);
+          await enviarConDelay(jid, `✅ *¡Pago confirmado!*\n\n📋 Plan: ${planInfo.nombre}\n💰 Monto: Bs ${planInfo.monto}\n\n⏳ _Creando tu cuenta, espera unos segundos..._`);
 
           const resultado = await crearCuentaEnCRM(
             planSeleccionado,
