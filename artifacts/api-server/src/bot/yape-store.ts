@@ -32,15 +32,26 @@ export function registrarPagoYapeLocal(nombre: string, monto: number): void {
 }
 
 /**
+ * Compara dos nombres sin importar el orden de las palabras.
+ * Todas las palabras deben estar presentes en ambos nombres.
+ */
+function nombresCoinciden(nombreA: string, nombreB: string): boolean {
+  const palabrasA = nombreA.toUpperCase().trim().split(/\s+/).sort();
+  const palabrasB = nombreB.toUpperCase().trim().split(/\s+/).sort();
+  if (palabrasA.length !== palabrasB.length) return false;
+  return palabrasA.every((p, i) => p === palabrasB[i]);
+}
+
+/**
  * Busca un pago no usado con nombre y monto exactos.
  * Si lo encuentra, lo marca como usado y devuelve true.
- * Comparación exacta: mismo nombre (mayúsculas) y mismo monto numérico.
+ * Comparación de nombre: todas las palabras deben coincidir (sin importar el orden).
  */
 export function buscarYUsarPagoLocal(nombre: string, monto: number): boolean {
   const nombreBuscado = nombre.toUpperCase().trim();
 
   const index = pagosYape.findIndex(
-    (p) => !p.usado && p.nombre === nombreBuscado && p.monto === monto
+    (p) => !p.usado && nombresCoinciden(p.nombre, nombreBuscado) && p.monto === monto
   );
 
   if (index === -1) {
