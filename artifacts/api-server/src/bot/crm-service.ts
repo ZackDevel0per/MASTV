@@ -563,6 +563,56 @@ export interface EstadoCuenta {
 }
 
 /**
+ * Limpia el nombre del plan eliminando precio y créditos, y expande abreviaturas.
+ * Entrada:  "1 MES - 1 DISP (29 Bs) - Costo: 0.5 creditos."
+ * Salida:   "1 MES - 1 DISPOSITIVO"
+ */
+function limpiarNombrePlan(nombre: string): string {
+  // Quitar todo lo que venga después de " (" (precio) o "- Costo" (créditos)
+  let limpio = nombre
+    .replace(/\s*\(.*?\)/g, "")           // quita (29 Bs) y similares
+    .replace(/\s*-\s*Costo:[^]*/i, "")    // quita - Costo: 0.5 creditos. y resto
+    .trim();
+
+  // Expandir "1 DISP" → "1 DISPOSITIVO", "2 DISP" → "2 DISPOSITIVOS"
+  limpio = limpio.replace(/(\d+)\s+DISP\b/gi, (_, n) =>
+    `${n} DISPOSITIVO${parseInt(n, 10) !== 1 ? "S" : ""}`
+  );
+
+  return limpio;
+}
+
+/**
+ * Intenta parsear una fecha de vencimiento desde varios formatos posibles
+ * que pueden devolver los paneles IPTV:
+ *   - Unix timestamp en segundos (número)
+ *   - Unix timestamp en milisegundos (número grande)
+ *   - String "YYYY-MM-DD HH:MM:SS"
+ *   - String "YYYY-MM-DD"
+ * Devuelve null si el valor es 0, nulo o no parseable.
+ */
+function parsearFechaExpiracion(
+  raw: string | number | null | undefined,
+): Date | null {
+  if (raw == null || raw === "" || raw === 0 || raw === "0") return null;
+
+  if (typeof raw === "number") {
+    if (raw === 0) return null;
+    // Heurístico: si es menor a 1e10, es segundos; si no, milisegundos
+    const ms = raw < 1e10 ? raw * 1000 : raw;
+    const d = new Date(ms);
+    return isNaN(d.getTime()) ? null : d;
+  }
+
+  // String: puede ser "YYYY-MM-DD HH:MM:SS" o "YYYY-MM-DD"
+  const str = String(raw).trim();
+  if (str === "0" || str === "") return null;
+
+  const d = new Date(str.replace(" ", "T")); // ISO-compatible
+  return isNaN(d.getTime()) ? null : d;
+}
+
+/**
  * Consulta el estado de una cuenta en el CRM por nombre de usuario.
  * Retorna días restantes, fecha de vencimiento y plan activo.
  */
@@ -582,22 +632,13 @@ export async function consultarEstadoCuenta(username: string): Promise<EstadoCue
     });
 
     const rawData = r.data;
-    const lineas: Array<{
-      id: string;
-      username: string;
-      password: string;
-      exp_date?: string | number | null;
-      package_name?: string;
-      max_connections?: number;
-      is_trial?: number | boolean;
-      enabled?: number | boolean;
-    }> = Array.isArray(rawData)
+    const lineas: Array<Record<string, unknown>> = Array.isArray(rawData)
       ? rawData
       : Array.isArray(rawData?.data)
         ? rawData.data
         : [];
 
-    const linea = lineas.find((l) => l.username === username);
+    const linea = lineas.find((l) => l["username"] === username);
     if (!linea) {
       return {
         ok: false,
@@ -605,36 +646,54 @@ export async function consultarEstadoCuenta(username: string): Promise<EstadoCue
       };
     }
 
+    // Log de campos disponibles para debug (solo las claves)
+    console.log(`   [CRM] Campos disponibles: ${Object.keys(linea).join(", ")}`);
+
+    // Intentar varios campos conocidos de fecha de vencimiento
+    const rawFecha =
+      linea["exp_date"] ??
+      linea["expiry_date"] ??
+      linea["date_end"] ??
+      linea["endDate"] ??
+      null;
+
+    const expDate = parsearFechaExpiracion(rawFecha as string | number | null);
+
     let diasRestantes: number | undefined;
     let fechaExpiracion: string | undefined;
 
-    if (linea.exp_date != null) {
-      // El CRM puede devolver el timestamp como número o string
-      const raw = linea.exp_date;
-      const ts = typeof raw === "number" ? raw : parseInt(String(raw), 10);
-      if (!isNaN(ts) && ts > 0) {
-        // Algunos paneles usan segundos, otros milisegundos
-        const expMs = ts < 1e12 ? ts * 1000 : ts;
-        const expDate = new Date(expMs);
-        const ahora = new Date();
-        diasRestantes = Math.ceil((expDate.getTime() - ahora.getTime()) / 86_400_000);
-        fechaExpiracion = expDate.toLocaleDateString("es-ES", {
-          day: "2-digit",
-          month: "2-digit",
-          year: "numeric",
-        });
-      }
+    if (expDate) {
+      const ahora = new Date();
+      diasRestantes = Math.ceil((expDate.getTime() - ahora.getTime()) / 86_400_000);
+      fechaExpiracion = expDate.toLocaleDateString("es-ES", {
+        day: "2-digit",
+        month: "2-digit",
+        year: "numeric",
+      });
     }
 
-    const esPrueba = linea.is_trial === 1 || linea.is_trial === true;
+    const esPrueba =
+      linea["is_trial"] === 1 ||
+      linea["is_trial"] === true ||
+      linea["is_trial"] === "1";
 
-    console.log(`✅ [CRM] Estado de ${username}: plan=${linea.package_name ?? "?"} exp=${fechaExpiracion ?? "?"} días=${diasRestantes ?? "?"}`);
+    const planRaw = (linea["package_name"] as string | undefined) ?? undefined;
+    const plan = planRaw ? limpiarNombrePlan(planRaw) : undefined;
+
+    const maxConexiones =
+      linea["max_connections"] != null
+        ? Number(linea["max_connections"])
+        : undefined;
+
+    console.log(
+      `✅ [CRM] Estado de ${username}: plan="${plan ?? "?"}" exp=${fechaExpiracion ?? "sin fecha"} días=${diasRestantes ?? "?"}`,
+    );
 
     return {
       ok: true,
-      usuario: linea.username,
-      plan: linea.package_name ?? undefined,
-      maxConexiones: linea.max_connections ?? undefined,
+      usuario: linea["username"] as string,
+      plan,
+      maxConexiones,
       diasRestantes,
       fechaExpiracion,
       esPrueba,
