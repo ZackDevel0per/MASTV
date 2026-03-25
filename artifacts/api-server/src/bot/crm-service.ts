@@ -493,10 +493,11 @@ export async function renovarCuentaEnCRM(
         };
       }
 
-      // 2. GET /lines para obtener un CSRF token fresco
-      //    (el endpoint real de renovación es POST /lines/{id}/renew vía AJAX)
-      const linesPageUrl = `${CRM_BASE_URL}/lines`;
-      const r1 = await axios.get(linesPageUrl, {
+      // 2. GET /lines/{id}/renew-with-package → CSRF fresco del formulario real
+      //    Este endpoint muestra el formulario de renovación con paquetes multi-mes,
+      //    igual que /lines/create-with-package para la creación de cuentas.
+      const renewWithPackagePage = `${CRM_BASE_URL}/lines/${linea.id}/renew-with-package`;
+      const r1 = await axios.get(renewWithPackagePage, {
         headers: { ...BASE_HEADERS, Cookie: sessionCookie },
         maxRedirects: 3,
         validateStatus: () => true,
@@ -510,14 +511,14 @@ export async function renovarCuentaEnCRM(
         continue;
       }
 
-      // Actualizar cookie con la última de /lines
+      // Actualizar cookie con la más reciente
       const updatedCookie = cookieFromHeaders(r1.headers as Record<string, unknown>);
       const activeCookie = updatedCookie || sessionCookie;
 
-      // 3. POST /lines/{id}/renew → endpoint AJAX real del CRM
-      //    Descubierto inspeccionando el mapa de rutas del frontend:
-      //    route name: "lines.renew", uri: "lines/{line}/renew"
-      const renewUrl = `${CRM_BASE_URL}/lines/${linea.id}/renew`;
+      // 3. POST /lines/{id}/renew-with-package → renueva con el paquete multi-mes correcto
+      //    Equivale al flujo de creación: GET create-with-package → POST store-with-package
+      //    Aquí: GET renew-with-package → POST renew-with-package (misma URL)
+      const renewUrl = `${CRM_BASE_URL}/lines/${linea.id}/renew-with-package`;
       const bodyParams = new URLSearchParams();
       bodyParams.append("_token", csrf);
       bodyParams.append("package", String(planInfo.id));
@@ -529,11 +530,8 @@ export async function renovarCuentaEnCRM(
           headers: {
             ...BASE_HEADERS,
             "Content-Type": "application/x-www-form-urlencoded",
-            "X-CSRF-TOKEN": csrf,
-            "X-Requested-With": "XMLHttpRequest",
-            Accept: "application/json, text/javascript, */*",
             Origin: CRM_BASE_URL,
-            Referer: `${CRM_BASE_URL}/lines/${linea.id}/renew-with-package`,
+            Referer: renewWithPackagePage,
             Cookie: activeCookie,
           },
           maxRedirects: 0,
@@ -542,9 +540,9 @@ export async function renovarCuentaEnCRM(
         },
       );
 
-      console.log(`   [CRM] POST /lines/${linea.id}/renew → HTTP ${r2.status}`);
+      console.log(`   [CRM] POST /lines/${linea.id}/renew-with-package → HTTP ${r2.status}`);
 
-      if (r2.status !== 200) {
+      if (r2.status !== 302 && r2.status !== 200) {
         const bodySnippet = typeof r2.data === "string" ? r2.data.substring(0, 200) : JSON.stringify(r2.data).substring(0, 200);
         throw new Error(`HTTP inesperado al renovar: ${r2.status} — ${bodySnippet}`);
       }
