@@ -71,7 +71,7 @@ import {
   PALABRAS_SALUDO,
 } from "./responses.js";
 import { enviarImagen } from "./media-handler.js";
-import { crearCuentaEnCRM, renovarCuentaEnCRM, verificarDemoExistente, PLAN_ID_MAP } from "./crm-service.js";
+import { crearCuentaEnCRM, renovarCuentaEnCRM, verificarDemoExistente, consultarEstadoCuenta, PLAN_ID_MAP } from "./crm-service.js";
 import { registrarPedido } from "./payment-store.js";
 import { buscarYUsarPagoLocal } from "./yape-store.js";
 
@@ -135,6 +135,7 @@ interface EstadoConversacion {
   flujo?: "nuevo" | "renovar";
   usuarioRenovar?: string;
   esperandoUsuarioRenovar?: boolean;
+  esperandoUsuarioConsultar?: boolean;
 }
 
 const conversaciones: Record<string, EstadoConversacion> = {};
@@ -498,6 +499,67 @@ async function manejarMensaje(jid: string, texto: string) {
       return;
     }
 
+    // ─── Flujo CONSULTAR paso 2: esperando USUARIO a consultar ─────
+    if (estadoAnterior?.esperandoUsuarioConsultar) {
+      const usuarioConsultar = texto.trim();
+      conversaciones[jid] = { ultimoComando: "CONSULTANDO", hora: Date.now() };
+
+      await enviarConDelay(jid, `🔍 _Consultando tu cuenta *${usuarioConsultar}* en el sistema..._`);
+
+      const estado = await consultarEstadoCuenta(usuarioConsultar);
+
+      if (!estado.ok || !estado.usuario) {
+        await enviarConDelay(
+          jid,
+          `❌ *Cuenta no encontrada*\n\n${estado.mensaje}\n\nEscribe *CONSULTAR* para intentar de nuevo o *3* para soporte.`,
+        );
+        conversaciones[jid] = { ultimoComando: "CONSULTA_FALLIDA", hora: Date.now() };
+        return;
+      }
+
+      // Construir mensaje de estado
+      let mensajeEstado = `📋 *Estado de tu cuenta ZKTV*\n\n`;
+      mensajeEstado += `👤 *Usuario:* \`${estado.usuario}\`\n`;
+
+      if (estado.plan) {
+        mensajeEstado += `📺 *Plan activo:* ${estado.plan}\n`;
+      }
+      if (estado.maxConexiones !== undefined) {
+        mensajeEstado += `📱 *Dispositivos:* ${estado.maxConexiones}\n`;
+      }
+
+      mensajeEstado += `\n`;
+
+      if (estado.diasRestantes !== undefined) {
+        if (estado.diasRestantes <= 0) {
+          mensajeEstado += `🔴 *Estado:* VENCIDA\n`;
+          mensajeEstado += `📅 *Venció el:* ${estado.fechaExpiracion}\n\n`;
+          mensajeEstado += `⚠️ Tu cuenta ha vencido. Escribe *RENOVAR* para renovarla o *1* para ver los planes.`;
+        } else if (estado.diasRestantes <= 5) {
+          mensajeEstado += `🟡 *Estado:* PRÓXIMA A VENCER\n`;
+          mensajeEstado += `📅 *Vence el:* ${estado.fechaExpiracion}\n`;
+          mensajeEstado += `⏳ *Días restantes:* *${estado.diasRestantes} día${estado.diasRestantes === 1 ? "" : "s"}*\n\n`;
+          mensajeEstado += `⚠️ Tu cuenta vence pronto. Escribe *RENOVAR* para extenderla.`;
+        } else {
+          mensajeEstado += `🟢 *Estado:* ACTIVA\n`;
+          mensajeEstado += `📅 *Vence el:* ${estado.fechaExpiracion}\n`;
+          mensajeEstado += `⏳ *Días restantes:* *${estado.diasRestantes} días*`;
+          if (estado.esPrueba) {
+            mensajeEstado += `\n\n🎁 _Esta es una cuenta de prueba._`;
+          }
+        }
+      } else {
+        mensajeEstado += `🟢 *Estado:* ACTIVA\n`;
+        mensajeEstado += `_Fecha de vencimiento no disponible en este momento._`;
+      }
+
+      mensajeEstado += `\n\n*RENOVAR* → Renovar cuenta\n*MENU* → Menú principal`;
+
+      await enviarConDelay(jid, mensajeEstado);
+      conversaciones[jid] = { ultimoComando: "CONSULTA_EXITOSA", hora: Date.now() };
+      return;
+    }
+
     // ─── Flujo RENOVAR paso 2: esperando USUARIO existente ─────────
     if (estadoAnterior?.esperandoUsuarioRenovar) {
       const usuarioIngresado = texto.trim();
@@ -508,6 +570,20 @@ async function manejarMensaje(jid: string, texto: string) {
         hora: Date.now(),
       };
       await enviarConDelay(jid, `👤 *Usuario registrado:* _${usuarioIngresado}_\n\n📋 Ahora elige el plan para renovar:\n\n*1 DISPOSITIVO:*\n• *P1* — 1 mes — Bs 29\n• *P2* — 3 meses — Bs 82\n• *P3* — 6 meses — Bs 155\n• *P4* — 12 meses — Bs 300\n\n*2 DISPOSITIVOS:*\n• *Q1* — 1 mes — Bs 35\n• *Q2* — 3 meses — Bs 100\n• *Q3* — 6 meses — Bs 190\n• *Q4* — 12 meses — Bs 380\n\n*3 DISPOSITIVOS:*\n• *R1* — 1 mes — Bs 40\n• *R2* — 3 meses — Bs 115\n• *R3* — 6 meses — Bs 225\n• *R4* — 12 meses — Bs 440\n\nEscribe el código del plan (ej: *P1*, *Q2*, *R3*)`);
+      return;
+    }
+
+    // ─── CONSULTAR / 7: Ver días restantes de la cuenta ───────────
+    if (textoUpper === "CONSULTAR" || textoUpper === "7") {
+      conversaciones[jid] = {
+        ultimoComando: "ESPERANDO_USUARIO_CONSULTAR",
+        hora: Date.now(),
+        esperandoUsuarioConsultar: true,
+      };
+      await enviarConDelay(
+        jid,
+        `📅 *Consulta de días restantes*\n\n¿Cuál es tu *nombre de usuario*?\n\n_Escríbelo tal como lo recibiste al activar tu cuenta (ej: zk59176930026)_`,
+      );
       return;
     }
 

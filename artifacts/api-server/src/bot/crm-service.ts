@@ -551,6 +551,102 @@ export async function renovarCuentaEnCRM(
   };
 }
 
+export interface EstadoCuenta {
+  ok: boolean;
+  usuario?: string;
+  plan?: string;
+  maxConexiones?: number;
+  diasRestantes?: number;
+  fechaExpiracion?: string;
+  esPrueba?: boolean;
+  mensaje: string;
+}
+
+/**
+ * Consulta el estado de una cuenta en el CRM por nombre de usuario.
+ * Retorna días restantes, fecha de vencimiento y plan activo.
+ */
+export async function consultarEstadoCuenta(username: string): Promise<EstadoCuenta> {
+  console.log(`🔍 [CRM] Consultando estado de cuenta: ${username}`);
+  try {
+    const sessionCookie = await getSession();
+    const r = await axios.get(`${CRM_BASE_URL}/api/line/list`, {
+      headers: {
+        ...BASE_HEADERS,
+        Cookie: sessionCookie,
+        Accept: "application/json",
+        "X-Requested-With": "XMLHttpRequest",
+      },
+      validateStatus: () => true,
+      timeout: 15_000,
+    });
+
+    const rawData = r.data;
+    const lineas: Array<{
+      id: string;
+      username: string;
+      password: string;
+      exp_date?: string | number | null;
+      package_name?: string;
+      max_connections?: number;
+      is_trial?: number | boolean;
+      enabled?: number | boolean;
+    }> = Array.isArray(rawData)
+      ? rawData
+      : Array.isArray(rawData?.data)
+        ? rawData.data
+        : [];
+
+    const linea = lineas.find((l) => l.username === username);
+    if (!linea) {
+      return {
+        ok: false,
+        mensaje: `No se encontró ninguna cuenta con el usuario *${username}*.\n\nVerifica que lo hayas escrito correctamente.`,
+      };
+    }
+
+    let diasRestantes: number | undefined;
+    let fechaExpiracion: string | undefined;
+
+    if (linea.exp_date != null) {
+      // El CRM puede devolver el timestamp como número o string
+      const raw = linea.exp_date;
+      const ts = typeof raw === "number" ? raw : parseInt(String(raw), 10);
+      if (!isNaN(ts) && ts > 0) {
+        // Algunos paneles usan segundos, otros milisegundos
+        const expMs = ts < 1e12 ? ts * 1000 : ts;
+        const expDate = new Date(expMs);
+        const ahora = new Date();
+        diasRestantes = Math.ceil((expDate.getTime() - ahora.getTime()) / 86_400_000);
+        fechaExpiracion = expDate.toLocaleDateString("es-ES", {
+          day: "2-digit",
+          month: "2-digit",
+          year: "numeric",
+        });
+      }
+    }
+
+    const esPrueba = linea.is_trial === 1 || linea.is_trial === true;
+
+    console.log(`✅ [CRM] Estado de ${username}: plan=${linea.package_name ?? "?"} exp=${fechaExpiracion ?? "?"} días=${diasRestantes ?? "?"}`);
+
+    return {
+      ok: true,
+      usuario: linea.username,
+      plan: linea.package_name ?? undefined,
+      maxConexiones: linea.max_connections ?? undefined,
+      diasRestantes,
+      fechaExpiracion,
+      esPrueba,
+      mensaje: "Cuenta encontrada",
+    };
+  } catch (err) {
+    console.error("[CRM] Error consultando estado de cuenta:", err);
+    const msg = err instanceof Error ? err.message : "Error desconocido";
+    return { ok: false, mensaje: `Error al consultar: ${msg}` };
+  }
+}
+
 /** Verificar que el CRM es accesible */
 export async function verificarConexionCRM(): Promise<boolean> {
   try {
