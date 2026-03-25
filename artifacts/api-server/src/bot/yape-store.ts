@@ -43,25 +43,38 @@ function nombresCoinciden(nombreA: string, nombreB: string): boolean {
 }
 
 /**
- * Busca un pago no usado con nombre y monto exactos.
- * Si lo encuentra, lo marca como usado y devuelve true.
- * Comparación de nombre: todas las palabras deben coincidir (sin importar el orden).
+ * Busca un pago no usado cuyo nombre coincida y cuyo monto esté dentro del
+ * rango [montoRecibido - 1, montoRecibido]. Es decir, el cliente puede haber
+ * depositado hasta 1 Bs más que el precio del plan y aún así se le valida.
+ * Si hay varios candidatos, se elige el de mayor monto de plan (el más cercano).
  */
 export function buscarYUsarPagoLocal(nombre: string, monto: number): boolean {
   const nombreBuscado = nombre.toUpperCase().trim();
 
-  const index = pagosYape.findIndex(
-    (p) => !p.usado && nombresCoinciden(p.nombre, nombreBuscado) && p.monto === monto
-  );
+  // Recoger todos los candidatos que coinciden en nombre y están dentro del margen
+  const candidatos = pagosYape
+    .map((p, i) => ({ p, i }))
+    .filter(({ p }) =>
+      !p.usado &&
+      nombresCoinciden(p.nombre, nombreBuscado) &&
+      monto >= p.monto &&        // el cliente no pagó menos que el plan
+      monto <= p.monto + 1       // el cliente pagó a lo sumo 1 Bs más
+    );
 
-  if (index === -1) {
+  if (candidatos.length === 0) {
     console.warn(`⚠️  [YAPE-LOCAL] Pago no encontrado: "${nombreBuscado}" → Bs ${monto}`);
     console.warn(`📋 [YAPE-LOCAL] Pagos disponibles: ${JSON.stringify(pagosYape.map(p => ({ nombre: p.nombre, monto: p.monto, usado: p.usado })))}`);
     return false;
   }
 
-  pagosYape[index]!.usado = true;
-  console.log(`✅ [YAPE-LOCAL] Pago encontrado y marcado como usado: "${nombreBuscado}" → Bs ${monto}`);
+  // Si hay más de uno, preferir el de mayor monto de plan (más cercano al pagado)
+  candidatos.sort((a, b) => b.p.monto - a.p.monto);
+  const { p, i } = candidatos[0]!;
+  pagosYape[i]!.usado = true;
+  console.log(
+    `✅ [YAPE-LOCAL] Pago encontrado y marcado como usado: "${nombreBuscado}" → ` +
+    `pagado Bs ${monto} / plan Bs ${p.monto}${monto !== p.monto ? ` (diferencia +${(monto - p.monto).toFixed(2)})` : ""}`
+  );
   return true;
 }
 
