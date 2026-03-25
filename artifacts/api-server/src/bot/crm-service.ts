@@ -516,15 +516,13 @@ export async function renovarCuentaEnCRM(
       const activeCookie = updatedCookie || sessionCookie;
 
       // 3. POST /lines/{id}/renew → endpoint AJAX del CRM con el paquete multi-mes correcto.
-      //    Se incluyen bouquet_ids[] igual que en la creación para que el CRM asigne
-      //    todos los canales al renovar. Sin bouquets el paquete se aplica en blanco.
+      //    Solo se envían _token y package. NO se incluyen bouquet_ids[] porque el
+      //    endpoint de renovación los interpreta como paquetes adicionales (distinto
+      //    al de creación donde sí se necesitan para asignar canales).
       const renewUrl = `${CRM_BASE_URL}/lines/${linea.id}/renew`;
       const bodyParams = new URLSearchParams();
       bodyParams.append("_token", csrf);
       bodyParams.append("package", String(planInfo.id));
-      for (const bid of TODOS_LOS_BOUQUETS) {
-        bodyParams.append("bouquet_ids[]", bid);
-      }
 
       const r2 = await axios.post(
         renewUrl,
