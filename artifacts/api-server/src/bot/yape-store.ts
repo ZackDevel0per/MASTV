@@ -44,37 +44,49 @@ function nombresCoinciden(nombreA: string, nombreB: string): boolean {
 
 /**
  * Busca un pago no usado cuyo nombre coincida y cuyo monto esté dentro del
- * rango [montoRecibido - 1, montoRecibido]. Es decir, el cliente puede haber
- * depositado hasta 1 Bs más que el precio del plan y aún así se le valida.
- * Si hay varios candidatos, se elige el de mayor monto de plan (el más cercano).
+ * rango [planMonto, planMonto + 1]. Devuelve el índice del pago encontrado
+ * o -1 si no hay coincidencia. NO lo marca como usado.
+ * Usar junto a marcarPagoUsado() una vez confirmado el CRM.
  */
-export function buscarYUsarPagoLocal(nombre: string, monto: number): boolean {
+export function encontrarIndexPago(nombre: string, monto: number): number {
   const nombreBuscado = nombre.toUpperCase().trim();
 
-  // Recoger todos los candidatos que coinciden en nombre y están dentro del margen
   const candidatos = pagosYape
     .map((p, i) => ({ p, i }))
     .filter(({ p }) =>
       !p.usado &&
       nombresCoinciden(p.nombre, nombreBuscado) &&
-      monto >= p.monto &&        // el cliente no pagó menos que el plan
-      monto <= p.monto + 1       // el cliente pagó a lo sumo 1 Bs más
+      monto >= p.monto &&
+      monto <= p.monto + 1
     );
 
   if (candidatos.length === 0) {
     console.warn(`⚠️  [YAPE-LOCAL] Pago no encontrado: "${nombreBuscado}" → Bs ${monto}`);
     console.warn(`📋 [YAPE-LOCAL] Pagos disponibles: ${JSON.stringify(pagosYape.map(p => ({ nombre: p.nombre, monto: p.monto, usado: p.usado })))}`);
-    return false;
+    return -1;
   }
 
-  // Si hay más de uno, preferir el de mayor monto de plan (más cercano al pagado)
+  // Preferir el de mayor monto de plan (más cercano al pagado)
   candidatos.sort((a, b) => b.p.monto - a.p.monto);
-  const { p, i } = candidatos[0]!;
-  pagosYape[i]!.usado = true;
-  console.log(
-    `✅ [YAPE-LOCAL] Pago encontrado y marcado como usado: "${nombreBuscado}" → ` +
-    `pagado Bs ${monto} / plan Bs ${p.monto}${monto !== p.monto ? ` (diferencia +${(monto - p.monto).toFixed(2)})` : ""}`
-  );
+  return candidatos[0]!.i;
+}
+
+/**
+ * Marca como usado un pago por su índice (obtenido con encontrarIndexPago).
+ * Llamar solo después de confirmar que el CRM procesó el plan correctamente.
+ */
+export function marcarPagoUsado(index: number): void {
+  const p = pagosYape[index];
+  if (!p) return;
+  p.usado = true;
+  console.log(`✅ [YAPE-LOCAL] Pago marcado como usado: "${p.nombre}" → Bs ${p.monto}`);
+}
+
+/** @deprecated Usar encontrarIndexPago + marcarPagoUsado para evitar consumir el pago si el CRM falla */
+export function buscarYUsarPagoLocal(nombre: string, monto: number): boolean {
+  const index = encontrarIndexPago(nombre, monto);
+  if (index === -1) return false;
+  marcarPagoUsado(index);
   return true;
 }
 

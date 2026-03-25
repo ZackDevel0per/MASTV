@@ -136,6 +136,21 @@ function csrfFromHtml(html: string): string {
   );
 }
 
+/** Extrae el atributo action del primer <form> que contenga _token en el HTML */
+function formActionFromHtml(html: string, baseUrl: string): string {
+  const match = html.match(/<form[^>]+action="([^"]+)"/i);
+  if (!match) return "";
+  const action = match[1]!;
+  // Si es relativa, hacerla absoluta
+  if (action.startsWith("http")) return action;
+  return `${baseUrl}${action.startsWith("/") ? "" : "/"}${action}`;
+}
+
+/** Extrae el _method oculto del formulario (PUT, PATCH, etc.) si existe */
+function formMethodFromHtml(html: string): string {
+  return html.match(/name="_method"\s+value="([^"]+)"/i)?.[1]?.toUpperCase() ?? "";
+}
+
 // ── Login ──────────────────────────────────────────────────────────────────────
 async function loginCRM(): Promise<string> {
   console.log("🔐 [CRM] Iniciando sesión...");
@@ -478,38 +493,43 @@ export async function renovarCuentaEnCRM(
         };
       }
 
-      // 2. GET /lines/{id}/renew-with-package → CSRF fresco
-      const r1 = await axios.get(
-        `${CRM_BASE_URL}/lines/${linea.id}/renew-with-package`,
-        {
-          headers: { ...BASE_HEADERS, Cookie: sessionCookie },
-          maxRedirects: 2,
-          validateStatus: () => true,
-          timeout: 15_000,
-        },
-      );
+      // 2. GET /lines/{id}/renew-with-package → obtener formulario (CSRF + action real)
+      const getUrl = `${CRM_BASE_URL}/lines/${linea.id}/renew-with-package`;
+      const r1 = await axios.get(getUrl, {
+        headers: { ...BASE_HEADERS, Cookie: sessionCookie },
+        maxRedirects: 2,
+        validateStatus: () => true,
+        timeout: 15_000,
+      });
 
-      const csrf = csrfFromHtml(r1.data as string);
+      const htmlRenew = r1.data as string;
+      const csrf = csrfFromHtml(htmlRenew);
       if (!csrf || r1.status === 302) {
         console.warn("⚠️  [CRM] Sesión expirada al renovar, reconectando...");
         cachedSession = null;
         continue;
       }
 
-      // 3. POST /lines/{id}/renew-with-package → extiende la línea
+      // Extraer la acción real del formulario y el _method (PUT/PATCH si el CRM lo requiere)
+      const formAction = formActionFromHtml(htmlRenew, CRM_BASE_URL) || getUrl;
+      const hiddenMethod = formMethodFromHtml(htmlRenew);
+      console.log(`   [CRM] renew form action="${formAction}" _method="${hiddenMethod || "POST"}"`);
+
+      // 3. POST al action real del formulario
       const bodyParams = new URLSearchParams();
       bodyParams.append("_token", csrf);
+      if (hiddenMethod) bodyParams.append("_method", hiddenMethod);
       bodyParams.append("package", String(planInfo.id));
 
       const r2 = await axios.post(
-        `${CRM_BASE_URL}/lines/${linea.id}/renew-with-package`,
+        formAction,
         bodyParams.toString(),
         {
           headers: {
             ...BASE_HEADERS,
             "Content-Type": "application/x-www-form-urlencoded",
             Origin: CRM_BASE_URL,
-            Referer: `${CRM_BASE_URL}/lines/${linea.id}/renew-with-package`,
+            Referer: getUrl,
             Cookie: sessionCookie,
           },
           maxRedirects: 0,

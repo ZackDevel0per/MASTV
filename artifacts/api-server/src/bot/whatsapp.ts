@@ -73,7 +73,7 @@ import {
 import { enviarImagen } from "./media-handler.js";
 import { crearCuentaEnCRM, renovarCuentaEnCRM, verificarDemoExistente, consultarEstadoCuenta, PLAN_ID_MAP } from "./crm-service.js";
 import { registrarPedido } from "./payment-store.js";
-import { buscarYUsarPagoLocal } from "./yape-store.js";
+import { encontrarIndexPago, marcarPagoUsado } from "./yape-store.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const AUTH_FOLDER = path.join(__dirname, "../../auth_info_baileys");
@@ -431,9 +431,10 @@ async function manejarMensaje(jid: string, texto: string) {
       await enviarConDelay(jid, `🔍 _Buscando tu pago en el sistema..._`);
 
       try {
-        const pagoEncontrado = buscarYUsarPagoLocal(nombre, montoIngresado);
+        // ── 1. Buscar el pago sin marcarlo como usado todavía ─────────
+        const indicePago = encontrarIndexPago(nombre, montoIngresado);
 
-        if (!pagoEncontrado) {
+        if (indicePago === -1) {
           conversaciones[jid] = {
             ultimoComando: "VERIFICACION_FALLIDA",
             planSeleccionado,
@@ -446,6 +447,8 @@ async function manejarMensaje(jid: string, texto: string) {
         }
 
         if (!planSeleccionado || !PLAN_ID_MAP[planSeleccionado]) {
+          // Si no hay plan claro, marcar el pago y pedir confirmación manual
+          marcarPagoUsado(indicePago);
           await enviarConDelay(jid, `✅ *Pago confirmado.*\n\nSin embargo, no tenemos registrado qué plan elegiste.\n\nPor favor escribe el código de tu plan (ej: *P1*, *Q2*, *R3*) o escribe *3* para que te ayudemos.`);
           conversaciones[jid] = { ultimoComando: "PAGO_CONFIRMADO_SIN_PLAN", planSeleccionado: undefined, hora: Date.now() };
           return;
@@ -460,9 +463,12 @@ async function manejarMensaje(jid: string, texto: string) {
           const resultado = await renovarCuentaEnCRM(usuarioRenovar, planSeleccionado);
 
           if (resultado.ok) {
+            // ── Marcar pago como usado solo si el CRM tuvo éxito ────
+            marcarPagoUsado(indicePago);
             await enviarConDelay(jid, `🎉 *¡Cuenta renovada exitosamente!*\n\n🔐 *Credenciales de acceso:*\n📛 Nombre: \`mastv\`\n👤 Usuario: \`${resultado.usuario}\`\n🔑 Contraseña: \`${resultado.contrasena}\`\n🌐 URL: \`${resultado.servidor || "http://mtv.bo:80"}\`\n\n📺 *Plan renovado:* ${resultado.plan}\n\n✅ Tu servicio ha sido extendido. ¡Disfruta ZKTV! 🚀`);
             conversaciones[jid] = { ultimoComando: "CUENTA_RENOVADA", planSeleccionado: undefined, hora: Date.now() };
           } else {
+            // Pago NO se marca: el cliente puede reintentar
             await enviarConDelay(jid, `⚠️ *Pago confirmado pero hubo un problema al renovar tu cuenta*\n\n${resultado.mensaje}\n\nEscribe *3* para que te ayudemos de inmediato.`);
             conversaciones[jid] = { ultimoComando: "ERROR_CRM_RENOVAR", planSeleccionado, hora: Date.now() };
           }
@@ -478,6 +484,8 @@ async function manejarMensaje(jid: string, texto: string) {
           );
 
           if (resultado.ok && resultado.usuario) {
+            // ── Marcar pago como usado solo si el CRM tuvo éxito ────
+            marcarPagoUsado(indicePago);
             const mensajeActivacion = ACTIVACION_EXITOSA({
               usuario: resultado.usuario,
               contrasena: resultado.contrasena ?? "",
@@ -487,6 +495,7 @@ async function manejarMensaje(jid: string, texto: string) {
             await enviarConDelay(jid, mensajeActivacion);
             conversaciones[jid] = { ultimoComando: "CUENTA_CREADA", planSeleccionado: undefined, hora: Date.now() };
           } else {
+            // Pago NO se marca: el cliente puede reintentar
             await enviarConDelay(jid, `⚠️ *Pago confirmado pero hubo un problema al crear tu cuenta*\n\n${resultado.mensaje}\n\nEscribe *3* para que te ayudemos de inmediato.`);
             conversaciones[jid] = { ultimoComando: "ERROR_CRM", planSeleccionado, hora: Date.now() };
           }
