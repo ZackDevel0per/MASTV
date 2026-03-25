@@ -64,6 +64,35 @@ let ultimoQR: string | null = null;
 let codigoPareoPendiente: string | null = null;
 let intentosReconexion = 0;
 
+// Chats donde el dueño ha silenciado el bot con /stop
+const chatsSilenciados = new Set<string>();
+
+// Comandos que el dueño puede enviar desde su propio WhatsApp
+const COMANDOS_DUENO: Record<string, (jid: string) => Promise<string>> = {
+  "/stop": async (jid) => {
+    chatsSilenciados.add(jid);
+    console.log(`🔇 [DUEÑO] Bot silenciado en ${jid}`);
+    return "🔇 Bot silenciado en este chat. Escribe */start* para reactivarlo.";
+  },
+  "/start": async (jid) => {
+    chatsSilenciados.delete(jid);
+    console.log(`🔊 [DUEÑO] Bot reactivado en ${jid}`);
+    return "🔊 Bot reactivado en este chat.";
+  },
+  "/status": async (jid) => {
+    const silenciado = chatsSilenciados.has(jid);
+    const totalSilenciados = chatsSilenciados.size;
+    return `📊 *Estado del bot*\n\n• Global: ${botActivo ? "✅ Activo" : "⏸️ Pausado"}\n• Este chat: ${silenciado ? "🔇 Silenciado" : "🔊 Activo"}\n• Chats silenciados: ${totalSilenciados}`;
+  },
+  "/silenciados": async (_jid) => {
+    if (chatsSilenciados.size === 0) return "📋 No hay chats silenciados.";
+    const lista = [...chatsSilenciados]
+      .map((j) => `• ${j.replace("@s.whatsapp.net", "")}`)
+      .join("\n");
+    return `📋 *Chats silenciados (${chatsSilenciados.size}):*\n${lista}`;
+  },
+};
+
 interface EstadoConversacion {
   ultimoComando: string;
   planSeleccionado?: string;
@@ -90,6 +119,7 @@ export function getBotEstado() {
     estado: estadoConexion,
     botActivo,
     conversacionesActivas: Object.keys(conversaciones).length,
+    chatsSilenciados: chatsSilenciados.size,
     tieneQR: ultimoQR !== null,
     codigoPareoPendiente,
   };
@@ -209,7 +239,6 @@ export async function conectarBot() {
     if (type !== "notify") return;
 
     for (const msg of messages) {
-      if (msg.key.fromMe) continue;
       if (!msg.message) continue;
 
       const remitente = msg.key.remoteJid;
@@ -223,7 +252,29 @@ export async function conectarBot() {
         "";
 
       if (!texto) continue;
+
+      // ── Comandos del dueño (mensajes enviados desde el propio número vinculado) ──
+      if (msg.key.fromMe) {
+        const comando = texto.trim().toLowerCase();
+        const accion = COMANDOS_DUENO[comando];
+        if (accion) {
+          console.log(`👑 [DUEÑO] Comando recibido: "${comando}" en ${remitente}`);
+          const respuesta = await accion(remitente).catch((err) => {
+            console.error("❌ Error ejecutando comando de dueño:", err);
+            return "❌ Error ejecutando el comando.";
+          });
+          await sock!.sendMessage(remitente, { text: respuesta }).catch(() => {});
+        }
+        continue;
+      }
+
       if (!botActivo) continue;
+
+      // ── Verificar si el chat está silenciado ──────────────────────────
+      if (chatsSilenciados.has(remitente)) {
+        console.log(`🔇 [SILENCIADO] Ignorando mensaje de ${remitente}`);
+        continue;
+      }
 
       console.log(`📩 Mensaje de ${remitente}: "${texto}"`);
       await manejarMensaje(remitente, texto.trim()).catch((err) => {
