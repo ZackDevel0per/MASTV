@@ -91,6 +91,13 @@ const COMANDOS_DUENO: Record<string, (jid: string) => Promise<string>> = {
       .join("\n");
     return `📋 *Chats silenciados (${chatsSilenciados.size}):*\n\n${lista}`;
   },
+  "/limpiar": async (_jid) => {
+    const total = chatsSilenciados.size;
+    chatsSilenciados.clear();
+    console.log(`🧹 [DUEÑO] Todos los chats desilenciados (${total})`);
+    if (total === 0) return "📋 No había chats silenciados.";
+    return `✅ Se reactivaron *${total}* chat${total === 1 ? "" : "s"}. El bot responde en todos de nuevo.`;
+  },
 };
 
 interface EstadoConversacion {
