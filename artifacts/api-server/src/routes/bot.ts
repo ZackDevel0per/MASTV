@@ -23,6 +23,18 @@ const router: IRouter = Router();
 
 const TOKEN_SECRETO = process.env.TASKER_TOKEN || "cambia_este_token_seguro_2024";
 
+// ═════════════════════════════════════════════════════════
+// TASKER — DESACTIVADO
+//
+// Los endpoints de Tasker (/bot/pago y /bot/pago-qr) están
+// desactivados porque el registro de pagos ahora lo hace el
+// servicio de Gmail automáticamente.
+//
+// El código se conserva intacto para reactivarlo en el futuro
+// si fuera necesario. Para reactivar: cambiar a false.
+// ═════════════════════════════════════════════════════════
+const TASKER_DESACTIVADO = true;
+
 function verificarToken(req: Request, res: Response): boolean {
   const token = req.body?.token || req.query?.token || req.headers["x-bot-token"];
   if (token !== TOKEN_SECRETO) {
@@ -117,7 +129,7 @@ router.delete("/bot/sesion", (_req, res) => {
 });
 
 // ═════════════════════════════════════════════════════════
-// PROCESAR PAGO (desde Tasker)
+// PROCESAR PAGO (desde Tasker) — DESACTIVADO
 //
 // Tasker debe enviar: { token, telefono, monto }
 // El servidor busca el pedido pendiente, valida el monto,
@@ -125,8 +137,18 @@ router.delete("/bot/sesion", (_req, res) => {
 //
 // Modo legacy (backward compat): si vienen usuario y contrasena,
 // simplemente reenvía las credenciales sin crear cuenta nueva.
+//
+// NOTA: Desactivado. Los pagos ahora se registran via Gmail.
+// Para reactivar: cambiar TASKER_DESACTIVADO a false en este archivo.
 // ═════════════════════════════════════════════════════════
 router.post("/bot/pago", async (req, res) => {
+  if (TASKER_DESACTIVADO) {
+    res.status(503).json({
+      ok: false,
+      mensaje: "Este endpoint está desactivado. Los pagos ahora se detectan automáticamente via Gmail.",
+    });
+    return;
+  }
   if (!verificarToken(req, res)) return;
 
   const { telefono, monto, nombreCliente, usuario, contrasena, plan, fecha } = req.body;
@@ -213,7 +235,7 @@ router.post("/bot/pago", async (req, res) => {
 });
 
 // ═════════════════════════════════════════════════════════
-// PAGO VIA NOTIFICACION YAPE/QR (Tasker lee la notificación)
+// PAGO VIA NOTIFICACION YAPE/QR (Tasker lee la notificación) — DESACTIVADO
 // ═════════════════════════════════════════════════════════
 // Tasker envía el texto completo de la notificación:
 //   { token, notificacion: "QR DE NOMBRE te enviò Bs. 29.00" }
@@ -222,8 +244,18 @@ router.post("/bot/pago", async (req, res) => {
 // El servidor guarda el pago en Google Sheets (Nombre + Monto + Usado=NO).
 // La activación ocurre después cuando el cliente escribe VERIFICAR en WhatsApp
 // y confirma su nombre exacto y monto exacto.
+//
+// NOTA: Desactivado. Los pagos ahora se registran via Gmail.
+// Para reactivar: cambiar TASKER_DESACTIVADO a false en este archivo.
 // ═════════════════════════════════════════════════════════
 router.post("/bot/pago-qr", async (req, res) => {
+  if (TASKER_DESACTIVADO) {
+    res.status(503).json({
+      ok: false,
+      mensaje: "Este endpoint está desactivado. Los pagos ahora se detectan automáticamente via Gmail.",
+    });
+    return;
+  }
   if (!verificarToken(req, res)) return;
 
   let nombre: string | undefined;

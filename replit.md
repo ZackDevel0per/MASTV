@@ -212,8 +212,12 @@ GET /api/ping
 
 ### Variables de entorno requeridas
 
-- `GOOGLE_SERVICE_ACCOUNT_JSON` — JSON de cuenta de servicio de Google (Secret)
-- `TASKER_TOKEN` — Token de autenticación para endpoints (default: "cambia_este_token_seguro_2024")
+- `GMAIL_CLIENT_ID` — ID de cliente OAuth2 de Google Cloud (para Gmail)
+- `GMAIL_CLIENT_SECRET` — Secreto de cliente OAuth2 de Google Cloud
+- `GMAIL_REFRESH_TOKEN` — Token de refresco Gmail (se obtiene via /api/gmail/autorizar)
+- `GMAIL_REMITENTE_FILTRO` — Email del banco/remitente a vigilar (ej: banco@bancounion.com.bo). Si no se configura, lee TODOS los no leídos.
+- `GOOGLE_SERVICE_ACCOUNT_JSON` — JSON de cuenta de servicio de Google Sheets (opcional/deprecado)
+- `TASKER_TOKEN` — Token de Tasker (desactivado, guardado para uso futuro)
 
 ### Para mantener activo con UptimeRobot
 

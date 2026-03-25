@@ -5,6 +5,7 @@ import { fileURLToPath } from "url";
 import router from "./routes/index.js";
 import { conectarBot } from "./bot/whatsapp.js";
 import { inicializarHojas } from "./bot/sheets.js";
+import { iniciarGmailPolling } from "./bot/gmail-service.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -34,6 +35,9 @@ async function iniciarBot() {
   } catch (err) {
     console.error("❌ Error al iniciar el bot:", err);
   }
+
+  // Iniciar polling de Gmail (solo arranca si las credenciales están configuradas)
+  iniciarGmailPolling();
 }
 
 iniciarBot();
