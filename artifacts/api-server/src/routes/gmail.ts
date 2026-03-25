@@ -32,9 +32,10 @@ router.get("/gmail/estado", (_req: Request, res: Response) => {
 // ═════════════════════════════════════════════════════════
 router.get("/gmail/autorizar", (req: Request, res: Response) => {
   try {
-    const host = req.headers["x-forwarded-host"] ?? req.headers["host"] ?? "localhost";
-    const proto = req.headers["x-forwarded-proto"] ?? "https";
-    const redirectUri = `${proto}://${host}/api/gmail/callback`;
+    const replitDomain = process.env["REPLIT_DEV_DOMAIN"] ?? process.env["REPLIT_DOMAINS"];
+    const redirectUri = replitDomain
+      ? `https://${replitDomain}:8080/api/gmail/callback`
+      : `${req.headers["x-forwarded-proto"] ?? "https"}://${req.headers["x-forwarded-host"] ?? req.headers["host"]}/api/gmail/callback`;
 
     const url = generarUrlAutorizacion(redirectUri);
 
@@ -87,9 +88,10 @@ router.get("/gmail/callback", async (req: Request, res: Response) => {
   }
 
   try {
-    const host = req.headers["x-forwarded-host"] ?? req.headers["host"] ?? "localhost";
-    const proto = req.headers["x-forwarded-proto"] ?? "https";
-    const redirectUri = `${proto}://${host}/api/gmail/callback`;
+    const replitDomain = process.env["REPLIT_DEV_DOMAIN"] ?? process.env["REPLIT_DOMAINS"];
+    const redirectUri = replitDomain
+      ? `https://${replitDomain}:8080/api/gmail/callback`
+      : `${req.headers["x-forwarded-proto"] ?? "https"}://${req.headers["x-forwarded-host"] ?? req.headers["host"]}/api/gmail/callback`;
 
     const refreshToken = await intercambiarCodigo(code, redirectUri);
 
