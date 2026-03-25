@@ -493,44 +493,48 @@ export async function renovarCuentaEnCRM(
         };
       }
 
-      // 2. GET /lines/{id}/renew-with-package → obtener formulario (CSRF + action real)
-      const getUrl = `${CRM_BASE_URL}/lines/${linea.id}/renew-with-package`;
-      const r1 = await axios.get(getUrl, {
+      // 2. GET /lines para obtener un CSRF token fresco
+      //    (el endpoint real de renovación es POST /lines/{id}/renew vía AJAX)
+      const linesPageUrl = `${CRM_BASE_URL}/lines`;
+      const r1 = await axios.get(linesPageUrl, {
         headers: { ...BASE_HEADERS, Cookie: sessionCookie },
-        maxRedirects: 2,
+        maxRedirects: 3,
         validateStatus: () => true,
         timeout: 15_000,
       });
 
-      const htmlRenew = r1.data as string;
-      const csrf = csrfFromHtml(htmlRenew);
+      const csrf = csrfFromHtml(r1.data as string);
       if (!csrf || r1.status === 302) {
         console.warn("⚠️  [CRM] Sesión expirada al renovar, reconectando...");
         cachedSession = null;
         continue;
       }
 
-      // Extraer la acción real del formulario y el _method (PUT/PATCH si el CRM lo requiere)
-      const formAction = formActionFromHtml(htmlRenew, CRM_BASE_URL) || getUrl;
-      const hiddenMethod = formMethodFromHtml(htmlRenew);
-      console.log(`   [CRM] renew form action="${formAction}" _method="${hiddenMethod || "POST"}"`);
+      // Actualizar cookie con la última de /lines
+      const updatedCookie = cookieFromHeaders(r1.headers as Record<string, unknown>);
+      const activeCookie = updatedCookie || sessionCookie;
 
-      // 3. POST al action real del formulario
+      // 3. POST /lines/{id}/renew → endpoint AJAX real del CRM
+      //    Descubierto inspeccionando el mapa de rutas del frontend:
+      //    route name: "lines.renew", uri: "lines/{line}/renew"
+      const renewUrl = `${CRM_BASE_URL}/lines/${linea.id}/renew`;
       const bodyParams = new URLSearchParams();
       bodyParams.append("_token", csrf);
-      if (hiddenMethod) bodyParams.append("_method", hiddenMethod);
       bodyParams.append("package", String(planInfo.id));
 
       const r2 = await axios.post(
-        formAction,
+        renewUrl,
         bodyParams.toString(),
         {
           headers: {
             ...BASE_HEADERS,
             "Content-Type": "application/x-www-form-urlencoded",
+            "X-CSRF-TOKEN": csrf,
+            "X-Requested-With": "XMLHttpRequest",
+            Accept: "application/json, text/javascript, */*",
             Origin: CRM_BASE_URL,
-            Referer: getUrl,
-            Cookie: sessionCookie,
+            Referer: `${CRM_BASE_URL}/lines/${linea.id}/renew-with-package`,
+            Cookie: activeCookie,
           },
           maxRedirects: 0,
           validateStatus: () => true,
@@ -538,10 +542,11 @@ export async function renovarCuentaEnCRM(
         },
       );
 
-      console.log(`   [CRM] renew-with-package → HTTP ${r2.status}`);
+      console.log(`   [CRM] POST /lines/${linea.id}/renew → HTTP ${r2.status}`);
 
-      if (r2.status !== 302 && r2.status !== 200) {
-        throw new Error(`HTTP inesperado al renovar: ${r2.status}`);
+      if (r2.status !== 200) {
+        const bodySnippet = typeof r2.data === "string" ? r2.data.substring(0, 200) : JSON.stringify(r2.data).substring(0, 200);
+        throw new Error(`HTTP inesperado al renovar: ${r2.status} — ${bodySnippet}`);
       }
 
       console.log(`✅ [CRM] Cuenta renovada: ${username} → ${planInfo.nombre}`);
