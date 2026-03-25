@@ -400,7 +400,7 @@ async function manejarMensaje(jid: string, texto: string) {
 
           if (resultado.ok) {
             await sock!.sendMessage(jid, {
-              text: `🎉 *¡Cuenta renovada exitosamente!*\n\n👤 Usuario: *${resultado.usuario}*\n🔑 Contraseña: *${resultado.contrasena}*\n📋 Plan: ${resultado.plan}\n\n✅ Tu servicio ha sido extendido. ¡Disfruta ZKTV! 🚀`,
+              text: `🎉 *¡Cuenta renovada exitosamente!*\n\n🔐 *Credenciales de acceso:*\n📛 Nombre: \`mastv\`\n👤 Usuario: \`${resultado.usuario}\`\n🔑 Contraseña: \`${resultado.contrasena}\`\n🌐 URL: \`${resultado.servidor || "http://mtv.bo:80"}\`\n\n📺 *Plan renovado:* ${resultado.plan}\n\n✅ Tu servicio ha sido extendido. ¡Disfruta ZKTV! 🚀`,
             });
             conversaciones[jid] = { ultimoComando: "CUENTA_RENOVADA", planSeleccionado: undefined, hora: Date.now() };
           } else {

@@ -664,11 +664,12 @@ export const ACTIVACION_EXITOSA = (datos: {
 🎬 *Bienvenido a ZKTV*
 
 🔐 *Credenciales de acceso:*
+📛 Nombre: \`mastv\`
 👤 Usuario: \`${datos.usuario}\`
 🔑 Contraseña: \`${datos.contrasena}\`
+🌐 URL: \`${datos.servidor || "http://mtv.bo:80"}\`
 
 📺 *Plan contratado:* ${datos.plan || "Plan Activo"}
-🌐 *Servidor:* ${datos.servidor || "http://mtv.bo:80"}
 
 _Puedes acceder desde la web, Smart TV o app mobile_
 
