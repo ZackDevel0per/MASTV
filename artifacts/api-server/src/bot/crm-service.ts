@@ -762,6 +762,7 @@ export async function renovarCuentaEnCRM(
       renewBody.append("_token", csrfEdit);
       renewBody.append("package_id", String(planInfo.id));
       renewBody.append("package", String(planInfo.id));
+      renewBody.append("max_connections", String(planInfo.maxConexiones));
 
       console.log(
         `   [CRM] POST ${renewUrl} | package_id=${planInfo.id} (${planInfo.nombre})`,
