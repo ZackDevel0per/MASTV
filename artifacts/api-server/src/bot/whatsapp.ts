@@ -83,10 +83,20 @@ const logger = pino({ level: "silent" });
 /**
  * Extrae el número de teléfono limpio de un JID de WhatsApp.
  * Funciona para cualquier formato: "591...@s.whatsapp.net", "@lid", etc.
- * Siempre devuelve solo los dígitos antes del "@", ej: "59169741630"
+ *
+ * WhatsApp a veces añade un prefijo "1" de enrutamiento antes del código
+ * de país real (ej: "1591XXXXXXXX" en lugar de "591XXXXXXXX").
+ * Los números E.164 estándar tienen máximo 12 dígitos (código país + abonado).
+ * Si el número tiene 13+ dígitos y empieza con "1", ese "1" es el prefijo y se elimina.
+ *
+ * Ejemplo: "159169741630" → "59169741630" (Bolivia 591 + 8 dígitos)
  */
 function extraerTelefono(jid: string): string {
-  return jid.split("@")[0];
+  let num = jid.split("@")[0];
+  if (num.length >= 13 && num.startsWith("1")) {
+    num = num.substring(1);
+  }
+  return num;
 }
 
 let sock: ReturnType<typeof makeWASocket> | null = null;

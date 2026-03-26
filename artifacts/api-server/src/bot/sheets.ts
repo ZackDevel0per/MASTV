@@ -42,9 +42,18 @@ let cacheSheets: Map<string, CuentaRegistrada[]> = new Map();
 let cacheListaMs = 0;
 let cacheIntervalId: ReturnType<typeof setInterval> | null = null;
 
-/** Extrae solo los dígitos del teléfono, sin prefijos ni sufijos */
+/**
+ * Normaliza un número de teléfono:
+ * 1. Elimina todo lo que no sea dígito
+ * 2. Elimina el prefijo de enrutamiento "1" que WhatsApp añade a algunos JIDs
+ *    (ej: "1591XXXXXXXX" con 13+ dígitos → "591XXXXXXXX")
+ */
 function limpiarTel(tel: string): string {
-  return tel.replace(/\D/g, "");
+  let num = tel.replace(/\D/g, "");
+  if (num.length >= 13 && num.startsWith("1")) {
+    num = num.substring(1);
+  }
+  return num;
 }
 
 /**
