@@ -421,6 +421,18 @@ router.post("/bot/video", async (req, res) => {
 });
 
 // ═════════════════════════════════════════════════════════
+// DEBUG: inspeccionar página renew-with-package sin cambios
+// ═════════════════════════════════════════════════════════
+router.get("/debug-renew/:username", async (req: Request, res: Response) => {
+  try {
+    const data = await debugRenewPage(req.params.username as string);
+    res.json(data);
+  } catch (err) {
+    res.status(500).json({ error: String(err) });
+  }
+});
+
+// ═════════════════════════════════════════════════════════
 // PING (para UptimeRobot)
 // ═════════════════════════════════════════════════════════
 router.get("/ping", (_req, res) => {

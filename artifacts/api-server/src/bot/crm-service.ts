@@ -503,8 +503,16 @@ export async function debugRenewPage(username: string): Promise<object> {
 }
 
 /**
- * Renueva (extiende) una línea existente en el CRM cambiando el paquete.
- * Estrategia: usar la action real del formulario + intentar múltiples endpoints.
+ * Renueva una línea cambiando el paquete.
+ *
+ * El CRM es una React SPA — no hay forms HTML estáticos.
+ * Flujo correcto:
+ *   1. GET CSRF desde /lines/{id}/renew-with-package
+ *   2. GET api/packages/data/bouquets/{packageId} → bouquet IDs exactos del paquete nuevo
+ *   3. POST /lines/{id}/renew con package + esos bouquet_ids[]
+ *
+ * El endpoint /renew sí aplica el paquete cuando se le envían los bouquet_ids
+ * del paquete destino (igual que store-with-package en la creación).
  */
 export async function renovarCuentaEnCRM(
   username: string,
@@ -518,7 +526,7 @@ export async function renovarCuentaEnCRM(
   for (let intento = 1; intento <= 2; intento++) {
     try {
       console.log(
-        `🔄 [CRM] Renovando cuenta username=${username} plan=${planComando} (id=${planInfo.id}) intento=${intento}`,
+        `🔄 [CRM] Renovando cuenta username=${username} plan=${planComando} (packageId=${planInfo.id}) intento=${intento}`,
       );
 
       const sessionCookie = await getSession();
@@ -532,7 +540,7 @@ export async function renovarCuentaEnCRM(
         };
       }
 
-      // 2. GET /lines/{id}/renew-with-package → obtener CSRF + form action real
+      // 2. GET /lines/{id}/renew-with-package → solo para obtener CSRF fresco
       const renewWithPackagePage = `${CRM_BASE_URL}/lines/${linea.id}/renew-with-package`;
       const r1 = await axios.get(renewWithPackagePage, {
         headers: { ...BASE_HEADERS, Cookie: sessionCookie },
@@ -548,108 +556,77 @@ export async function renovarCuentaEnCRM(
         continue;
       }
 
-      const html = r1.data as string;
       const updatedCookie = cookieFromHeaders(r1.headers as Record<string, unknown>);
       const activeCookie = updatedCookie || sessionCookie;
 
-      // Extraer form action real y _method oculto del formulario
-      const formAction = formActionFromHtml(html, CRM_BASE_URL);
-      const formMethod = formMethodFromHtml(html);
-      console.log(`   [CRM] Form action="${formAction}" _method="${formMethod}"`);
-
-      const commonHeaders = {
-        ...BASE_HEADERS,
-        "Content-Type": "application/x-www-form-urlencoded",
-        "X-CSRF-TOKEN": csrf,
-        "X-Requested-With": "XMLHttpRequest",
-        Accept: "application/json, text/javascript, */*",
-        Origin: CRM_BASE_URL,
-        Referer: renewWithPackagePage,
-        Cookie: activeCookie,
-      };
-
-      // ── INTENTO A: Si el formulario tiene action real, usarla directamente ──
-      let r2: Awaited<ReturnType<typeof axios.post>> | null = null;
-
-      if (formAction && !formAction.endsWith("/renew-with-package")) {
-        // El form apunta a un endpoint diferente — usarlo
-        const bodyA = new URLSearchParams();
-        bodyA.append("_token", csrf);
-        if (formMethod) bodyA.append("_method", formMethod);
-        bodyA.append("package", String(planInfo.id));
-        for (const bid of TODOS_LOS_BOUQUETS) bodyA.append("bouquet_ids[]", bid);
-
-        r2 = await axios.post(formAction, bodyA.toString(), {
-          headers: commonHeaders, maxRedirects: 0, validateStatus: () => true, timeout: 20_000,
-        });
-        console.log(`   [CRM] A) POST ${formAction} → HTTP ${r2.status}`);
-        if (r2.status !== 200 && r2.status !== 302) r2 = null; // fallback
+      // 3. GET api/packages/data/bouquets/{packageId} → bouquet IDs del paquete destino
+      //    Este endpoint devuelve los bouquets que pertenecen al paquete seleccionado.
+      //    Son necesarios para que /renew aplique el paquete correcto (igual que en creación).
+      let bouquetIds: string[] = [];
+      try {
+        const rBouquets = await axios.get(
+          `${CRM_BASE_URL}/api/packages/data/bouquets/${planInfo.id}`,
+          {
+            headers: { ...BASE_HEADERS, Cookie: activeCookie, Accept: "application/json" },
+            validateStatus: () => true,
+            timeout: 10_000,
+          },
+        );
+        console.log(`   [CRM] GET bouquets/${planInfo.id} → HTTP ${rBouquets.status} data=${JSON.stringify(rBouquets.data).substring(0, 200)}`);
+        if (rBouquets.status === 200 && Array.isArray(rBouquets.data)) {
+          // La respuesta puede ser [{id: X, ...}] o [X, Y, ...]
+          bouquetIds = rBouquets.data.map((b: unknown) =>
+            typeof b === "object" && b !== null && "id" in b
+              ? String((b as { id: unknown }).id)
+              : String(b),
+          );
+          console.log(`   [CRM] Bouquets para packageId=${planInfo.id}: [${bouquetIds.join(", ")}]`);
+        }
+      } catch (e) {
+        console.warn("   [CRM] No se pudieron obtener bouquets del paquete, usando lista completa");
       }
 
-      // ── INTENTO B: POST /lines/{id}/renew con package + TODOS los bouquets ──
-      // Esto replica exactamente el flow de creación (store-with-package) que sí funciona.
-      if (!r2) {
-        const renewUrl = `${CRM_BASE_URL}/lines/${linea.id}/renew`;
-        const bodyB = new URLSearchParams();
-        bodyB.append("_token", csrf);
-        bodyB.append("package", String(planInfo.id));
-        for (const bid of TODOS_LOS_BOUQUETS) bodyB.append("bouquet_ids[]", bid);
+      // Si no obtuvimos bouquets específicos del paquete, usar la lista completa (fallback)
+      const bouquetsAUsar = bouquetIds.length > 0 ? bouquetIds : TODOS_LOS_BOUQUETS;
 
-        r2 = await axios.post(renewUrl, bodyB.toString(), {
-          headers: commonHeaders, maxRedirects: 0, validateStatus: () => true, timeout: 20_000,
-        });
-        console.log(`   [CRM] B) POST /lines/${linea.id}/renew + bouquets → HTTP ${r2.status}`);
+      // 4. POST /lines/{id}/renew con package + bouquet_ids del paquete destino
+      const renewUrl = `${CRM_BASE_URL}/lines/${linea.id}/renew`;
+      const body = new URLSearchParams();
+      body.append("_token", csrf);
+      body.append("package", String(planInfo.id));
+      for (const bid of bouquetsAUsar) {
+        body.append("bouquet_ids[]", bid);
       }
 
-      // ── INTENTO C: PATCH /lines/{id} para cambiar package, luego /renew ──
-      // Si B tampoco funciona, intentar cambiar el package por separado primero.
-      if (r2.status !== 200 && r2.status !== 302) {
-        console.log(`   [CRM] C) Intentando PATCH /lines/${linea.id} para cambiar package...`);
+      const r2 = await axios.post(renewUrl, body.toString(), {
+        headers: {
+          ...BASE_HEADERS,
+          "Content-Type": "application/x-www-form-urlencoded",
+          "X-CSRF-TOKEN": csrf,
+          "X-Requested-With": "XMLHttpRequest",
+          Accept: "application/json, text/javascript, */*",
+          Origin: CRM_BASE_URL,
+          Referer: renewWithPackagePage,
+          Cookie: activeCookie,
+        },
+        maxRedirects: 0,
+        validateStatus: () => true,
+        timeout: 20_000,
+      });
 
-        // GET /lines/{id}/edit para obtener CSRF fresco del form de edición
-        const editPage = `${CRM_BASE_URL}/lines/${linea.id}/edit`;
-        const rEdit = await axios.get(editPage, {
-          headers: { ...BASE_HEADERS, Cookie: activeCookie },
-          maxRedirects: 3, validateStatus: () => true, timeout: 15_000,
-        });
-        const csrfEdit = csrfFromHtml(rEdit.data as string) || csrf;
-        const cookieEdit = cookieFromHeaders(rEdit.headers as Record<string, unknown>) || activeCookie;
+      console.log(`   [CRM] POST /lines/${linea.id}/renew → HTTP ${r2.status}`);
 
-        const bodyPatch = new URLSearchParams();
-        bodyPatch.append("_token", csrfEdit);
-        bodyPatch.append("_method", "PATCH");
-        bodyPatch.append("package", String(planInfo.id));
-        for (const bid of TODOS_LOS_BOUQUETS) bodyPatch.append("bouquet_ids[]", bid);
-
-        const rPatch = await axios.post(`${CRM_BASE_URL}/lines/${linea.id}`, bodyPatch.toString(), {
-          headers: { ...commonHeaders, Cookie: cookieEdit, "X-CSRF-TOKEN": csrfEdit, Referer: editPage },
-          maxRedirects: 0, validateStatus: () => true, timeout: 20_000,
-        });
-        console.log(`   [CRM] C1) PATCH /lines/${linea.id} → HTTP ${rPatch.status}`);
-
-        // Ahora renovar con el package ya cambiado
-        const bodyRenew = new URLSearchParams();
-        bodyRenew.append("_token", csrfEdit);
-        bodyRenew.append("package", String(planInfo.id));
-        r2 = await axios.post(`${CRM_BASE_URL}/lines/${linea.id}/renew`, bodyRenew.toString(), {
-          headers: { ...commonHeaders, Cookie: cookieEdit, "X-CSRF-TOKEN": csrfEdit },
-          maxRedirects: 0, validateStatus: () => true, timeout: 20_000,
-        });
-        console.log(`   [CRM] C2) POST /lines/${linea.id}/renew (post-patch) → HTTP ${r2.status}`);
+      if (r2.status !== 302 && r2.status !== 200) {
+        const bodySnippet = typeof r2.data === "string"
+          ? r2.data.substring(0, 300)
+          : JSON.stringify(r2.data).substring(0, 300);
+        throw new Error(`HTTP inesperado al renovar: ${r2.status} — ${bodySnippet}`);
       }
 
-      if (!r2 || (r2.status !== 302 && r2.status !== 200)) {
-        const bodySnippet = r2
-          ? (typeof r2.data === "string" ? r2.data.substring(0, 200) : JSON.stringify(r2.data).substring(0, 200))
-          : "sin respuesta";
-        throw new Error(`HTTP inesperado al renovar: ${r2?.status} — ${bodySnippet}`);
-      }
-
-      // Verificar que el CRM efectivamente aplicó el plan correcto
-      await new Promise(r => setTimeout(r, 1500));
+      // 5. Verificar que el CRM aplicó la fecha correcta
+      await new Promise((r) => setTimeout(r, 1500));
       const lineaActualizada = await buscarLineaPorUsername(username, activeCookie);
-      const planAplicado = lineaActualizada?.exp_date ?? "desconocida";
-      console.log(`✅ [CRM] Cuenta renovada: ${username} → plan solicitado=${planInfo.nombre} exp_date=${planAplicado}`);
+      console.log(`✅ [CRM] Cuenta renovada: ${username} → plan=${planInfo.nombre} exp_date=${lineaActualizada?.exp_date ?? "?"}`);
       return {
         ok: true,
         usuario: username,
