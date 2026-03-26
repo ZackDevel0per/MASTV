@@ -46,6 +46,7 @@ Somos tu mejor opción en entretenimiento en línea.
 *5️⃣* → 🎁 Probar gratis el servicio
 *6️⃣* → 📹 Guías de instalación
 *7️⃣* → 📅 Ver días restantes de mi cuenta
+*VERIFICAR* → 🔍 Ver mis cuentas activas
 
 _Escribe el número que prefieres_ ⬇️`;
 
@@ -124,13 +125,13 @@ _Selecciona la opción que necesitas_`,
 
 Para completar tu activación:
 1️⃣ Realiza tu pago de *Bs 29* por Yape o QR
-2️⃣ Cuando termines, escribe *VERIFICAR*
+2️⃣ Cuando termines, escribe *COMPROBAR*
 3️⃣ El bot te pedirá tu nombre y el monto exacto
 4️⃣ ¡Recibirás tus credenciales al instante!
 
 ⚠️ _El nombre debe ser exactamente como aparece en tu comprobante_
 
-*VERIFICAR* → Verificar mi pago
+*COMPROBAR* → Confirmar mi pago
 *1* → Volver al menú`,
     },
   ],
@@ -143,13 +144,13 @@ Para completar tu activación:
 
 Para completar tu activación:
 1️⃣ Realiza tu pago de *Bs 82* por Yape o QR
-2️⃣ Cuando termines, escribe *VERIFICAR*
+2️⃣ Cuando termines, escribe *COMPROBAR*
 3️⃣ El bot te pedirá tu nombre y el monto exacto
 4️⃣ ¡Recibirás tus credenciales al instante!
 
 ⚠️ _El nombre debe ser exactamente como aparece en tu comprobante_
 
-*VERIFICAR* → Verificar mi pago
+*COMPROBAR* → Confirmar mi pago
 *1* → Volver al menú`,
     },
   ],
@@ -162,13 +163,13 @@ Para completar tu activación:
 
 Para completar tu activación:
 1️⃣ Realiza tu pago de *Bs 155* por Yape o QR
-2️⃣ Cuando termines, escribe *VERIFICAR*
+2️⃣ Cuando termines, escribe *COMPROBAR*
 3️⃣ El bot te pedirá tu nombre y el monto exacto
 4️⃣ ¡Recibirás tus credenciales al instante!
 
 ⚠️ _El nombre debe ser exactamente como aparece en tu comprobante_
 
-*VERIFICAR* → Verificar mi pago
+*COMPROBAR* → Confirmar mi pago
 *1* → Volver al menú`,
     },
   ],
@@ -181,13 +182,13 @@ Para completar tu activación:
 
 Para completar tu activación:
 1️⃣ Realiza tu pago de *Bs 300* por Yape o QR
-2️⃣ Cuando termines, escribe *VERIFICAR*
+2️⃣ Cuando termines, escribe *COMPROBAR*
 3️⃣ El bot te pedirá tu nombre y el monto exacto
 4️⃣ ¡Recibirás tus credenciales al instante!
 
 ⚠️ _El nombre debe ser exactamente como aparece en tu comprobante_
 
-*VERIFICAR* → Verificar mi pago
+*COMPROBAR* → Confirmar mi pago
 *1* → Volver al menú`,
     },
   ],
@@ -220,13 +221,13 @@ Para completar tu activación:
 
 Para completar tu activación:
 1️⃣ Realiza tu pago de *Bs 35* por Yape o QR
-2️⃣ Cuando termines, escribe *VERIFICAR*
+2️⃣ Cuando termines, escribe *COMPROBAR*
 3️⃣ El bot te pedirá tu nombre y el monto exacto
 4️⃣ ¡Recibirás tus credenciales al instante!
 
 ⚠️ _El nombre debe ser exactamente como aparece en tu comprobante_
 
-*VERIFICAR* → Verificar mi pago
+*COMPROBAR* → Confirmar mi pago
 *1* → Volver al menú`,
     },
   ],
@@ -239,13 +240,13 @@ Para completar tu activación:
 
 Para completar tu activación:
 1️⃣ Realiza tu pago de *Bs 100* por Yape o QR
-2️⃣ Cuando termines, escribe *VERIFICAR*
+2️⃣ Cuando termines, escribe *COMPROBAR*
 3️⃣ El bot te pedirá tu nombre y el monto exacto
 4️⃣ ¡Recibirás tus credenciales al instante!
 
 ⚠️ _El nombre debe ser exactamente como aparece en tu comprobante_
 
-*VERIFICAR* → Verificar mi pago
+*COMPROBAR* → Confirmar mi pago
 *1* → Volver al menú`,
     },
   ],
@@ -258,13 +259,13 @@ Para completar tu activación:
 
 Para completar tu activación:
 1️⃣ Realiza tu pago de *Bs 190* por Yape o QR
-2️⃣ Cuando termines, escribe *VERIFICAR*
+2️⃣ Cuando termines, escribe *COMPROBAR*
 3️⃣ El bot te pedirá tu nombre y el monto exacto
 4️⃣ ¡Recibirás tus credenciales al instante!
 
 ⚠️ _El nombre debe ser exactamente como aparece en tu comprobante_
 
-*VERIFICAR* → Verificar mi pago
+*COMPROBAR* → Confirmar mi pago
 *1* → Volver al menú`,
     },
   ],
@@ -277,13 +278,13 @@ Para completar tu activación:
 
 Para completar tu activación:
 1️⃣ Realiza tu pago de *Bs 380* por Yape o QR
-2️⃣ Cuando termines, escribe *VERIFICAR*
+2️⃣ Cuando termines, escribe *COMPROBAR*
 3️⃣ El bot te pedirá tu nombre y el monto exacto
 4️⃣ ¡Recibirás tus credenciales al instante!
 
 ⚠️ _El nombre debe ser exactamente como aparece en tu comprobante_
 
-*VERIFICAR* → Verificar mi pago
+*COMPROBAR* → Confirmar mi pago
 *1* → Volver al menú`,
     },
   ],
@@ -316,13 +317,13 @@ Para completar tu activación:
 
 Para completar tu activación:
 1️⃣ Realiza tu pago de *Bs 40* por Yape o QR
-2️⃣ Cuando termines, escribe *VERIFICAR*
+2️⃣ Cuando termines, escribe *COMPROBAR*
 3️⃣ El bot te pedirá tu nombre y el monto exacto
 4️⃣ ¡Recibirás tus credenciales al instante!
 
 ⚠️ _El nombre debe ser exactamente como aparece en tu comprobante_
 
-*VERIFICAR* → Verificar mi pago
+*COMPROBAR* → Confirmar mi pago
 *1* → Volver al menú`,
     },
   ],
@@ -335,13 +336,13 @@ Para completar tu activación:
 
 Para completar tu activación:
 1️⃣ Realiza tu pago de *Bs 115* por Yape o QR
-2️⃣ Cuando termines, escribe *VERIFICAR*
+2️⃣ Cuando termines, escribe *COMPROBAR*
 3️⃣ El bot te pedirá tu nombre y el monto exacto
 4️⃣ ¡Recibirás tus credenciales al instante!
 
 ⚠️ _El nombre debe ser exactamente como aparece en tu comprobante_
 
-*VERIFICAR* → Verificar mi pago
+*COMPROBAR* → Confirmar mi pago
 *1* → Volver al menú`,
     },
   ],
@@ -354,13 +355,13 @@ Para completar tu activación:
 
 Para completar tu activación:
 1️⃣ Realiza tu pago de *Bs 225* por Yape o QR
-2️⃣ Cuando termines, escribe *VERIFICAR*
+2️⃣ Cuando termines, escribe *COMPROBAR*
 3️⃣ El bot te pedirá tu nombre y el monto exacto
 4️⃣ ¡Recibirás tus credenciales al instante!
 
 ⚠️ _El nombre debe ser exactamente como aparece en tu comprobante_
 
-*VERIFICAR* → Verificar mi pago
+*COMPROBAR* → Confirmar mi pago
 *1* → Volver al menú`,
     },
   ],
@@ -373,13 +374,13 @@ Para completar tu activación:
 
 Para completar tu activación:
 1️⃣ Realiza tu pago de *Bs 440* por Yape o QR
-2️⃣ Cuando termines, escribe *VERIFICAR*
+2️⃣ Cuando termines, escribe *COMPROBAR*
 3️⃣ El bot te pedirá tu nombre y el monto exacto
 4️⃣ ¡Recibirás tus credenciales al instante!
 
 ⚠️ _El nombre debe ser exactamente como aparece en tu comprobante_
 
-*VERIFICAR* → Verificar mi pago
+*COMPROBAR* → Confirmar mi pago
 *1* → Volver al menú`,
     },
   ],
@@ -440,7 +441,7 @@ Ya tienes una cuenta registrada.
 
 _¿Ya realizaste tu pago?_
 
-Cuando hayas pagado, escribe *VERIFICAR* y recibirás tus credenciales al instante.
+Cuando hayas pagado, escribe *COMPROBAR* y recibirás tus credenciales al instante.
 
 *MENU* → Volver al menú principal`,
     },
@@ -735,7 +736,7 @@ _Para activarla necesitas:_
 ✅ Recibir validación automática
 🔓 Obtener credenciales
 
-_Una vez realizado el pago, escribe:_ *VERIFICAR*
+_Una vez realizado el pago, escribe:_ *COMPROBAR*
 
 *MENU* → Volver al menú principal`,
     },

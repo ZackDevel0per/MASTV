@@ -72,6 +72,7 @@ import {
 } from "./responses.js";
 import { enviarImagen } from "./media-handler.js";
 import { crearCuentaEnCRM, renovarCuentaEnCRM, verificarDemoExistente, consultarEstadoCuenta, PLAN_ID_MAP } from "./crm-service.js";
+import { registrarCuenta, actualizarCuenta, buscarCuentasPorTelefono } from "./sheets.js";
 import { registrarPedido } from "./payment-store.js";
 import { encontrarIndexPago, marcarPagoUsado } from "./yape-store.js";
 
@@ -375,7 +376,7 @@ async function manejarMensaje(jid: string, texto: string) {
 
     // ─── CONFIRMAR: redirigir al flujo correcto ────────────────────
     if (textoUpper === "CONFIRMAR") {
-      await enviarConDelay(jid, `ℹ️ Para verificar tu pago, escribe *VERIFICAR*.\n\nSi aún no has realizado el pago, elige tu plan escribiendo *1* y sigue las instrucciones.`);
+      await enviarConDelay(jid, `ℹ️ Para verificar tu pago, escribe *COMPROBAR*.\n\nSi aún no has realizado el pago, elige tu plan escribiendo *1* y sigue las instrucciones.\n\nPara ver tus cuentas activas, escribe *VERIFICAR*.`);
       return;
     }
 
@@ -466,6 +467,9 @@ async function manejarMensaje(jid: string, texto: string) {
             // ── Marcar pago como usado solo si el CRM tuvo éxito ────
             marcarPagoUsado(indicePago);
             await enviarConDelay(jid, `🎉 *¡Cuenta renovada exitosamente!*\n\n🔐 *Credenciales de acceso:*\n📛 Nombre: \`mastv\`\n👤 Usuario: \`${resultado.usuario}\`\n🔑 Contraseña: \`${resultado.contrasena}\`\n🌐 URL: \`${resultado.servidor || "http://mtv.bo:80"}\`\n\n📺 *Plan renovado:* ${resultado.plan}\n\n✅ Tu servicio ha sido extendido. ¡Disfruta ZKTV! 🚀`);
+            // Registrar renovación en Google Sheets
+            actualizarCuenta(telefono, resultado.usuario ?? usuarioRenovar, resultado.plan ?? planSeleccionado ?? "")
+              .catch(err => console.error("[BOT] Error actualizando cuenta en Sheets:", err));
             conversaciones[jid] = { ultimoComando: "CUENTA_RENOVADA", planSeleccionado: undefined, hora: Date.now() };
           } else {
             // Pago NO se marca: el cliente puede reintentar
@@ -493,6 +497,9 @@ async function manejarMensaje(jid: string, texto: string) {
               servidor: resultado.servidor,
             });
             await enviarConDelay(jid, mensajeActivacion);
+            // Registrar cuenta nueva en Google Sheets
+            registrarCuenta(telefono, resultado.usuario, resultado.plan ?? planInfo.nombre)
+              .catch(err => console.error("[BOT] Error registrando cuenta en Sheets:", err));
             conversaciones[jid] = { ultimoComando: "CUENTA_CREADA", planSeleccionado: undefined, hora: Date.now() };
           } else {
             // Pago NO se marca: el cliente puede reintentar
@@ -596,8 +603,55 @@ async function manejarMensaje(jid: string, texto: string) {
       return;
     }
 
-    // ─── VERIFICAR: Iniciar flujo multi-paso ───────────────────────
+    // ─── VERIFICAR: Consultar cuentas por número de celular ────────
     if (textoUpper === "VERIFICAR") {
+      const telefono = jid.replace("@s.whatsapp.net", "");
+      await enviarConDelay(jid, `🔍 _Buscando tus cuentas registradas..._`);
+
+      try {
+        const cuentas = await buscarCuentasPorTelefono(telefono);
+
+        if (cuentas.length === 0) {
+          await enviarConDelay(
+            jid,
+            `📋 *No encontramos cuentas asociadas a tu número*\n\n` +
+            `Tu número: *${telefono}*\n\n` +
+            `Si acabas de crear una cuenta, puede tardar unos segundos en registrarse.\n\n` +
+            `*1* → Ver planes disponibles\n` +
+            `*4* → Activar mi servicio\n` +
+            `*3* → Soporte técnico`,
+          );
+        } else {
+          let mensaje = `✅ *Tus cuentas activas en ZKTV*\n\n`;
+          mensaje += `📱 Número: *${telefono}*\n\n`;
+
+          cuentas.forEach((c, i) => {
+            const icono = c.estado === "RENOVADA" ? "🔄" : "🟢";
+            mensaje += `*Cuenta ${i + 1}:*\n`;
+            mensaje += `${icono} Estado: *${c.estado}*\n`;
+            mensaje += `👤 Usuario: \`${c.usuario}\`\n`;
+            mensaje += `📺 Plan: ${c.plan}\n`;
+            mensaje += `📅 Última actualización: ${c.fecha}\n`;
+            if (i < cuentas.length - 1) mensaje += `\n`;
+          });
+
+          mensaje += `\n\n*RENOVAR* → Renovar una cuenta\n*7* → Ver días restantes`;
+          await enviarConDelay(jid, mensaje);
+        }
+      } catch (err) {
+        console.error("[BOT] Error en VERIFICAR por teléfono:", err);
+        await enviarConDelay(
+          jid,
+          `⚠️ No pudimos consultar tus cuentas en este momento.\n\nEscribe *7* para consultar tu cuenta por nombre de usuario, o *3* para soporte.`,
+        );
+      }
+
+      conversaciones[jid] = { ultimoComando: "VERIFICAR", hora: Date.now() };
+      return;
+    }
+
+    // ─── COMPROBAR: Verificar pago (flujo multi-paso) ──────────────
+    if (textoUpper === "COMPROBAR") {
       conversaciones[jid] = {
         ultimoComando: "ESPERANDO_NOMBRE",
         planSeleccionado: estadoAnterior?.planSeleccionado,

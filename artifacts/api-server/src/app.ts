@@ -46,7 +46,7 @@ async function iniciarBot() {
       `💰 *Nuevo pago detectado*\n\n` +
       `👤 Nombre: *${nombre}*\n` +
       `💵 Monto: *Bs ${monto}*\n\n` +
-      `_El cliente debe escribir *VERIFICAR* para activar su cuenta._`;
+      `_El cliente debe escribir *COMPROBAR* para activar su cuenta._`;
     enviarMensaje(jid, msg).catch((err) =>
       console.error("[APP] Error enviando notificación de pago al admin:", err)
     );
