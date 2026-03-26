@@ -92,7 +92,16 @@ const logger = pino({ level: "silent" });
  * Ejemplo: "159169741630" → "59169741630" (Bolivia 591 + 8 dígitos)
  */
 function extraerTelefono(jid: string): string {
-  let num = jid.split("@")[0];
+  // Si el JID es @lid, intentar resolverlo al JID real con el teléfono
+  let jidReal = jid;
+  if (jid.endsWith("@lid")) {
+    jidReal = lidAlPhone.get(jid) ?? jid;
+  }
+
+  let num = jidReal.split("@")[0];
+
+  // WhatsApp a veces añade un prefijo "1" de enrutamiento antes del código
+  // de país real (ej: "1591XXXXXXXX" con 13+ dígitos en lugar de "591XXXXXXXX").
   if (num.length >= 13 && num.startsWith("1")) {
     num = num.substring(1);
   }
@@ -159,6 +168,14 @@ interface EstadoConversacion {
 }
 
 const conversaciones: Record<string, EstadoConversacion> = {};
+
+/**
+ * Mapa de JIDs en formato @lid → JID real en formato @s.whatsapp.net.
+ * WhatsApp usa @lid como identificador interno en dispositivos nuevos.
+ * Se rellena automáticamente con el evento contacts.upsert de Baileys.
+ * Ejemplo: "159167646040103@lid" → "59169741630@s.whatsapp.net"
+ */
+const lidAlPhone: Map<string, string> = new Map();
 
 // Planes reconocidos para la creación automática de cuentas
 const PLANES_VALIDOS = new Set(Object.keys(PLAN_ID_MAP));
@@ -288,6 +305,20 @@ export async function conectarBot() {
   });
 
   sock.ev.on("creds.update", saveCreds);
+
+  /**
+   * Cuando WhatsApp envía datos de contactos, algunos tendrán tanto `id`
+   * (JID real con teléfono) como `lid` (identificador interno @lid).
+   * Guardamos el mapeo para poder resolver @lid → teléfono real.
+   */
+  sock.ev.on("contacts.upsert", (contacts) => {
+    for (const c of contacts) {
+      if (c.lid && c.id) {
+        lidAlPhone.set(c.lid, c.id);
+        console.log(`📇 [LID] Mapeado: ${c.lid} → ${c.id}`);
+      }
+    }
+  });
 
   sock.ev.on("messages.upsert", async ({ messages, type }) => {
     if (type !== "notify") return;
