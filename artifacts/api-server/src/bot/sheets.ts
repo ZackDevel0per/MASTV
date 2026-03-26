@@ -36,6 +36,74 @@ export interface CuentaRegistrada {
   estado: string;
 }
 
+// ── Caché en memoria de la hoja "Cuentas" ────────────────────────────────────
+// Mapa: teléfono → lista de cuentas
+let cacheSheets: Map<string, CuentaRegistrada[]> = new Map();
+let cacheListaMs = 0;
+let cacheIntervalId: ReturnType<typeof setInterval> | null = null;
+
+/** Extrae solo los dígitos del teléfono, sin prefijos ni sufijos */
+function limpiarTel(tel: string): string {
+  return tel.replace(/\D/g, "");
+}
+
+/**
+ * Lee TODAS las filas de la hoja "Cuentas" y reconstruye el caché en memoria.
+ * Se llama al arranque y luego cada 30 segundos.
+ */
+async function actualizarCacheSheets(): Promise<void> {
+  try {
+    const sheets = await getSheetsClient();
+    const res = await sheets.spreadsheets.values.get({
+      spreadsheetId: SPREADSHEET_ID,
+      range: `${SHEET_CUENTAS}!A:E`,
+    });
+
+    const rows = res.data.values || [];
+    const nuevo: Map<string, CuentaRegistrada[]> = new Map();
+
+    for (let i = 1; i < rows.length; i++) {
+      const row = rows[i];
+      if (!row) continue;
+
+      const tel = limpiarTel((row[0] ?? "").toString());
+      if (!tel) continue;
+
+      const cuenta: CuentaRegistrada = {
+        usuario: (row[1] ?? "").toString().trim(),
+        plan: (row[2] ?? "").toString().trim(),
+        fecha: (row[3] ?? "").toString().trim(),
+        estado: (row[4] ?? "").toString().trim(),
+      };
+
+      const lista = nuevo.get(tel) ?? [];
+      lista.push(cuenta);
+      nuevo.set(tel, lista);
+    }
+
+    cacheSheets = nuevo;
+    cacheListaMs = Date.now();
+    console.log(`🔄 [SHEETS] Caché actualizado: ${nuevo.size} números, ${rows.length - 1} filas`);
+  } catch (err) {
+    console.error("[SHEETS] Error actualizando caché:", err);
+  }
+}
+
+/**
+ * Arranca la carga inicial del caché y programa la actualización cada 30 segundos.
+ * Llamar una sola vez al iniciar el servidor.
+ */
+export function iniciarCacheSheets(): void {
+  actualizarCacheSheets();
+
+  if (cacheIntervalId) clearInterval(cacheIntervalId);
+  cacheIntervalId = setInterval(() => {
+    actualizarCacheSheets();
+  }, 30_000);
+
+  console.log("⏱️  [SHEETS] Caché de cuentas activo (actualización cada 30s)");
+}
+
 /**
  * Inicializa las hojas de Pagos y Cuentas con sus encabezados si no existen.
  */
@@ -96,7 +164,6 @@ export async function inicializarHojas() {
 
 /**
  * Registra un pago recibido desde la notificación de Yape (vía Tasker).
- * Agrega una fila nueva: fecha, nombre del pagador, monto, Usado=NO
  */
 export async function registrarPagoYape(nombre: string, monto: number): Promise<void> {
   const sheets = await getSheetsClient();
@@ -115,8 +182,7 @@ export async function registrarPagoYape(nombre: string, monto: number): Promise<
 }
 
 /**
- * Busca un pago NO usado con nombre y monto exactos.
- * Si lo encuentra, lo marca como Usado=SI y devuelve true.
+ * Busca un pago NO usado con nombre y monto exactos y lo marca como usado.
  */
 export async function buscarYUsarPago(nombre: string, monto: number): Promise<boolean> {
   const sheets = await getSheetsClient();
@@ -156,8 +222,7 @@ export async function buscarYUsarPago(nombre: string, monto: number): Promise<bo
 }
 
 /**
- * Registra una cuenta nueva en la hoja "Cuentas".
- * Se llama cuando el bot crea una cuenta nueva exitosamente.
+ * Registra una cuenta nueva en la hoja "Cuentas" y actualiza el caché.
  */
 export async function registrarCuenta(
   telefono: string,
@@ -167,7 +232,7 @@ export async function registrarCuenta(
   try {
     const sheets = await getSheetsClient();
     const fecha = new Date().toLocaleString("es-BO", { timeZone: "America/La_Paz" });
-    const telLimpio = telefono.replace(/\D/g, "");
+    const telLimpio = limpiarTel(telefono);
 
     await sheets.spreadsheets.values.append({
       spreadsheetId: SPREADSHEET_ID,
@@ -178,6 +243,12 @@ export async function registrarCuenta(
       },
     });
 
+    // Actualizar caché local sin esperar otro ciclo
+    const cuenta: CuentaRegistrada = { usuario: username, plan, fecha, estado: "ACTIVA" };
+    const lista = cacheSheets.get(telLimpio) ?? [];
+    lista.push(cuenta);
+    cacheSheets.set(telLimpio, lista);
+
     console.log(`💾 [SHEETS] Cuenta registrada: ${telLimpio} → ${username} (${plan})`);
   } catch (err) {
     console.error("[SHEETS] Error al registrar cuenta:", err);
@@ -185,8 +256,7 @@ export async function registrarCuenta(
 }
 
 /**
- * Actualiza la cuenta existente de un teléfono+usuario en la hoja "Cuentas"
- * cuando se renueva. Si no existe la fila, la agrega como nueva.
+ * Actualiza (o crea) la cuenta de un cliente al renovar, y actualiza el caché.
  */
 export async function actualizarCuenta(
   telefono: string,
@@ -196,7 +266,7 @@ export async function actualizarCuenta(
   try {
     const sheets = await getSheetsClient();
     const fecha = new Date().toLocaleString("es-BO", { timeZone: "America/La_Paz" });
-    const telLimpio = telefono.replace(/\D/g, "");
+    const telLimpio = limpiarTel(telefono);
 
     const res = await sheets.spreadsheets.values.get({
       spreadsheetId: SPREADSHEET_ID,
@@ -209,10 +279,10 @@ export async function actualizarCuenta(
     for (let i = 1; i < rows.length; i++) {
       const row = rows[i];
       if (!row) continue;
-      const telFila = (row[0] ?? "").toString().replace(/\D/g, "");
+      const telFila = limpiarTel((row[0] ?? "").toString());
       const userFila = (row[1] ?? "").toString().trim().toLowerCase();
       if (telFila === telLimpio && userFila === username.trim().toLowerCase()) {
-        filaExistente = i + 1; // 1-indexed para Sheets
+        filaExistente = i + 1;
         break;
       }
     }
@@ -234,22 +304,39 @@ export async function actualizarCuenta(
           values: [[telLimpio, username, plan, fecha, "RENOVADA"]],
         },
       });
-      console.log(`💾 [SHEETS] Cuenta nueva registrada en renovación: ${telLimpio} → ${username} (${plan})`);
+      console.log(`💾 [SHEETS] Cuenta nueva en renovación: ${telLimpio} → ${username} (${plan})`);
     }
+
+    // Actualizar caché local
+    const listaCacheActual = cacheSheets.get(telLimpio) ?? [];
+    const idx = listaCacheActual.findIndex(
+      (c) => c.usuario.toLowerCase() === username.trim().toLowerCase(),
+    );
+    if (idx >= 0) {
+      listaCacheActual[idx] = { usuario: username, plan, fecha, estado: "RENOVADA" };
+    } else {
+      listaCacheActual.push({ usuario: username, plan, fecha, estado: "RENOVADA" });
+    }
+    cacheSheets.set(telLimpio, listaCacheActual);
   } catch (err) {
     console.error("[SHEETS] Error al actualizar cuenta:", err);
   }
 }
 
 /**
- * Busca todas las cuentas registradas para un número de teléfono.
- * Retorna array vacío si no hay cuentas o si Sheets no está configurado.
+ * Busca cuentas por teléfono usando el caché en memoria (no hace llamadas a la API).
+ * Si el caché está vacío (p.ej. antes del primer ciclo), hace una consulta directa.
  */
 export async function buscarCuentasPorTelefono(telefono: string): Promise<CuentaRegistrada[]> {
-  const telLimpio = telefono.replace(/\D/g, "");
+  const telLimpio = limpiarTel(telefono);
 
+  // Si el caché ya fue cargado, usarlo directamente
+  if (cacheListaMs > 0) {
+    return cacheSheets.get(telLimpio) ?? [];
+  }
+
+  // Caché aún no disponible: consulta directa (solo en arranque)
   const sheets = await getSheetsClient();
-
   const res = await sheets.spreadsheets.values.get({
     spreadsheetId: SPREADSHEET_ID,
     range: `${SHEET_CUENTAS}!A:E`,
@@ -261,7 +348,7 @@ export async function buscarCuentasPorTelefono(telefono: string): Promise<Cuenta
   for (let i = 1; i < rows.length; i++) {
     const row = rows[i];
     if (!row) continue;
-    const telFila = (row[0] ?? "").toString().replace(/\D/g, "");
+    const telFila = limpiarTel((row[0] ?? "").toString());
     if (telFila === telLimpio) {
       cuentas.push({
         usuario: (row[1] ?? "").toString().trim(),

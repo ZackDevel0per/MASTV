@@ -80,6 +80,15 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const AUTH_FOLDER = path.join(__dirname, "../../auth_info_baileys");
 const logger = pino({ level: "silent" });
 
+/**
+ * Extrae el número de teléfono limpio de un JID de WhatsApp.
+ * Funciona para cualquier formato: "591...@s.whatsapp.net", "@lid", etc.
+ * Siempre devuelve solo los dígitos antes del "@", ej: "59169741630"
+ */
+function extraerTelefono(jid: string): string {
+  return jid.split("@")[0];
+}
+
 let sock: ReturnType<typeof makeWASocket> | null = null;
 let estadoConexion:
   | "desconectado"
@@ -114,7 +123,7 @@ const COMANDOS_DUENO: Record<string, (jid: string) => Promise<string>> = {
   "/silenciados": async (_jid) => {
     if (chatsSilenciados.size === 0) return "📋 No hay chats silenciados.";
     const lista = [...chatsSilenciados]
-      .map((j, i) => `${i + 1}. ${j.replace("@s.whatsapp.net", "").replace("@g.us", "")}`)
+      .map((j, i) => `${i + 1}. ${extraerTelefono(j)}`)
       .join("\n");
     return `📋 *Chats silenciados (${chatsSilenciados.size}):*\n\n${lista}`;
   },
@@ -337,7 +346,7 @@ async function manejarMensaje(jid: string, texto: string) {
     if (textoUpper === "DEMO1" || textoUpper === "DEMO3") {
       const planClave = textoUpper === "DEMO1" ? "DEMO_1H" : "DEMO_3H";
       const planInfo = PLAN_ID_MAP[planClave];
-      const telefono = jid.replace("@s.whatsapp.net", "");
+      const telefono = extraerTelefono(jid);
 
       // Verificar si ya existe una cuenta demo para este número
       const yaExisteDemo = await verificarDemoExistente(telefono);
@@ -401,7 +410,7 @@ async function manejarMensaje(jid: string, texto: string) {
       const montoIngresado = parseFloat(texto.trim().replace(",", "."));
       const nombre = estadoAnterior.nombreVerificacion ?? "";
       const planSeleccionado = estadoAnterior.planSeleccionado;
-      const telefono = jid.replace("@s.whatsapp.net", "");
+      const telefono = extraerTelefono(jid);
 
       if (isNaN(montoIngresado)) {
         await enviarConDelay(jid, `⚠️ No entendí ese monto. Escríbelo solo como número, por ejemplo: *29.00* o *82*`);
@@ -605,7 +614,7 @@ async function manejarMensaje(jid: string, texto: string) {
 
     // ─── VERIFICAR: Consultar cuentas por número de celular ────────
     if (textoUpper === "VERIFICAR") {
-      const telefono = jid.replace("@s.whatsapp.net", "");
+      const telefono = extraerTelefono(jid);
       await enviarConDelay(jid, `🔍 _Buscando tus cuentas registradas..._`);
 
       try {
@@ -714,7 +723,7 @@ async function manejarMensaje(jid: string, texto: string) {
           usuarioRenovar: estadoAnterior?.usuarioRenovar,
           hora: Date.now(),
         };
-        const telefono = jid.replace("@s.whatsapp.net", "");
+        const telefono = extraerTelefono(jid);
         const planInfo = PLAN_ID_MAP[textoUpper];
         if (planInfo) registrarPedido(telefono, textoUpper, planInfo.monto);
       }

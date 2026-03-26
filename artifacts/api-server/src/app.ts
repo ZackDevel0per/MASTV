@@ -4,7 +4,7 @@ import path from "path";
 import { fileURLToPath } from "url";
 import router from "./routes/index.js";
 import { conectarBot, enviarMensaje } from "./bot/whatsapp.js";
-import { inicializarHojas } from "./bot/sheets.js";
+import { inicializarHojas, iniciarCacheSheets } from "./bot/sheets.js";
 import { iniciarGmailPolling, setCallbackPagoDetectado } from "./bot/gmail-service.js";
 
 // Número de WhatsApp del administrador (recibe notificaciones de pagos)
@@ -28,6 +28,7 @@ async function iniciarBot() {
     console.log("📊 Inicializando hojas de Google Sheets...");
     await inicializarHojas();
     console.log("✅ Hojas de Google Sheets listas.");
+    iniciarCacheSheets();
   } catch (err) {
     console.error("⚠️ Error al inicializar Google Sheets:", err);
   }
