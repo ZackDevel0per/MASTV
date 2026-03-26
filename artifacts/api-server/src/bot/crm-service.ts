@@ -79,22 +79,22 @@ const TODOS_LOS_BOUQUETS = [
 
 export const PLAN_ID_MAP: Record<
   string,
-  { id: number; nombre: string; precio: string; monto: number }
+  { id: number; nombre: string; precio: string; monto: number; maxConexiones: number }
 > = {
-  DEMO_1H: { id: 101, nombre: "DEMO 1 HORA",             precio: "Gratis", monto: 0   },
-  DEMO_3H: { id: 102, nombre: "DEMO 3 HORAS",            precio: "Gratis", monto: 0   },
-  P1:      { id: 107, nombre: "1 MES - 1 DISPOSITIVO",   precio: "29 Bs",  monto: 29  },
-  P2:      { id: 109, nombre: "3 MESES - 1 DISPOSITIVO", precio: "82 Bs",  monto: 82  },
-  P3:      { id: 111, nombre: "6 MESES - 1 DISPOSITIVO", precio: "155 Bs", monto: 155 },
-  P4:      { id: 113, nombre: "12 MESES - 1 DISPOSITIVO",precio: "300 Bs", monto: 300 },
-  Q1:      { id: 108, nombre: "1 MES - 2 DISPOSITIVOS",  precio: "35 Bs",  monto: 35  },
-  Q2:      { id: 110, nombre: "3 MESES - 2 DISPOSITIVOS",precio: "100 Bs", monto: 100 },
-  Q3:      { id: 112, nombre: "6 MESES - 2 DISPOSITIVOS",precio: "190 Bs", monto: 190 },
-  Q4:      { id: 114, nombre: "12 MESES - 2 DISPOSITIVOS",precio: "380 Bs",monto: 380 },
-  R1:      { id: 103, nombre: "1 MES - 3 DISPOSITIVOS",  precio: "40 Bs",  monto: 40  },
-  R2:      { id: 104, nombre: "3 MESES - 3 DISPOSITIVOS",precio: "115 Bs", monto: 115 },
-  R3:      { id: 105, nombre: "6 MESES - 3 DISPOSITIVOS",precio: "225 Bs", monto: 225 },
-  R4:      { id: 106, nombre: "12 MESES - 3 DISPOSITIVOS",precio: "440 Bs",monto: 440 },
+  DEMO_1H: { id: 101, nombre: "DEMO 1 HORA",             precio: "Gratis", monto: 0,   maxConexiones: 1 },
+  DEMO_3H: { id: 102, nombre: "DEMO 3 HORAS",            precio: "Gratis", monto: 0,   maxConexiones: 1 },
+  P1:      { id: 107, nombre: "1 MES - 1 DISPOSITIVO",   precio: "29 Bs",  monto: 29,  maxConexiones: 1 },
+  P2:      { id: 109, nombre: "3 MESES - 1 DISPOSITIVO", precio: "82 Bs",  monto: 82,  maxConexiones: 1 },
+  P3:      { id: 111, nombre: "6 MESES - 1 DISPOSITIVO", precio: "155 Bs", monto: 155, maxConexiones: 1 },
+  P4:      { id: 113, nombre: "12 MESES - 1 DISPOSITIVO",precio: "300 Bs", monto: 300, maxConexiones: 1 },
+  Q1:      { id: 108, nombre: "1 MES - 2 DISPOSITIVOS",  precio: "35 Bs",  monto: 35,  maxConexiones: 2 },
+  Q2:      { id: 110, nombre: "3 MESES - 2 DISPOSITIVOS",precio: "100 Bs", monto: 100, maxConexiones: 2 },
+  Q3:      { id: 112, nombre: "6 MESES - 2 DISPOSITIVOS",precio: "190 Bs", monto: 190, maxConexiones: 2 },
+  Q4:      { id: 114, nombre: "12 MESES - 2 DISPOSITIVOS",precio: "380 Bs",monto: 380, maxConexiones: 2 },
+  R1:      { id: 103, nombre: "1 MES - 3 DISPOSITIVOS",  precio: "40 Bs",  monto: 40,  maxConexiones: 3 },
+  R2:      { id: 104, nombre: "3 MESES - 3 DISPOSITIVOS",precio: "115 Bs", monto: 115, maxConexiones: 3 },
+  R3:      { id: 105, nombre: "6 MESES - 3 DISPOSITIVOS",precio: "225 Bs", monto: 225, maxConexiones: 3 },
+  R4:      { id: 106, nombre: "12 MESES - 3 DISPOSITIVOS",precio: "440 Bs",monto: 440, maxConexiones: 3 },
 };
 
 export interface ResultadoCRM {
@@ -438,11 +438,24 @@ export async function verificarDemoExistente(
   }
 }
 
+interface LineaCRM {
+  id: string;
+  username: string;
+  password: string;
+  exp_date?: string;
+  package_id?: string | number;
+  max_connections?: number;
+  is_trial?: boolean | number;
+  enabled?: boolean | number;
+  is_expired?: boolean;
+  reseller_notes?: string;
+}
+
 /** Busca una línea por username en la lista del CRM */
 async function buscarLineaPorUsername(
   username: string,
   sessionCookie: string,
-): Promise<{ id: string; username: string; password: string; exp_date?: string; package_id?: string | number } | null> {
+): Promise<LineaCRM | null> {
   const r = await axios.get(`${CRM_BASE_URL}/api/line/list`, {
     headers: {
       ...BASE_HEADERS,
@@ -461,6 +474,123 @@ async function buscarLineaPorUsername(
         ? rawData.data
         : [];
   return lineas.find((l) => l.username === username) ?? null;
+}
+
+/**
+ * Solo para debug: prueba los endpoints ext/ del CRM para entender qué acepta
+ * la API de renovación/actualización del reseller.
+ * NO realiza cambios reales en la cuenta.
+ */
+export async function debugExtEndpoints(username: string, packageId: string): Promise<object> {
+  const sessionCookie = await getSession();
+  const linea = await buscarLineaPorUsername(username, sessionCookie);
+  if (!linea) return { error: `Línea no encontrada: ${username}` };
+
+  const results: Record<string, unknown> = { lineId: linea.id, username, packageId };
+
+  // Obtener CSRF fresco
+  const editR = await axios.get(`${CRM_BASE_URL}/lines/${linea.id}/edit`, {
+    headers: { ...BASE_HEADERS, Cookie: sessionCookie },
+    maxRedirects: 3, validateStatus: () => true, timeout: 15_000,
+  });
+  const csrf = csrfFromHtml(editR.data as string);
+  const editCookie = cookieFromHeaders(editR.headers as Record<string, unknown>) || sessionCookie;
+  results.csrfObtained = !!csrf;
+
+  // 1. GET ext/line/{id}/renew — ver estructura
+  const extRenewGet = await axios.get(`${CRM_BASE_URL}/ext/line/${linea.id}/renew`, {
+    headers: { ...BASE_HEADERS, Cookie: editCookie, Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+    validateStatus: () => true, timeout: 10_000,
+  });
+  results.extRenewGet = { status: extRenewGet.status, body: String(extRenewGet.data).substring(0, 300) };
+
+  // 2. POST ext/line/{id}/renew con package
+  if (csrf) {
+    const extRenewBody = new URLSearchParams({ _token: csrf, package: packageId, package_id: packageId });
+    const extRenewPost = await axios.post(`${CRM_BASE_URL}/ext/line/${linea.id}/renew`, extRenewBody.toString(), {
+      headers: { ...BASE_HEADERS, 'Content-Type': 'application/x-www-form-urlencoded', Cookie: editCookie, Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest', Origin: CRM_BASE_URL, Referer: `${CRM_BASE_URL}/ext/line/${linea.id}/renew` },
+      maxRedirects: 0, validateStatus: () => true, timeout: 15_000,
+    });
+    results.extRenewPost = { status: extRenewPost.status, location: extRenewPost.headers["location"], body: JSON.stringify(extRenewPost.data).substring(0, 500) };
+  }
+
+  // 3. GET ext/line/{id}/update-advanced — ver estructura
+  const extUpdateGet = await axios.get(`${CRM_BASE_URL}/ext/line/${linea.id}/update-advanced`, {
+    headers: { ...BASE_HEADERS, Cookie: editCookie, Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+    validateStatus: () => true, timeout: 10_000,
+  });
+  results.extUpdateGet = { status: extUpdateGet.status, body: String(extUpdateGet.data).substring(0, 300) };
+
+  // 4a. POST ext/line/{id}/update-advanced SIN _method (POST puro, no PUT)
+  if (csrf) {
+    const extUpdateBody = new URLSearchParams({
+      _token: csrf,
+      package_id: packageId,
+      package: packageId,
+      username: linea.username,
+      password: linea.password,
+    });
+    const extUpdatePost = await axios.post(`${CRM_BASE_URL}/ext/line/${linea.id}/update-advanced`, extUpdateBody.toString(), {
+      headers: { ...BASE_HEADERS, 'Content-Type': 'application/x-www-form-urlencoded', Cookie: editCookie, Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest', Origin: CRM_BASE_URL, Referer: `${CRM_BASE_URL}/ext/line/${linea.id}/update-advanced` },
+      maxRedirects: 0, validateStatus: () => true, timeout: 15_000,
+    });
+    results.extUpdatePost = { status: extUpdatePost.status, location: extUpdatePost.headers["location"], body: JSON.stringify(extUpdatePost.data).substring(0, 500) };
+  }
+
+  // 4b. Múltiples variantes del PATCH para diagnosticar qué acepta el CRM
+  {
+    const patchHeaders = {
+      ...BASE_HEADERS,
+      'Content-Type': 'application/json',
+      'Accept': 'application/json, text/plain, */*',
+      'X-CSRF-TOKEN': csrf,
+      'X-Requested-With': 'XMLHttpRequest',
+      Origin: CRM_BASE_URL,
+      Referer: `${CRM_BASE_URL}/lines/${linea.id}/edit`,
+      Cookie: editCookie,
+    };
+
+    // Variante A: body mínimo (solo package_id + username + password)
+    const rA = await axios.patch(`${CRM_BASE_URL}/lines/${linea.id}`, {
+      package_id: Number(packageId),
+      username: linea.username,
+      password: linea.password,
+    }, { headers: patchHeaders, maxRedirects: 5, validateStatus: () => true, timeout: 20_000 });
+    results.patchVarA = { status: rA.status, finalUrl: rA.request?.res?.responseUrl ?? rA.headers["location"] ?? "—", body: JSON.stringify(rA.data).substring(0, 300) };
+
+    // Variante B: todos los campos, sin bouquet_ids
+    const rB = await axios.patch(`${CRM_BASE_URL}/lines/${linea.id}`, {
+      package_id: Number(packageId),
+      username: linea.username,
+      password: linea.password,
+      max_connections: linea.max_connections ?? 2,
+      is_trial: linea.is_trial ?? false,
+      enabled: linea.enabled ?? true,
+    }, { headers: patchHeaders, maxRedirects: 5, validateStatus: () => true, timeout: 20_000 });
+    results.patchVarB = { status: rB.status, finalUrl: rB.request?.res?.responseUrl ?? rB.headers["location"] ?? "—", body: JSON.stringify(rB.data).substring(0, 300) };
+
+    // Variante C: POST con _method=PATCH + Content-Type JSON (Laravel method spoofing + JSON accept)
+    const rC = await axios.post(`${CRM_BASE_URL}/lines/${linea.id}`, {
+      _method: "PATCH",
+      package_id: Number(packageId),
+      username: linea.username,
+      password: linea.password,
+      max_connections: linea.max_connections ?? 2,
+      is_trial: linea.is_trial ?? false,
+      enabled: linea.enabled ?? true,
+    }, { headers: { ...patchHeaders, 'X-HTTP-Method-Override': 'PATCH' }, maxRedirects: 0, validateStatus: () => true, timeout: 20_000 });
+    results.patchVarC = { status: rC.status, location: rC.headers["location"], body: JSON.stringify(rC.data).substring(0, 300) };
+
+    results.patchJsonResult = results.patchVarA;
+  }
+
+  // 5. Verificar package_id actual en la línea después de los intentos
+  await new Promise(r => setTimeout(r, 1500));
+  const lineaActual = await buscarLineaPorUsername(username, editCookie);
+  results.packageIdActual = lineaActual?.package_id;
+  results.lineaActualFull = lineaActual;
+
+  return results;
 }
 
 /**
@@ -522,27 +652,35 @@ export async function debugRenewPage(username: string): Promise<object> {
  *    mostrar la vista (React SPA), no acepta POST de ningún tipo.
  *
  * ❌ ERROR 3 (tercer intento):
- *    Endpoint: POST /lines/{id}  con  _method=PATCH  y  package=X  y  bouquet_ids[]
- *    Resultado: El CRM aceptaba la petición (HTTP 200/302) pero ignoraba el cambio
- *    de paquete. Causas:
- *      a) El campo se llama "package_id" en el endpoint de edición, NO "package".
- *      b) Faltaban los campos obligatorios "username" y "password" de la cuenta,
- *         lo que hacía que el CRM rechazara o ignorara la actualización en silencio.
- *    Consecuencia: /renew extendía la fecha con el paquete original (ej: 35 Bs).
+ *    Endpoint: POST /lines/{id}  con  _method=PATCH  y  package_id=X (form-urlencoded)
+ *    Resultado: HTTP 302 → redirige de vuelta a /edit, package_id NO cambia.
+ *    Causa: La SPA React NO usa form-urlencoded ni _method spoofing. Envía
+ *    una petición PATCH real con Content-Type: application/json y el token
+ *    en el header X-CSRF-TOKEN. El servidor rechaza silenciosamente los form
+ *    submissions y redirige al formulario de edición.
+ *
+ * ❌ ERROR 4 (cuarto intento):
+ *    Endpoints: ext/line/{id}/renew y ext/line/{id}/update-advanced (POST)
+ *    Resultado: {"error":"Failed to verify API client"} — estos endpoints B2C
+ *    requieren un API client token de OAuth que el reseller panel gestiona
+ *    internamente y no está disponible en la sesión de cookie.
  *
  * ✅ SOLUCIÓN CORRECTA (dos pasos):
- *    Paso A: PATCH /lines/{id} con _method=PATCH, package_id=X, username, password
- *            y bouquet_ids[] → cambia el paquete asignado en la cuenta.
+ *    Paso A: PATCH real (HTTP PATCH) a /lines/{id} con:
+ *            - Content-Type: application/json
+ *            - Header X-CSRF-TOKEN: <token>
+ *            - Body JSON: { package_id, username, password, max_connections,
+ *                           is_trial, enabled, bouquet_ids }
  *    Paso B: POST /lines/{id}/renew → extiende la fecha (usa el paquete
  *            que ya quedó asignado en el paso A).
  * ═══════════════════════════════════════════════════════════════
  *
  * Flujo:
- *   1. GET CSRF desde /lines/{id}/edit (página de edición, CSRF válido para PATCH)
- *   2. GET bouquets del paquete destino via /api/packages/data/bouquets/{id}
- *   3. PATCH /lines/{id} — cambia package_id + username + password + bouquet_ids
- *   4. Obtener CSRF fresco desde /lines/{id}/renew-with-package
- *   5. POST /lines/{id}/renew — extiende la fecha con el nuevo paquete ya asignado
+ *   1. GET CSRF desde /lines/{id}/edit (meta tag csrf-token)
+ *   2. GET datos completos de la línea para incluirlos en el PATCH
+ *   3. PATCH JSON a /lines/{id} — cambia package_id + max_connections
+ *   4. Obtener CSRF fresco para el renew
+ *   5. POST /lines/{id}/renew — extiende la fecha con el nuevo paquete
  */
 export async function renovarCuentaEnCRM(
   username: string,
@@ -617,29 +755,33 @@ export async function renovarCuentaEnCRM(
 
       const bouquetsAUsar = bouquetIds.length > 0 ? bouquetIds : TODOS_LOS_BOUQUETS;
 
-      // ── PASO A: PATCH /lines/{id} → cambiar el paquete asignado en la cuenta ──
-      // Usamos POST con _method=PATCH (Laravel form method spoofing).
-      // IMPORTANTE:
-      //   - El campo es "package_id", NO "package" (error 3a del historial).
-      //   - Se incluyen "username" y "password" obligatorios para que el CRM
-      //     acepte la actualización (sin ellos la ignora silenciosamente, error 3b).
+      // ── PASO A: PATCH JSON a /lines/{id} → cambiar el paquete asignado ──
+      // IMPORTANTE (ver historial de errores):
+      //   - La SPA React envía PATCH real con Content-Type: application/json.
+      //   - El CSRF va en el header X-CSRF-TOKEN, NO en el body.
+      //   - Se incluyen todos los campos requeridos por el servidor para que
+      //     la validación Laravel pase correctamente.
       const patchUrl = `${CRM_BASE_URL}/lines/${linea.id}`;
-      const patchBody = new URLSearchParams();
-      patchBody.append("_method", "PATCH");
-      patchBody.append("_token", csrfEdit);
-      patchBody.append("package_id", String(planInfo.id));
-      patchBody.append("username", linea.username);
-      patchBody.append("password", linea.password);
-      for (const bid of bouquetsAUsar) {
-        patchBody.append("bouquet_ids[]", bid);
-      }
+      const patchJsonBody = {
+        package_id: planInfo.id,
+        username: linea.username,
+        password: linea.password,
+        max_connections: planInfo.maxConexiones,
+        is_trial: linea.is_trial ?? false,
+        enabled: linea.enabled ?? true,
+        reseller_notes: linea.reseller_notes ?? "",
+        bouquet_ids: bouquetsAUsar,
+      };
 
-      console.log(`   [CRM] PATCH ${patchUrl} | package_id=${planInfo.id} (${planInfo.nombre})`);
+      console.log(`   [CRM] PATCH JSON ${patchUrl} | package_id=${planInfo.id} (${planInfo.nombre}) | max_connections=${planInfo.maxConexiones}`);
 
-      const rPatch = await axios.post(patchUrl, patchBody.toString(), {
+      const rPatch = await axios.patch(patchUrl, patchJsonBody, {
         headers: {
           ...BASE_HEADERS,
-          "Content-Type": "application/x-www-form-urlencoded",
+          "Content-Type": "application/json",
+          "Accept": "application/json, text/plain, */*",
+          "X-CSRF-TOKEN": csrfEdit,
+          "X-Requested-With": "XMLHttpRequest",
           Origin: CRM_BASE_URL,
           Referer: editPage,
           Cookie: activeCookie,
@@ -650,12 +792,12 @@ export async function renovarCuentaEnCRM(
       });
 
       const patchRespBody = typeof rPatch.data === "string"
-        ? rPatch.data.substring(0, 300)
-        : JSON.stringify(rPatch.data).substring(0, 300);
-      console.log(`   [CRM] PATCH /lines/${linea.id} → HTTP ${rPatch.status} | Location: ${rPatch.headers["location"] ?? "—"} | Body: ${patchRespBody}`);
+        ? rPatch.data.substring(0, 500)
+        : JSON.stringify(rPatch.data).substring(0, 500);
+      console.log(`   [CRM] PATCH JSON /lines/${linea.id} → HTTP ${rPatch.status} | Location: ${rPatch.headers["location"] ?? "—"} | Body: ${patchRespBody}`);
 
       if (rPatch.status !== 200 && rPatch.status !== 302) {
-        throw new Error(`PATCH de paquete devolvió HTTP ${rPatch.status} — ${patchRespBody}`);
+        throw new Error(`PATCH JSON de paquete devolvió HTTP ${rPatch.status} — ${patchRespBody}`);
       }
       console.log(`   [CRM] ✅ Paquete actualizado a ${planInfo.nombre} (id=${planInfo.id})`);
 

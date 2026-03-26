@@ -9,7 +9,7 @@ import {
   enviarMensaje,
 } from "../bot/whatsapp.js";
 import { confirmarPago, marcarEntregado, buscarPedidoPorMonto } from "../bot/payment-store.js";
-import { crearCuentaEnCRM, PLAN_ID_MAP, debugRenewPage } from "../bot/crm-service.js";
+import { crearCuentaEnCRM, PLAN_ID_MAP, debugRenewPage, debugExtEndpoints, debugEditPage } from "../bot/crm-service.js";
 import { ACTIVACION_EXITOSA } from "../bot/responses.js";
 import { registrarPagoYapeLocal, listarPagosYape } from "../bot/yape-store.js";
 import fs from "fs";
@@ -426,6 +426,32 @@ router.post("/bot/video", async (req, res) => {
 router.get("/debug-renew/:username", async (req: Request, res: Response) => {
   try {
     const data = await debugRenewPage(req.params.username as string);
+    res.json(data);
+  } catch (err) {
+    res.status(500).json({ error: String(err) });
+  }
+});
+
+// ═════════════════════════════════════════════════════════
+// DEBUG: probar endpoints ext/ del CRM
+// GET /debug-ext/:username?packageId=109
+// ═════════════════════════════════════════════════════════
+router.get("/debug-ext/:username", async (req: Request, res: Response) => {
+  try {
+    const data = await debugExtEndpoints(req.params.username as string, String(req.query.packageId ?? "109"));
+    res.json(data);
+  } catch (err) {
+    res.status(500).json({ error: String(err) });
+  }
+});
+
+// ═════════════════════════════════════════════════════════
+// DEBUG: ver HTML bruto de la página de edición de línea
+// GET /debug-edit/:username
+// ═════════════════════════════════════════════════════════
+router.get("/debug-edit/:username", async (req: Request, res: Response) => {
+  try {
+    const data = await debugEditPage(req.params.username as string);
     res.json(data);
   } catch (err) {
     res.status(500).json({ error: String(err) });
