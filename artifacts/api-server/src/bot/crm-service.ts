@@ -633,6 +633,30 @@ export async function debugRenewPage(username: string): Promise<object> {
 }
 
 /**
+ * Solo para debug: obtiene el HTML de la página de edición de una línea,
+ * mostrando CSRF, campos disponibles y meta tags.
+ */
+export async function debugEditPage(username: string): Promise<object> {
+  const sessionCookie = await getSession();
+  const linea = await buscarLineaPorUsername(username, sessionCookie);
+  if (!linea) return { error: `Línea no encontrada: ${username}` };
+
+  const url = `${CRM_BASE_URL}/lines/${linea.id}/edit`;
+  const r = await axios.get(url, {
+    headers: { ...BASE_HEADERS, Cookie: sessionCookie },
+    maxRedirects: 3, validateStatus: () => true, timeout: 15_000,
+  });
+  const html = r.data as string;
+
+  const csrf = csrfFromHtml(html);
+  const forms = [...html.matchAll(/<form[\s\S]*?<\/form>/gi)].map(m => m[0].substring(0, 3000));
+  const selects = [...html.matchAll(/<select[\s\S]*?<\/select>/gi)].map(m => m[0].substring(0, 1000));
+  const metaTags = [...html.matchAll(/<meta[^>]+>/gi)].map(m => m[0]);
+
+  return { lineId: linea.id, status: r.status, csrfObtained: !!csrf, csrf: csrf?.substring(0, 20) + "...", forms, selects, metaTags };
+}
+
+/**
  * Renueva una línea cambiando el paquete.
  *
  * ═══════════════════════════════════════════════════════════════
