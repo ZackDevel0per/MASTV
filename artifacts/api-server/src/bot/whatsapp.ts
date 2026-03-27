@@ -820,7 +820,10 @@ async function manejarMensaje(jid: string, texto: string) {
             mensaje += `${icono} Estado: *${c.estado}*\n`;
             mensaje += `👤 Usuario: \`${c.usuario}\`\n`;
             mensaje += `📺 Plan: ${c.plan}\n`;
-            mensaje += `📅 Última actualización: ${c.fecha}\n`;
+            mensaje += `📅 Última renovación: ${c.fecha}\n`;
+            if (c.fechaExpiracion) {
+              mensaje += `⏳ Expira: ${c.fechaExpiracion}\n`;
+            }
             if (i < cuentas.length - 1) mensaje += `\n`;
           });
 
