@@ -28,6 +28,7 @@
 
 import { google, type gmail_v1 } from "googleapis";
 import { registrarPagoEnSheet, obtenerIdsGmailProcesados } from "./sheets.js";
+import { registrarPagoYapeLocal } from "./yape-store.js";
 
 const INTERVALO_MS = 30_000; // 30 segundos entre cada revisión
 

@@ -72,7 +72,7 @@ import {
 } from "./responses.js";
 import { enviarImagen } from "./media-handler.js";
 import { crearCuentaEnCRM, renovarCuentaEnCRM, verificarDemoExistente, consultarEstadoCuenta, PLAN_ID_MAP } from "./crm-service.js";
-import { registrarCuenta, actualizarCuenta, buscarCuentasPorTelefono, actualizarTelefonoPorLid } from "./sheets.js";
+import { registrarCuenta, actualizarCuenta, buscarCuentasPorTelefono, actualizarTelefonoPorLid, buscarPagoSinUsar, marcarPagoComoUsado } from "./sheets.js";
 import { registrarPedido } from "./payment-store.js";
 import { encontrarIndexPago, marcarPagoUsado } from "./yape-store.js";
 import { enviarNotificacionPushover } from "./pushover-service.js";
@@ -640,6 +640,10 @@ async function manejarMensaje(jid: string, texto: string) {
         if (!planSeleccionado || !PLAN_ID_MAP[planSeleccionado]) {
           // Si no hay plan claro, marcar el pago y pedir confirmación manual
           marcarPagoUsado(indicePago);
+          const fechaUsoSinPlan = new Date().toLocaleString("es-BO", { timeZone: "America/La_Paz" });
+          buscarPagoSinUsar(nombre, montoIngresado)
+            .then(r => { if (r.encontrado) return marcarPagoComoUsado(r.rowNumber, telefono, fechaUsoSinPlan); })
+            .catch(err => console.error("[BOT] Error marcando pago en Sheets:", err));
           await enviarConDelay(jid, `✅ *Pago confirmado.*\n\nSin embargo, no tenemos registrado qué plan elegiste.\n\nPor favor escribe el código de tu plan (ej: *P1*, *Q2*, *R3*) o escribe *3* para que te ayudemos.`);
           conversaciones[jid] = { ultimoComando: "PAGO_CONFIRMADO_SIN_PLAN", planSeleccionado: undefined, hora: Date.now() };
           return;
@@ -656,10 +660,15 @@ async function manejarMensaje(jid: string, texto: string) {
           if (resultado.ok) {
             // ── Marcar pago como usado solo si el CRM tuvo éxito ────
             marcarPagoUsado(indicePago);
+            const fechaUso = new Date().toLocaleString("es-BO", { timeZone: "America/La_Paz" });
             await enviarConDelay(jid, `🎉 *¡Cuenta renovada exitosamente!*\n\n🔐 *Credenciales de acceso:*\n📛 Nombre: \`mastv\`\n👤 Usuario: \`${resultado.usuario}\`\n🔑 Contraseña: \`${resultado.contrasena}\`\n🌐 URL: \`${resultado.servidor || "http://mtv.bo:80"}\`\n\n📺 *Plan renovado:* ${resultado.plan}\n\n✅ Tu servicio ha sido extendido. ¡Disfruta ZKTV! 🚀`);
             // Registrar renovación en Google Sheets
             actualizarCuenta(telefono, resultado.usuario ?? usuarioRenovar, resultado.plan ?? planSeleccionado ?? "", planInfo.dias)
               .catch(err => console.error("[BOT] Error actualizando cuenta en Sheets:", err));
+            // Actualizar fila del pago en Google Sheets con teléfono y fecha de uso
+            buscarPagoSinUsar(nombre, montoIngresado)
+              .then(r => { if (r.encontrado) return marcarPagoComoUsado(r.rowNumber, telefono, fechaUso); })
+              .catch(err => console.error("[BOT] Error marcando pago en Sheets:", err));
             conversaciones[jid] = { ultimoComando: "CUENTA_RENOVADA", planSeleccionado: undefined, hora: Date.now() };
           } else {
             // Pago NO se marca: el cliente puede reintentar
@@ -680,6 +689,7 @@ async function manejarMensaje(jid: string, texto: string) {
           if (resultado.ok && resultado.usuario) {
             // ── Marcar pago como usado solo si el CRM tuvo éxito ────
             marcarPagoUsado(indicePago);
+            const fechaUso = new Date().toLocaleString("es-BO", { timeZone: "America/La_Paz" });
             const mensajeActivacion = ACTIVACION_EXITOSA({
               usuario: resultado.usuario,
               contrasena: resultado.contrasena ?? "",
@@ -690,6 +700,10 @@ async function manejarMensaje(jid: string, texto: string) {
             // Registrar cuenta nueva en Google Sheets
             registrarCuenta(telefono, resultado.usuario, resultado.plan ?? planInfo.nombre, planInfo.dias)
               .catch(err => console.error("[BOT] Error registrando cuenta en Sheets:", err));
+            // Actualizar fila del pago en Google Sheets con teléfono y fecha de uso
+            buscarPagoSinUsar(nombre, montoIngresado)
+              .then(r => { if (r.encontrado) return marcarPagoComoUsado(r.rowNumber, telefono, fechaUso); })
+              .catch(err => console.error("[BOT] Error marcando pago en Sheets:", err));
             conversaciones[jid] = { ultimoComando: "CUENTA_CREADA", planSeleccionado: undefined, hora: Date.now() };
           } else {
             // Pago NO se marca: el cliente puede reintentar

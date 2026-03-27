@@ -21,7 +21,7 @@ async function getSheetsClient() {
 
 // ═══════════════════════════════════════════════════════════════
 // ESTRUCTURA HOJA "Pagos":
-// A: Fecha  |  B: Nombre  |  C: Monto  |  D: Usado (SI/NO)
+// A: Fecha  |  B: Nombre  |  C: Monto  |  D: Teléfono  |  E: Fecha Registro  |  F: Estado  |  G: Gmail ID
 // ═══════════════════════════════════════════════════════════════
 
 // ═══════════════════════════════════════════════════════════════
@@ -183,33 +183,43 @@ export async function inicializarHojas() {
     });
   }
 
-  // Encabezados Pagos (5 columnas: Fecha | Nombre | Monto | Estado | Gmail ID)
+  // Encabezados Pagos (7 columnas: Fecha | Nombre | Monto | Teléfono | Fecha Registro | Estado | Gmail ID)
   const pagosRange = await sheets.spreadsheets.values.get({
     spreadsheetId: SPREADSHEET_ID,
-    range: `${SHEET_PAGOS}!A1:E1`,
+    range: `${SHEET_PAGOS}!A1:G1`,
   });
   const encabezadosPagos = pagosRange.data.values?.[0] ?? [];
+  const ENCABEZADOS_PAGOS = ["Fecha", "Nombre", "Monto", "Teléfono", "Fecha Registro", "Estado", "Gmail ID"];
+
   if (encabezadosPagos.length === 0) {
-    // Hoja nueva: crear con 5 columnas
+    // Hoja nueva: crear con 7 columnas
     await sheets.spreadsheets.values.update({
       spreadsheetId: SPREADSHEET_ID,
-      range: `${SHEET_PAGOS}!A1:E1`,
+      range: `${SHEET_PAGOS}!A1:G1`,
       valueInputOption: "USER_ENTERED",
-      requestBody: { values: [["Fecha", "Nombre", "Monto", "Estado", "Gmail ID"]] },
+      requestBody: { values: [ENCABEZADOS_PAGOS] },
     });
-  } else if (encabezadosPagos.length === 4) {
-    // Migración: 4 columnas (Usado: NO/SI) → 5 columnas (Estado: Sin Usar/Usado + Gmail ID)
-    console.log("🔧 [SHEETS] Migrando hoja Pagos: añadiendo Gmail ID y actualizando estados...");
+  } else if (encabezadosPagos.length < 7) {
+    // Migración: estructura antigua → 7 columnas
+    console.log(`🔧 [SHEETS] Migrando hoja Pagos (${encabezadosPagos.length} cols → 7 cols)...`);
     const datosRes = await sheets.spreadsheets.values.get({
       spreadsheetId: SPREADSHEET_ID,
-      range: `${SHEET_PAGOS}!A:D`,
+      range: `${SHEET_PAGOS}!A:G`,
     });
     const filasPagos = datosRes.data.values ?? [];
     const filasActualizadas = filasPagos.map((fila, idx) => {
-      if (idx === 0) return ["Fecha", "Nombre", "Monto", "Estado", "Gmail ID"];
-      const estadoViejo = (fila[3] ?? "").toString().toUpperCase().trim();
-      const nuevoEstado = estadoViejo === "SI" ? "Usado" : "Sin Usar";
-      return [fila[0] ?? "", fila[1] ?? "", fila[2] ?? "", nuevoEstado, ""];
+      if (idx === 0) return ENCABEZADOS_PAGOS;
+      if (encabezadosPagos.length === 4) {
+        // 4 cols: Fecha | Nombre | Monto | Usado(SI/NO)
+        const estadoViejo = (fila[3] ?? "").toString().toUpperCase().trim();
+        const nuevoEstado = estadoViejo === "SI" ? "Usado" : "No usado";
+        return [fila[0] ?? "", fila[1] ?? "", fila[2] ?? "", "", "", nuevoEstado, ""];
+      } else {
+        // 5 cols: Fecha | Nombre | Monto | Estado | Gmail ID
+        const estadoViejo = (fila[3] ?? "").toString().trim();
+        const nuevoEstado = estadoViejo === "Usado" ? "Usado" : "No usado";
+        return [fila[0] ?? "", fila[1] ?? "", fila[2] ?? "", "", "", nuevoEstado, fila[4] ?? ""];
+      }
     });
     await sheets.spreadsheets.values.update({
       spreadsheetId: SPREADSHEET_ID,
@@ -286,7 +296,7 @@ export async function obtenerIdsGmailProcesados(): Promise<Set<string>> {
     const sheets = await getSheetsClient();
     const res = await sheets.spreadsheets.values.get({
       spreadsheetId: SPREADSHEET_ID,
-      range: `${SHEET_PAGOS}!E:E`,
+      range: `${SHEET_PAGOS}!G:G`,
     });
     const ids = new Set<string>();
     const rows = res.data.values ?? [];
@@ -316,10 +326,10 @@ export async function registrarPagoEnSheet(
 
   await sheets.spreadsheets.values.append({
     spreadsheetId: SPREADSHEET_ID,
-    range: `${SHEET_PAGOS}!A:E`,
+    range: `${SHEET_PAGOS}!A:G`,
     valueInputOption: "USER_ENTERED",
     requestBody: {
-      values: [[fecha, nombre.toUpperCase().trim(), String(monto), "Sin Usar", gmailId]],
+      values: [[fecha, nombre.toUpperCase().trim(), String(monto), "", "", "No usado", gmailId]],
     },
   });
 
@@ -342,7 +352,7 @@ export async function buscarPagoSinUsar(
   const sheets = await getSheetsClient();
   const res = await sheets.spreadsheets.values.get({
     spreadsheetId: SPREADSHEET_ID,
-    range: `${SHEET_PAGOS}!A:E`,
+    range: `${SHEET_PAGOS}!A:G`,
   });
 
   const rows = res.data.values ?? [];
@@ -355,10 +365,14 @@ export async function buscarPagoSinUsar(
 
     const nombreFila = (row[1] ?? "").toString().toUpperCase().trim();
     const montoFila = parseFloat((row[2] ?? "0").toString().replace(",", "."));
-    const estadoFila = (row[3] ?? "").toString().toUpperCase().trim();
+    // Estado está en columna F (índice 5) en la nueva estructura
+    // Compatibilidad con estructura anterior: Estado en columna D (índice 3)
+    const estadoNuevo = (row[5] ?? "").toString().toUpperCase().trim();
+    const estadoViejo = (row[3] ?? "").toString().toUpperCase().trim();
+    const estadoFila = estadoNuevo || estadoViejo;
 
-    // Acepta tanto el formato viejo ("NO") como el nuevo ("SIN USAR")
-    const sinUsar = estadoFila === "SIN USAR" || estadoFila === "NO";
+    // Acepta todos los formatos: "NO USADO", "SIN USAR", "NO"
+    const sinUsar = estadoFila === "NO USADO" || estadoFila === "SIN USAR" || estadoFila === "NO";
 
     if (
       sinUsar &&
@@ -383,17 +397,28 @@ export async function buscarPagoSinUsar(
 }
 
 /**
- * Marca una fila de Pagos como "Usado". Llamar solo tras confirmar éxito en el CRM.
+ * Marca una fila de Pagos como "Usado" y registra el teléfono y la fecha de uso.
+ * Llamar solo tras confirmar éxito en el CRM.
+ * @param rowNumber    Número de fila (1-based) obtenido por buscarPagoSinUsar.
+ * @param telefono     Número de teléfono WhatsApp del cliente que verificó el pago.
+ * @param fechaRegistro Fecha y hora en que se verificó/usó el comprobante.
  */
-export async function marcarPagoComoUsado(rowNumber: number): Promise<void> {
+export async function marcarPagoComoUsado(
+  rowNumber: number,
+  telefono: string = "",
+  fechaRegistro: string = "",
+): Promise<void> {
   const sheets = await getSheetsClient();
+  const telLimpio = telefono ? `'${limpiarTel(telefono)}` : "";
+  const fecha = fechaRegistro || formatearFecha(new Date());
+
   await sheets.spreadsheets.values.update({
     spreadsheetId: SPREADSHEET_ID,
-    range: `${SHEET_PAGOS}!D${rowNumber}`,
+    range: `${SHEET_PAGOS}!D${rowNumber}:F${rowNumber}`,
     valueInputOption: "USER_ENTERED",
-    requestBody: { values: [["Usado"]] },
+    requestBody: { values: [[telLimpio, fecha, "Usado"]] },
   });
-  console.log(`✅ [SHEETS] Pago marcado como Usado en fila ${rowNumber}`);
+  console.log(`✅ [SHEETS] Pago marcado como Usado en fila ${rowNumber} (tel: ${limpiarTel(telefono) || "sin tel"}, fecha: ${fecha})`);
 }
 
 /**
