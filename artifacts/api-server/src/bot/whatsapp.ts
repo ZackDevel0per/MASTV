@@ -216,10 +216,11 @@ async function resolverLidCreativo(jid: string): Promise<string | null> {
       })
       .catch(() => {});
 
-    // Estrategia 2: suscripción a presencia → fuerza resolución interna en WhatsApp
-    sock!.subscribePresence(jid).catch(() => {});
+    // Estrategia 2: fetchStatus → consulta el estado del contacto en el servidor
+    sock!.fetchStatus(jid).catch(() => {});
 
-    // Estrategia 3: solicitar foto de perfil → otra vía para provocar contacts.upsert
+    // Estrategia 3: profilePictureUrl → solicitar la foto de perfil fuerza al servidor
+    // a procesar el contacto y puede desencadenar contacts.upsert con el JID real
     sock!.profilePictureUrl(jid, "image").catch(() => {});
   });
 }
