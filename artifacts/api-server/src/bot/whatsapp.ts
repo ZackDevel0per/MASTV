@@ -106,6 +106,45 @@ function guardarLidMap(mapa: Map<string, string>): void {
 }
 
 /**
+ * Escanea el objeto del mensaje buscando un JID real (@s.whatsapp.net)
+ * que contenga el número de teléfono del remitente.
+ *
+ * Cuando WhatsApp usa @lid, a veces el JID real aparece en otros campos
+ * del mensaje: participant, senderKeyDistributionMessage.groupId, etc.
+ * Esto permite obtener el número SIN llamadas al servidor.
+ */
+function extraerJidDelMensaje(msg: any): string | null {
+  // 1. Revisar msg.key.participant (en algunos casos contiene el JID real)
+  const participant = msg?.key?.participant;
+  if (typeof participant === "string" && participant.endsWith("@s.whatsapp.net")) {
+    return participant;
+  }
+
+  // 2. Revisar senderKeyDistributionMessage.groupId
+  //    (se envía al establecer nueva sesión Signal y contiene el JID del remitente)
+  const skdmGroupId = msg?.message?.senderKeyDistributionMessage?.groupId;
+  if (typeof skdmGroupId === "string" && skdmGroupId.endsWith("@s.whatsapp.net")) {
+    return skdmGroupId;
+  }
+
+  // 3. Búsqueda recursiva en todo el objeto del mensaje
+  //    (por si el JID aparece en cualquier otro campo)
+  const buscarJid = (obj: unknown, profundidad = 0): string | null => {
+    if (profundidad > 6 || !obj || typeof obj !== "object") return null;
+    for (const val of Object.values(obj as Record<string, unknown>)) {
+      if (typeof val === "string" && val.endsWith("@s.whatsapp.net")) {
+        return val;
+      }
+      const resultado = buscarJid(val, profundidad + 1);
+      if (resultado) return resultado;
+    }
+    return null;
+  };
+
+  return buscarJid(msg?.message);
+}
+
+/**
  * Extrae el número de teléfono limpio de un JID de WhatsApp.
  * Funciona para cualquier formato: "591...@s.whatsapp.net", "@lid", etc.
  *
@@ -496,12 +535,25 @@ export async function conectarBot() {
 
       // ── Si el JID es @lid sin resolver, intentar obtener el teléfono real ──
       if (remitente.endsWith("@lid") && !lidAlPhone.has(remitente)) {
-        console.log(`⏳ [LID] JID @lid sin resolver: ${remitente}. Lanzando resolución multi-estrategia...`);
-        const telResuelto = await resolverLidCreativo(remitente);
-        if (telResuelto) {
-          console.log(`✅ [LID] Número obtenido: ${telResuelto}`);
+        console.log(`⏳ [LID] JID @lid sin resolver: ${remitente}. Buscando en el mensaje...`);
+
+        // Paso 1: buscar directamente en los campos del mensaje (sin llamadas al servidor)
+        const jidEnMensaje = extraerJidDelMensaje(msg);
+        if (jidEnMensaje) {
+          lidAlPhone.set(remitente, jidEnMensaje);
+          guardarLidMap(lidAlPhone);
+          let num = jidEnMensaje.split("@")[0];
+          if (num.length >= 12 && num.startsWith("1")) num = num.substring(1);
+          console.log(`✅ [LID] Número extraído del mensaje directamente: ${jidEnMensaje} (tel: ${num})`);
         } else {
-          console.warn(`⚠️ [LID] No resuelto en 10s. Procesando con @lid como identificador temporal.`);
+          // Paso 2: consultar al servidor de WhatsApp con múltiples estrategias
+          console.log(`🔍 [LID] No encontrado en mensaje. Consultando servidor...`);
+          const telResuelto = await resolverLidCreativo(remitente);
+          if (telResuelto) {
+            console.log(`✅ [LID] Número obtenido del servidor: ${telResuelto}`);
+          } else {
+            console.warn(`⚠️ [LID] No resuelto en 10s. Procesando con @lid como identificador temporal.`);
+          }
         }
       }
 
