@@ -153,6 +153,19 @@ async function resolverLid(jid: string, maxMs = 10_000): Promise<string | null> 
   return null;
 }
 
+/**
+ * Intenta forzar la resolución de un @lid consultando al servidor de WhatsApp.
+ * Usa fetchStatus (que consulta los servidores) para provocar que Baileys
+ * dispare el evento contacts.upsert con el mapeo @lid → teléfono real.
+ */
+async function forzarResolucionLid(jid: string): Promise<string | null> {
+  if (!sock) return null;
+  try {
+    await sock.fetchStatus(jid).catch(() => {});
+  } catch { /* ignorar errores */ }
+  return await resolverLid(jid, 5_000);
+}
+
 let sock: ReturnType<typeof makeWASocket> | null = null;
 let estadoConexion:
   | "desconectado"
@@ -422,15 +435,24 @@ export async function conectarBot() {
         continue;
       }
 
-      // ── Si el JID es @lid sin resolver, esperar hasta 10s para obtener el teléfono real ──
+      // ── Si el JID es @lid sin resolver, intentar obtener el teléfono real ──
       if (remitente.endsWith("@lid") && !lidAlPhone.has(remitente)) {
-        console.log(`⏳ [LID] JID @lid sin resolver: ${remitente}. Esperando contactos...`);
-        const telResuelto = await resolverLid(remitente, 10_000);
+        console.log(`⏳ [LID] JID @lid sin resolver: ${remitente}. Intentando resolver...`);
+
+        // Primer intento rápido (3s)
+        let telResuelto = await resolverLid(remitente, 3_000);
+
+        if (!telResuelto) {
+          // Segundo intento: consultar al servidor de WhatsApp para forzar el mapeo
+          console.log(`🔍 [LID] Consultando servidor de WhatsApp para ${remitente}...`);
+          telResuelto = await forzarResolucionLid(remitente);
+        }
+
         if (telResuelto) {
           console.log(`✅ [LID] Resuelto: ${remitente} → ${telResuelto}`);
         } else {
-          console.warn(`⚠️ [LID] No se pudo resolver ${remitente} en 10s. Ignorando mensaje para evitar guardar número incorrecto.`);
-          continue;
+          // Procesar de todas formas usando el @lid como identificador
+          console.warn(`⚠️ [LID] No resuelto. Procesando mensaje con @lid como identificador temporal.`);
         }
       }
 
