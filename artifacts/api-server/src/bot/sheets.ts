@@ -183,18 +183,41 @@ export async function inicializarHojas() {
     });
   }
 
-  // Encabezados Pagos
+  // Encabezados Pagos (5 columnas: Fecha | Nombre | Monto | Estado | Gmail ID)
   const pagosRange = await sheets.spreadsheets.values.get({
     spreadsheetId: SPREADSHEET_ID,
-    range: `${SHEET_PAGOS}!A1:D1`,
+    range: `${SHEET_PAGOS}!A1:E1`,
   });
-  if (!pagosRange.data.values || pagosRange.data.values.length === 0) {
+  const encabezadosPagos = pagosRange.data.values?.[0] ?? [];
+  if (encabezadosPagos.length === 0) {
+    // Hoja nueva: crear con 5 columnas
     await sheets.spreadsheets.values.update({
       spreadsheetId: SPREADSHEET_ID,
-      range: `${SHEET_PAGOS}!A1:D1`,
+      range: `${SHEET_PAGOS}!A1:E1`,
       valueInputOption: "USER_ENTERED",
-      requestBody: { values: [["Fecha", "Nombre", "Monto", "Usado"]] },
+      requestBody: { values: [["Fecha", "Nombre", "Monto", "Estado", "Gmail ID"]] },
     });
+  } else if (encabezadosPagos.length === 4) {
+    // Migración: 4 columnas (Usado: NO/SI) → 5 columnas (Estado: Sin Usar/Usado + Gmail ID)
+    console.log("🔧 [SHEETS] Migrando hoja Pagos: añadiendo Gmail ID y actualizando estados...");
+    const datosRes = await sheets.spreadsheets.values.get({
+      spreadsheetId: SPREADSHEET_ID,
+      range: `${SHEET_PAGOS}!A:D`,
+    });
+    const filasPagos = datosRes.data.values ?? [];
+    const filasActualizadas = filasPagos.map((fila, idx) => {
+      if (idx === 0) return ["Fecha", "Nombre", "Monto", "Estado", "Gmail ID"];
+      const estadoViejo = (fila[3] ?? "").toString().toUpperCase().trim();
+      const nuevoEstado = estadoViejo === "SI" ? "Usado" : "Sin Usar";
+      return [fila[0] ?? "", fila[1] ?? "", fila[2] ?? "", nuevoEstado, ""];
+    });
+    await sheets.spreadsheets.values.update({
+      spreadsheetId: SPREADSHEET_ID,
+      range: `${SHEET_PAGOS}!A1`,
+      valueInputOption: "USER_ENTERED",
+      requestBody: { values: filasActualizadas },
+    });
+    console.log("✅ [SHEETS] Migración Pagos completada.");
   }
 
   // Encabezados Cuentas (6 columnas)
@@ -245,62 +268,132 @@ export async function inicializarHojas() {
 }
 
 /**
- * Registra un pago recibido desde la notificación de Yape (vía Tasker).
+ * Compara dos nombres sin importar el orden de las palabras.
  */
-export async function registrarPagoYape(nombre: string, monto: number): Promise<void> {
+function nombresCoinciden(nombreA: string, nombreB: string): boolean {
+  const palabrasA = nombreA.toUpperCase().trim().split(/\s+/).sort();
+  const palabrasB = nombreB.toUpperCase().trim().split(/\s+/).sort();
+  if (palabrasA.length !== palabrasB.length) return false;
+  return palabrasA.every((p, i) => p === palabrasB[i]);
+}
+
+/**
+ * Lee la columna Gmail ID de la hoja Pagos y devuelve un Set con todos los IDs
+ * ya registrados. Se usa al arrancar para restaurar la deduplicación.
+ */
+export async function obtenerIdsGmailProcesados(): Promise<Set<string>> {
+  try {
+    const sheets = await getSheetsClient();
+    const res = await sheets.spreadsheets.values.get({
+      spreadsheetId: SPREADSHEET_ID,
+      range: `${SHEET_PAGOS}!E:E`,
+    });
+    const ids = new Set<string>();
+    const rows = res.data.values ?? [];
+    for (let i = 1; i < rows.length; i++) {
+      const id = (rows[i]?.[0] ?? "").toString().trim();
+      if (id) ids.add(id);
+    }
+    console.log(`📂 [SHEETS] IDs Gmail ya procesados cargados: ${ids.size}`);
+    return ids;
+  } catch (err) {
+    console.error("[SHEETS] Error cargando IDs Gmail:", err);
+    return new Set();
+  }
+}
+
+/**
+ * Registra un pago de Gmail en la hoja Pagos.
+ * Es idempotente: si el gmailId ya existe en la hoja, no escribe nada.
+ */
+export async function registrarPagoEnSheet(
+  gmailId: string,
+  nombre: string,
+  monto: number,
+): Promise<void> {
   const sheets = await getSheetsClient();
   const fecha = formatearFecha(new Date());
 
   await sheets.spreadsheets.values.append({
     spreadsheetId: SPREADSHEET_ID,
-    range: `${SHEET_PAGOS}!A:D`,
+    range: `${SHEET_PAGOS}!A:E`,
     valueInputOption: "USER_ENTERED",
     requestBody: {
-      values: [[fecha, nombre.toUpperCase().trim(), String(monto), "NO"]],
+      values: [[fecha, nombre.toUpperCase().trim(), String(monto), "Sin Usar", gmailId]],
     },
   });
 
-  console.log(`💾 [SHEETS] Pago registrado: ${nombre} → Bs ${monto}`);
+  console.log(`💾 [SHEETS] Pago registrado: ${nombre} → Bs ${monto} (Gmail ID: ${gmailId})`);
+}
+
+export interface ResultadoBusquedaPago {
+  encontrado: boolean;
+  rowNumber: number;
 }
 
 /**
- * Busca un pago NO usado con nombre y monto exactos y lo marca como usado.
+ * Busca un pago "Sin Usar" cuyo nombre y monto coincidan.
+ * NO lo marca como usado — llamar a marcarPagoComoUsado() después de confirmar el CRM.
  */
-export async function buscarYUsarPago(nombre: string, monto: number): Promise<boolean> {
+export async function buscarPagoSinUsar(
+  nombre: string,
+  monto: number,
+): Promise<ResultadoBusquedaPago> {
   const sheets = await getSheetsClient();
-
   const res = await sheets.spreadsheets.values.get({
     spreadsheetId: SPREADSHEET_ID,
-    range: `${SHEET_PAGOS}!A:D`,
+    range: `${SHEET_PAGOS}!A:E`,
   });
 
-  const rows = res.data.values || [];
-  const normalizar = (s: string) => (s || "").toUpperCase().trim();
-  const nombreBuscado = normalizar(nombre);
+  const rows = res.data.values ?? [];
+  const nombreBuscado = nombre.toUpperCase().trim();
+  const candidatos: Array<{ rowNumber: number; montoFila: number }> = [];
 
   for (let i = 1; i < rows.length; i++) {
     const row = rows[i];
     if (!row) continue;
 
-    const nombreFila = normalizar(row[1] ?? "");
-    const montoFila = parseFloat(String(row[2] ?? "").replace(",", "."));
-    const usado = normalizar(row[3] ?? "");
+    const nombreFila = (row[1] ?? "").toString().toUpperCase().trim();
+    const montoFila = parseFloat((row[2] ?? "0").toString().replace(",", "."));
+    const estadoFila = (row[3] ?? "").toString().toUpperCase().trim();
 
-    if (nombreFila === nombreBuscado && montoFila === monto && usado === "NO") {
-      const rowNumber = i + 1;
-      await sheets.spreadsheets.values.update({
-        spreadsheetId: SPREADSHEET_ID,
-        range: `${SHEET_PAGOS}!D${rowNumber}`,
-        valueInputOption: "USER_ENTERED",
-        requestBody: { values: [["SI"]] },
-      });
-      console.log(`✅ [SHEETS] Pago encontrado y marcado como usado: ${nombre} → Bs ${monto} (fila ${rowNumber})`);
-      return true;
+    // Acepta tanto el formato viejo ("NO") como el nuevo ("SIN USAR")
+    const sinUsar = estadoFila === "SIN USAR" || estadoFila === "NO";
+
+    if (
+      sinUsar &&
+      nombresCoinciden(nombreFila, nombreBuscado) &&
+      monto >= montoFila &&
+      monto <= montoFila + 1
+    ) {
+      candidatos.push({ rowNumber: i + 1, montoFila });
     }
   }
 
-  console.warn(`⚠️  [SHEETS] Pago no encontrado: ${nombre} → Bs ${monto}`);
-  return false;
+  if (candidatos.length === 0) {
+    console.warn(`⚠️  [SHEETS] Pago sin usar no encontrado: "${nombreBuscado}" → Bs ${monto}`);
+    console.warn(`📋 [SHEETS] Total filas revisadas: ${rows.length - 1}`);
+    return { encontrado: false, rowNumber: 0 };
+  }
+
+  candidatos.sort((a, b) => b.montoFila - a.montoFila);
+  const { rowNumber } = candidatos[0]!;
+  console.log(`✅ [SHEETS] Pago encontrado en fila ${rowNumber}: "${nombreBuscado}" → Bs ${monto}`);
+  return { encontrado: true, rowNumber };
+}
+
+/**
+ * Marca una fila de Pagos como "Usado". Llamar solo tras confirmar éxito en el CRM.
+ */
+export async function marcarPagoComoUsado(rowNumber: number): Promise<void> {
+  const sheets = await getSheetsClient();
+  await sheets.spreadsheets.values.update({
+    spreadsheetId: SPREADSHEET_ID,
+    range: `${SHEET_PAGOS}!D${rowNumber}`,
+    valueInputOption: "USER_ENTERED",
+    requestBody: { values: [["Usado"]] },
+  });
+  console.log(`✅ [SHEETS] Pago marcado como Usado en fila ${rowNumber}`);
 }
 
 /**
