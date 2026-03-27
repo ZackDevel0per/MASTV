@@ -5,7 +5,7 @@
  * 1. Hace polling a Gmail cada INTERVALO_SEGUNDOS buscando correos nuevos
  *    del remitente configurado (GMAIL_REMITENTE_FILTRO).
  * 2. Extrae nombre y monto de cada correo nuevo.
- * 3. Llama a registrarPagoYapeLocal() para ingresarlo al store de pagos.
+ * 3. Llama a registrarPagoEnSheet() para guardarlo directamente en Google Sheets.
  * 4. Marca el correo como leído y guarda su ID para no procesarlo de nuevo.
  *
  * Autenticación: OAuth2 con cuenta personal de Gmail.
@@ -28,7 +28,6 @@
 
 import { google, type gmail_v1 } from "googleapis";
 import { registrarPagoEnSheet, obtenerIdsGmailProcesados } from "./sheets.js";
-import { registrarPagoYapeLocal } from "./yape-store.js";
 
 const INTERVALO_MS = 30_000; // 30 segundos entre cada revisión
 
@@ -247,7 +246,7 @@ async function procesarCorreosNuevos() {
         console.log(
           `✅ [GMAIL] Pago detectado: ${datos.nombre} → Bs ${datos.monto}`,
         );
-        registrarPagoYapeLocal(datos.nombre, datos.monto);
+        await registrarPagoEnSheet(id, datos.nombre, datos.monto);
         totalProcesados++;
         if (callbackPagoDetectado) {
           try {
@@ -299,7 +298,14 @@ export function iniciarGmailPolling() {
   }
 
   activo = true;
-  console.log("📬 [GMAIL] Iniciando polling de correos cada 90 segundos...");
+  console.log("📬 [GMAIL] Iniciando polling de correos cada 30 segundos...");
+
+  // Cargar IDs ya procesados desde el Sheet para evitar duplicados al reiniciar
+  obtenerIdsGmailProcesados()
+    .then((ids) => {
+      for (const id of ids) idsProcessados.add(id);
+    })
+    .catch(console.error);
 
   // Primera revisión al arrancar
   procesarCorreosNuevos().catch(console.error);

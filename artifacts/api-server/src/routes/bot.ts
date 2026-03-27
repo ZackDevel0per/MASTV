@@ -11,7 +11,7 @@ import {
 import { confirmarPago, marcarEntregado, buscarPedidoPorMonto } from "../bot/payment-store.js";
 import { crearCuentaEnCRM, PLAN_ID_MAP, debugRenewPage, debugExtEndpoints, debugEditPage } from "../bot/crm-service.js";
 import { ACTIVACION_EXITOSA } from "../bot/responses.js";
-import { registrarPagoYapeLocal, listarPagosYape } from "../bot/yape-store.js";
+import { registrarPagoEnSheet } from "../bot/sheets.js";
 import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
@@ -295,10 +295,11 @@ router.post("/bot/pago-qr", async (req, res) => {
   console.log(`📲 [TASKER] Notificación recibida: ${nombre} → Bs. ${montoNum}`);
 
   try {
-    registrarPagoYapeLocal(nombre, montoNum);
+    const gmailId = `tasker_${Date.now()}`;
+    await registrarPagoEnSheet(gmailId, nombre, montoNum);
     res.json({
       ok: true,
-      mensaje: "Pago registrado. El cliente debe escribir VERIFICAR en WhatsApp.",
+      mensaje: "Pago registrado en Google Sheets. El cliente debe escribir VERIFICAR en WhatsApp.",
       nombre,
       monto: montoNum,
     });
@@ -312,12 +313,11 @@ router.post("/bot/pago-qr", async (req, res) => {
 });
 
 // ═════════════════════════════════════════════════════════
-// DEBUG: Ver pagos registrados en memoria (solo desarrollo)
+// DEBUG: Ver pagos sin usar (solo desarrollo)
 // ═════════════════════════════════════════════════════════
 router.get("/bot/pagos-yape", (req, res) => {
   if (!verificarToken(req, res)) return;
-  const pagos = listarPagosYape();
-  res.json({ ok: true, total: pagos.length, pagos });
+  res.json({ ok: true, mensaje: "Los pagos ahora se almacenan en Google Sheets (hoja Pagos)." });
 });
 
 // ═════════════════════════════════════════════════════════
