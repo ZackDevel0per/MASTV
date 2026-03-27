@@ -72,7 +72,7 @@ import {
 } from "./responses.js";
 import { enviarImagen } from "./media-handler.js";
 import { crearCuentaEnCRM, renovarCuentaEnCRM, verificarDemoExistente, consultarEstadoCuenta, PLAN_ID_MAP } from "./crm-service.js";
-import { registrarCuenta, actualizarCuenta, buscarCuentasPorTelefono } from "./sheets.js";
+import { registrarCuenta, actualizarCuenta, buscarCuentasPorTelefono, actualizarTelefonoPorLid } from "./sheets.js";
 import { registrarPedido } from "./payment-store.js";
 import { encontrarIndexPago, marcarPagoUsado } from "./yape-store.js";
 
@@ -402,27 +402,46 @@ export async function conectarBot() {
    * Guardamos el mapeo y lo persistimos en disco para sobrevivir reinicios.
    */
   sock.ev.on("contacts.upsert", (contacts) => {
-    let nuevos = 0;
+    const nuevosLids: Array<{ lid: string; jidReal: string }> = [];
     for (const c of contacts) {
       if (c.lid && c.id) {
+        const esNuevo = !lidAlPhone.has(c.lid);
         lidAlPhone.set(c.lid, c.id);
-        nuevos++;
         console.log(`📇 [LID] Mapeado: ${c.lid} → ${c.id}`);
+        if (esNuevo) nuevosLids.push({ lid: c.lid, jidReal: c.id });
       }
     }
-    if (nuevos > 0) guardarLidMap(lidAlPhone);
+    if (nuevosLids.length > 0) {
+      guardarLidMap(lidAlPhone);
+      // Actualizar el Sheet: si hay filas registradas con el LID, reemplazar por el número real
+      for (const { lid, jidReal } of nuevosLids) {
+        const lidNumero = lid.split("@")[0];
+        let telReal = jidReal.split("@")[0];
+        if (telReal.length >= 12 && telReal.startsWith("1")) telReal = telReal.substring(1);
+        actualizarTelefonoPorLid(lidNumero, telReal).catch(() => {});
+      }
+    }
   });
 
   sock.ev.on("contacts.update", (updates) => {
-    let nuevos = 0;
+    const nuevosLids: Array<{ lid: string; jidReal: string }> = [];
     for (const c of updates) {
       if (c.lid && c.id) {
+        const esNuevo = !lidAlPhone.has(c.lid);
         lidAlPhone.set(c.lid, c.id);
-        nuevos++;
         console.log(`📇 [LID] Actualizado: ${c.lid} → ${c.id}`);
+        if (esNuevo) nuevosLids.push({ lid: c.lid, jidReal: c.id });
       }
     }
-    if (nuevos > 0) guardarLidMap(lidAlPhone);
+    if (nuevosLids.length > 0) {
+      guardarLidMap(lidAlPhone);
+      for (const { lid, jidReal } of nuevosLids) {
+        const lidNumero = lid.split("@")[0];
+        let telReal = jidReal.split("@")[0];
+        if (telReal.length >= 12 && telReal.startsWith("1")) telReal = telReal.substring(1);
+        actualizarTelefonoPorLid(lidNumero, telReal).catch(() => {});
+      }
+    }
   });
 
   sock.ev.on("messages.upsert", async ({ messages, type }) => {

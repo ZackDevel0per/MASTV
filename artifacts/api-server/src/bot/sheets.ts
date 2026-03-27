@@ -458,6 +458,68 @@ export async function actualizarCuenta(
 }
 
 /**
+ * Busca en la hoja "Cuentas" todas las filas donde el teléfono sea `lidNumero`
+ * y las reemplaza por `telefonoReal`. Útil cuando contacts.upsert resuelve
+ * un @lid al número de teléfono real después de que ya se registraron datos.
+ * Retorna la cantidad de filas actualizadas.
+ */
+export async function actualizarTelefonoPorLid(
+  lidNumero: string,
+  telefonoReal: string,
+): Promise<number> {
+  const lidLimpio = limpiarTel(lidNumero);
+  const telLimpio = limpiarTel(telefonoReal);
+  if (!lidLimpio || !telLimpio || lidLimpio === telLimpio) return 0;
+
+  try {
+    const sheets = await getSheetsClient();
+    const res = await sheets.spreadsheets.values.get({
+      spreadsheetId: SPREADSHEET_ID,
+      range: `${SHEET_CUENTAS}!A:F`,
+    });
+
+    const rows = res.data.values || [];
+    const actualizaciones: { range: string; value: string }[] = [];
+
+    for (let i = 1; i < rows.length; i++) {
+      const row = rows[i];
+      if (!row) continue;
+      const telFila = limpiarTel((row[0] ?? "").toString());
+      if (telFila === lidLimpio) {
+        actualizaciones.push({ range: `${SHEET_CUENTAS}!A${i + 1}`, value: `'${telLimpio}` });
+      }
+    }
+
+    if (actualizaciones.length === 0) return 0;
+
+    await sheets.spreadsheets.values.batchUpdate({
+      spreadsheetId: SPREADSHEET_ID,
+      requestBody: {
+        valueInputOption: "USER_ENTERED",
+        data: actualizaciones.map((a) => ({
+          range: a.range,
+          values: [[a.value]],
+        })),
+      },
+    });
+
+    // Actualizar caché: mover entradas del LID al teléfono real
+    const entradasLid = cacheSheets.get(lidLimpio) ?? [];
+    if (entradasLid.length > 0) {
+      const entradasExistentes = cacheSheets.get(telLimpio) ?? [];
+      cacheSheets.set(telLimpio, [...entradasExistentes, ...entradasLid]);
+      cacheSheets.delete(lidLimpio);
+    }
+
+    console.log(`🔄 [SHEETS] Teléfono actualizado de LID ${lidLimpio} → ${telLimpio} (${actualizaciones.length} fila${actualizaciones.length === 1 ? "" : "s"})`);
+    return actualizaciones.length;
+  } catch (err) {
+    console.error("[SHEETS] Error al actualizar teléfono por LID:", err);
+    return 0;
+  }
+}
+
+/**
  * Busca cuentas por teléfono usando el caché en memoria (no hace llamadas a la API).
  * Si el caché está vacío (p.ej. antes del primer ciclo), hace una consulta directa.
  */
