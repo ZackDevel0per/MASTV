@@ -19,7 +19,7 @@ export async function enviarNotificacionPushover(params: {
   }
 
   const url = params.telefono
-    ? `whatsappbusiness://send?phone=${params.telefono.replace(/\D/g, "")}`
+    ? `https://wa.me/${params.telefono.replace(/\D/g, "")}`
     : undefined;
 
   const payload: Record<string, string> = {
