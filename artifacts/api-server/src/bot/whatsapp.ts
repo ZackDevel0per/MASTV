@@ -518,7 +518,7 @@ async function manejarMensaje(jid: string, texto: string) {
             marcarPagoUsado(indicePago);
             await enviarConDelay(jid, `🎉 *¡Cuenta renovada exitosamente!*\n\n🔐 *Credenciales de acceso:*\n📛 Nombre: \`mastv\`\n👤 Usuario: \`${resultado.usuario}\`\n🔑 Contraseña: \`${resultado.contrasena}\`\n🌐 URL: \`${resultado.servidor || "http://mtv.bo:80"}\`\n\n📺 *Plan renovado:* ${resultado.plan}\n\n✅ Tu servicio ha sido extendido. ¡Disfruta ZKTV! 🚀`);
             // Registrar renovación en Google Sheets
-            actualizarCuenta(telefono, resultado.usuario ?? usuarioRenovar, resultado.plan ?? planSeleccionado ?? "")
+            actualizarCuenta(telefono, resultado.usuario ?? usuarioRenovar, resultado.plan ?? planSeleccionado ?? "", planInfo.dias)
               .catch(err => console.error("[BOT] Error actualizando cuenta en Sheets:", err));
             conversaciones[jid] = { ultimoComando: "CUENTA_RENOVADA", planSeleccionado: undefined, hora: Date.now() };
           } else {
@@ -548,7 +548,7 @@ async function manejarMensaje(jid: string, texto: string) {
             });
             await enviarConDelay(jid, mensajeActivacion);
             // Registrar cuenta nueva en Google Sheets
-            registrarCuenta(telefono, resultado.usuario, resultado.plan ?? planInfo.nombre)
+            registrarCuenta(telefono, resultado.usuario, resultado.plan ?? planInfo.nombre, planInfo.dias)
               .catch(err => console.error("[BOT] Error registrando cuenta en Sheets:", err));
             conversaciones[jid] = { ultimoComando: "CUENTA_CREADA", planSeleccionado: undefined, hora: Date.now() };
           } else {

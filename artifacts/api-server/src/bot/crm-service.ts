@@ -79,22 +79,22 @@ const TODOS_LOS_BOUQUETS = [
 
 export const PLAN_ID_MAP: Record<
   string,
-  { id: number; nombre: string; precio: string; monto: number; maxConexiones: number }
+  { id: number; nombre: string; precio: string; monto: number; maxConexiones: number; dias: number }
 > = {
-  DEMO_1H: { id: 101, nombre: "DEMO 1 HORA",             precio: "Gratis", monto: 0,   maxConexiones: 1 },
-  DEMO_3H: { id: 102, nombre: "DEMO 3 HORAS",            precio: "Gratis", monto: 0,   maxConexiones: 1 },
-  P1:      { id: 107, nombre: "1 MES - 1 DISPOSITIVO",   precio: "29 Bs",  monto: 29,  maxConexiones: 1 },
-  P2:      { id: 109, nombre: "3 MESES - 1 DISPOSITIVO", precio: "82 Bs",  monto: 82,  maxConexiones: 1 },
-  P3:      { id: 111, nombre: "6 MESES - 1 DISPOSITIVO", precio: "155 Bs", monto: 155, maxConexiones: 1 },
-  P4:      { id: 113, nombre: "12 MESES - 1 DISPOSITIVO",precio: "300 Bs", monto: 300, maxConexiones: 1 },
-  Q1:      { id: 108, nombre: "1 MES - 2 DISPOSITIVOS",  precio: "35 Bs",  monto: 35,  maxConexiones: 2 },
-  Q2:      { id: 110, nombre: "3 MESES - 2 DISPOSITIVOS",precio: "100 Bs", monto: 100, maxConexiones: 2 },
-  Q3:      { id: 112, nombre: "6 MESES - 2 DISPOSITIVOS",precio: "190 Bs", monto: 190, maxConexiones: 2 },
-  Q4:      { id: 114, nombre: "12 MESES - 2 DISPOSITIVOS",precio: "380 Bs",monto: 380, maxConexiones: 2 },
-  R1:      { id: 103, nombre: "1 MES - 3 DISPOSITIVOS",  precio: "40 Bs",  monto: 40,  maxConexiones: 3 },
-  R2:      { id: 104, nombre: "3 MESES - 3 DISPOSITIVOS",precio: "115 Bs", monto: 115, maxConexiones: 3 },
-  R3:      { id: 105, nombre: "6 MESES - 3 DISPOSITIVOS",precio: "225 Bs", monto: 225, maxConexiones: 3 },
-  R4:      { id: 106, nombre: "12 MESES - 3 DISPOSITIVOS",precio: "440 Bs",monto: 440, maxConexiones: 3 },
+  DEMO_1H: { id: 101, nombre: "DEMO 1 HORA",             precio: "Gratis", monto: 0,   maxConexiones: 1, dias: 0   },
+  DEMO_3H: { id: 102, nombre: "DEMO 3 HORAS",            precio: "Gratis", monto: 0,   maxConexiones: 1, dias: 0   },
+  P1:      { id: 107, nombre: "1 MES - 1 DISPOSITIVO",   precio: "29 Bs",  monto: 29,  maxConexiones: 1, dias: 30  },
+  P2:      { id: 109, nombre: "3 MESES - 1 DISPOSITIVO", precio: "82 Bs",  monto: 82,  maxConexiones: 1, dias: 90  },
+  P3:      { id: 111, nombre: "6 MESES - 1 DISPOSITIVO", precio: "155 Bs", monto: 155, maxConexiones: 1, dias: 210 },
+  P4:      { id: 113, nombre: "12 MESES - 1 DISPOSITIVO",precio: "300 Bs", monto: 300, maxConexiones: 1, dias: 420 },
+  Q1:      { id: 108, nombre: "1 MES - 2 DISPOSITIVOS",  precio: "35 Bs",  monto: 35,  maxConexiones: 2, dias: 30  },
+  Q2:      { id: 110, nombre: "3 MESES - 2 DISPOSITIVOS",precio: "100 Bs", monto: 100, maxConexiones: 2, dias: 90  },
+  Q3:      { id: 112, nombre: "6 MESES - 2 DISPOSITIVOS",precio: "190 Bs", monto: 190, maxConexiones: 2, dias: 210 },
+  Q4:      { id: 114, nombre: "12 MESES - 2 DISPOSITIVOS",precio: "380 Bs",monto: 380, maxConexiones: 2, dias: 420 },
+  R1:      { id: 103, nombre: "1 MES - 3 DISPOSITIVOS",  precio: "40 Bs",  monto: 40,  maxConexiones: 3, dias: 30  },
+  R2:      { id: 104, nombre: "3 MESES - 3 DISPOSITIVOS",precio: "115 Bs", monto: 115, maxConexiones: 3, dias: 90  },
+  R3:      { id: 105, nombre: "6 MESES - 3 DISPOSITIVOS",precio: "225 Bs", monto: 225, maxConexiones: 3, dias: 210 },
+  R4:      { id: 106, nombre: "12 MESES - 3 DISPOSITIVOS",precio: "440 Bs",monto: 440, maxConexiones: 3, dias: 420 },
 };
 
 export interface ResultadoCRM {

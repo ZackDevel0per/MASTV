@@ -26,13 +26,14 @@ async function getSheetsClient() {
 
 // ═══════════════════════════════════════════════════════════════
 // ESTRUCTURA HOJA "Cuentas":
-// A: Teléfono  |  B: Usuario  |  C: Plan  |  D: Fecha  |  E: Estado
+// A: Teléfono  |  B: Usuario  |  C: Plan  |  D: Fecha Creación  |  E: Fecha Expiración  |  F: Estado
 // ═══════════════════════════════════════════════════════════════
 
 export interface CuentaRegistrada {
   usuario: string;
   plan: string;
   fecha: string;
+  fechaExpiracion: string;
   estado: string;
 }
 
@@ -57,6 +58,44 @@ function limpiarTel(tel: string): string {
 }
 
 /**
+ * Formatea una fecha con la misma configuración regional usada en la hoja.
+ */
+function formatearFecha(fecha: Date): string {
+  return fecha.toLocaleString("es-BO", { timeZone: "America/La_Paz" });
+}
+
+/**
+ * Calcula la fecha de expiración sumando `dias` a la fecha `desde`.
+ */
+function calcularExpiracion(desde: Date, dias: number): Date {
+  const exp = new Date(desde.getTime());
+  exp.setDate(exp.getDate() + dias);
+  return exp;
+}
+
+/**
+ * Intenta parsear una fecha almacenada en la hoja (formato es-BO).
+ * Retorna null si no puede parsearse.
+ */
+function parsearFechaHoja(valor: string): Date | null {
+  if (!valor) return null;
+  // Formato típico es-BO: "27/3/2026, 10:35:00" o "27/03/2026 10:35:00"
+  // toLocaleString en es-BO produce algo como: "27/3/2026, 10:35:00 a. m."
+  // Intentar parseo directo (funciona en Node con V8)
+  const d = new Date(valor);
+  if (!isNaN(d.getTime())) return d;
+
+  // Fallback: intentar reordenar DD/MM/YYYY → YYYY-MM-DD para parsearlo
+  const match = valor.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+  if (match) {
+    const iso = `${match[3]}-${match[2]!.padStart(2, "0")}-${match[1]!.padStart(2, "0")}`;
+    const d2 = new Date(iso);
+    if (!isNaN(d2.getTime())) return d2;
+  }
+  return null;
+}
+
+/**
  * Lee TODAS las filas de la hoja "Cuentas" y reconstruye el caché en memoria.
  * Se llama al arranque y luego cada 30 segundos.
  */
@@ -65,7 +104,7 @@ async function actualizarCacheSheets(): Promise<void> {
     const sheets = await getSheetsClient();
     const res = await sheets.spreadsheets.values.get({
       spreadsheetId: SPREADSHEET_ID,
-      range: `${SHEET_CUENTAS}!A:E`,
+      range: `${SHEET_CUENTAS}!A:F`,
     });
 
     const rows = res.data.values || [];
@@ -82,7 +121,8 @@ async function actualizarCacheSheets(): Promise<void> {
         usuario: (row[1] ?? "").toString().trim(),
         plan: (row[2] ?? "").toString().trim(),
         fecha: (row[3] ?? "").toString().trim(),
-        estado: (row[4] ?? "").toString().trim(),
+        fechaExpiracion: (row[4] ?? "").toString().trim(),
+        estado: (row[5] ?? "").toString().trim(),
       };
 
       const lista = nuevo.get(tel) ?? [];
@@ -154,18 +194,48 @@ export async function inicializarHojas() {
     });
   }
 
-  // Encabezados Cuentas
+  // Encabezados Cuentas (6 columnas)
+  // Si ya existe con 5 columnas (estructura anterior), migrar añadiendo "Fecha Expiración"
   const cuentasRange = await sheets.spreadsheets.values.get({
     spreadsheetId: SPREADSHEET_ID,
-    range: `${SHEET_CUENTAS}!A1:E1`,
+    range: `${SHEET_CUENTAS}!A1:F1`,
   });
-  if (!cuentasRange.data.values || cuentasRange.data.values.length === 0) {
+  const encabezadosActuales = cuentasRange.data.values?.[0] ?? [];
+  if (encabezadosActuales.length === 0) {
+    // Hoja nueva: escribir todos los encabezados
     await sheets.spreadsheets.values.update({
       spreadsheetId: SPREADSHEET_ID,
-      range: `${SHEET_CUENTAS}!A1:E1`,
+      range: `${SHEET_CUENTAS}!A1:F1`,
       valueInputOption: "USER_ENTERED",
-      requestBody: { values: [["Teléfono", "Usuario", "Plan", "Fecha", "Estado"]] },
+      requestBody: { values: [["Teléfono", "Usuario", "Plan", "Fecha Creación", "Fecha Expiración", "Estado"]] },
     });
+  } else if (encabezadosActuales.length === 5) {
+    // Migración: insertar "Fecha Expiración" como columna E y mover "Estado" a F
+    console.log("🔧 [SHEETS] Migrando hoja Cuentas: insertando columna Fecha Expiración...");
+    // Leer todos los datos existentes
+    const datosRes = await sheets.spreadsheets.values.get({
+      spreadsheetId: SPREADSHEET_ID,
+      range: `${SHEET_CUENTAS}!A:E`,
+    });
+    const filas = datosRes.data.values ?? [];
+    // Insertar columna vacía en posición E (índice 4) en cada fila
+    const filasActualizadas = filas.map((fila, idx) => {
+      if (idx === 0) {
+        // Encabezado
+        return ["Teléfono", "Usuario", "Plan", "Fecha Creación", "Fecha Expiración", "Estado"];
+      }
+      // Insertar cadena vacía como Fecha Expiración, Estado queda en F
+      // Prefijo ' en teléfono para forzar formato texto en Sheets
+      const telFila = `'${limpiarTel((fila[0] ?? "").toString())}`;
+      return [telFila, fila[1] ?? "", fila[2] ?? "", fila[3] ?? "", "", fila[4] ?? ""];
+    });
+    await sheets.spreadsheets.values.update({
+      spreadsheetId: SPREADSHEET_ID,
+      range: `${SHEET_CUENTAS}!A1`,
+      valueInputOption: "USER_ENTERED",
+      requestBody: { values: filasActualizadas },
+    });
+    console.log("✅ [SHEETS] Migración completada: columna Fecha Expiración añadida.");
   }
 
   console.log("✅ Hojas de Google Sheets inicializadas correctamente (Pagos + Cuentas)");
@@ -176,7 +246,7 @@ export async function inicializarHojas() {
  */
 export async function registrarPagoYape(nombre: string, monto: number): Promise<void> {
   const sheets = await getSheetsClient();
-  const fecha = new Date().toLocaleString("es-BO", { timeZone: "America/La_Paz" });
+  const fecha = formatearFecha(new Date());
 
   await sheets.spreadsheets.values.append({
     spreadsheetId: SPREADSHEET_ID,
@@ -232,33 +302,51 @@ export async function buscarYUsarPago(nombre: string, monto: number): Promise<bo
 
 /**
  * Registra una cuenta nueva en la hoja "Cuentas" y actualiza el caché.
+ * @param diasPlan  Número de días que dura el plan (0 = demo/sin expiración).
  */
 export async function registrarCuenta(
   telefono: string,
   username: string,
   plan: string,
+  diasPlan: number = 0,
 ): Promise<void> {
   try {
     const sheets = await getSheetsClient();
-    const fecha = new Date().toLocaleString("es-BO", { timeZone: "America/La_Paz" });
+    const ahora = new Date();
+    const fechaCreacion = formatearFecha(ahora);
     const telLimpio = limpiarTel(telefono);
+
+    // Calcular fecha de expiración
+    let fechaExpiracion = "";
+    if (diasPlan > 0) {
+      fechaExpiracion = formatearFecha(calcularExpiracion(ahora, diasPlan));
+    }
+
+    // Prefijo ' para forzar que Google Sheets trate el teléfono como texto
+    const telParaHoja = `'${telLimpio}`;
 
     await sheets.spreadsheets.values.append({
       spreadsheetId: SPREADSHEET_ID,
-      range: `${SHEET_CUENTAS}!A:E`,
+      range: `${SHEET_CUENTAS}!A:F`,
       valueInputOption: "USER_ENTERED",
       requestBody: {
-        values: [[telLimpio, username, plan, fecha, "ACTIVA"]],
+        values: [[telParaHoja, username, plan, fechaCreacion, fechaExpiracion, "ACTIVA"]],
       },
     });
 
     // Actualizar caché local sin esperar otro ciclo
-    const cuenta: CuentaRegistrada = { usuario: username, plan, fecha, estado: "ACTIVA" };
+    const cuenta: CuentaRegistrada = {
+      usuario: username,
+      plan,
+      fecha: fechaCreacion,
+      fechaExpiracion,
+      estado: "ACTIVA",
+    };
     const lista = cacheSheets.get(telLimpio) ?? [];
     lista.push(cuenta);
     cacheSheets.set(telLimpio, lista);
 
-    console.log(`💾 [SHEETS] Cuenta registrada: ${telLimpio} → ${username} (${plan})`);
+    console.log(`💾 [SHEETS] Cuenta registrada: ${telLimpio} → ${username} (${plan}) exp: ${fechaExpiracion || "sin fecha"}`);
   } catch (err) {
     console.error("[SHEETS] Error al registrar cuenta:", err);
   }
@@ -266,24 +354,30 @@ export async function registrarCuenta(
 
 /**
  * Actualiza (o crea) la cuenta de un cliente al renovar, y actualiza el caché.
+ * La nueva expiración = días restantes actuales + días del nuevo plan.
+ * @param diasPlan  Número de días que añade el nuevo plan.
  */
 export async function actualizarCuenta(
   telefono: string,
   username: string,
   plan: string,
+  diasPlan: number = 0,
 ): Promise<void> {
   try {
     const sheets = await getSheetsClient();
-    const fecha = new Date().toLocaleString("es-BO", { timeZone: "America/La_Paz" });
+    const ahora = new Date();
+    const fechaCreacion = formatearFecha(ahora);
     const telLimpio = limpiarTel(telefono);
+    const telParaHoja = `'${telLimpio}`;
 
     const res = await sheets.spreadsheets.values.get({
       spreadsheetId: SPREADSHEET_ID,
-      range: `${SHEET_CUENTAS}!A:E`,
+      range: `${SHEET_CUENTAS}!A:F`,
     });
 
     const rows = res.data.values || [];
     let filaExistente = -1;
+    let fechaExpiracionActual = "";
 
     for (let i = 1; i < rows.length; i++) {
       const row = rows[i];
@@ -292,28 +386,49 @@ export async function actualizarCuenta(
       const userFila = (row[1] ?? "").toString().trim().toLowerCase();
       if (telFila === telLimpio && userFila === username.trim().toLowerCase()) {
         filaExistente = i + 1;
+        fechaExpiracionActual = (row[4] ?? "").toString().trim();
         break;
+      }
+    }
+
+    // Calcular nueva fecha de expiración
+    let nuevaFechaExpiracion = "";
+    if (diasPlan > 0) {
+      if (fechaExpiracionActual) {
+        const expAnterior = parsearFechaHoja(fechaExpiracionActual);
+        if (expAnterior && expAnterior > ahora) {
+          // Quedan días: nueva exp = expiración actual + días del plan
+          nuevaFechaExpiracion = formatearFecha(calcularExpiracion(expAnterior, diasPlan));
+          const diasRestantes = Math.ceil((expAnterior.getTime() - ahora.getTime()) / 86_400_000);
+          console.log(`📅 [SHEETS] Renovación con ${diasRestantes} días restantes → +${diasPlan} días`);
+        } else {
+          // Ya expiró: nueva exp = hoy + días del plan
+          nuevaFechaExpiracion = formatearFecha(calcularExpiracion(ahora, diasPlan));
+        }
+      } else {
+        // No había expiración previa
+        nuevaFechaExpiracion = formatearFecha(calcularExpiracion(ahora, diasPlan));
       }
     }
 
     if (filaExistente > 0) {
       await sheets.spreadsheets.values.update({
         spreadsheetId: SPREADSHEET_ID,
-        range: `${SHEET_CUENTAS}!C${filaExistente}:E${filaExistente}`,
+        range: `${SHEET_CUENTAS}!C${filaExistente}:F${filaExistente}`,
         valueInputOption: "USER_ENTERED",
-        requestBody: { values: [[plan, fecha, "RENOVADA"]] },
+        requestBody: { values: [[plan, fechaCreacion, nuevaFechaExpiracion, "RENOVADA"]] },
       });
-      console.log(`🔄 [SHEETS] Cuenta actualizada (renovada): ${telLimpio} → ${username} (${plan})`);
+      console.log(`🔄 [SHEETS] Cuenta renovada: ${telLimpio} → ${username} (${plan}) exp: ${nuevaFechaExpiracion || "sin fecha"}`);
     } else {
       await sheets.spreadsheets.values.append({
         spreadsheetId: SPREADSHEET_ID,
-        range: `${SHEET_CUENTAS}!A:E`,
+        range: `${SHEET_CUENTAS}!A:F`,
         valueInputOption: "USER_ENTERED",
         requestBody: {
-          values: [[telLimpio, username, plan, fecha, "RENOVADA"]],
+          values: [[telParaHoja, username, plan, fechaCreacion, nuevaFechaExpiracion, "RENOVADA"]],
         },
       });
-      console.log(`💾 [SHEETS] Cuenta nueva en renovación: ${telLimpio} → ${username} (${plan})`);
+      console.log(`💾 [SHEETS] Cuenta nueva en renovación: ${telLimpio} → ${username} (${plan}) exp: ${nuevaFechaExpiracion || "sin fecha"}`);
     }
 
     // Actualizar caché local
@@ -321,10 +436,17 @@ export async function actualizarCuenta(
     const idx = listaCacheActual.findIndex(
       (c) => c.usuario.toLowerCase() === username.trim().toLowerCase(),
     );
+    const cuentaActualizada: CuentaRegistrada = {
+      usuario: username,
+      plan,
+      fecha: fechaCreacion,
+      fechaExpiracion: nuevaFechaExpiracion,
+      estado: "RENOVADA",
+    };
     if (idx >= 0) {
-      listaCacheActual[idx] = { usuario: username, plan, fecha, estado: "RENOVADA" };
+      listaCacheActual[idx] = cuentaActualizada;
     } else {
-      listaCacheActual.push({ usuario: username, plan, fecha, estado: "RENOVADA" });
+      listaCacheActual.push(cuentaActualizada);
     }
     cacheSheets.set(telLimpio, listaCacheActual);
   } catch (err) {
@@ -348,7 +470,7 @@ export async function buscarCuentasPorTelefono(telefono: string): Promise<Cuenta
   const sheets = await getSheetsClient();
   const res = await sheets.spreadsheets.values.get({
     spreadsheetId: SPREADSHEET_ID,
-    range: `${SHEET_CUENTAS}!A:E`,
+    range: `${SHEET_CUENTAS}!A:F`,
   });
 
   const rows = res.data.values || [];
@@ -363,7 +485,8 @@ export async function buscarCuentasPorTelefono(telefono: string): Promise<Cuenta
         usuario: (row[1] ?? "").toString().trim(),
         plan: (row[2] ?? "").toString().trim(),
         fecha: (row[3] ?? "").toString().trim(),
-        estado: (row[4] ?? "").toString().trim(),
+        fechaExpiracion: (row[4] ?? "").toString().trim(),
+        estado: (row[5] ?? "").toString().trim(),
       });
     }
   }
