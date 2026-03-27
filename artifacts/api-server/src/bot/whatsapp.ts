@@ -154,16 +154,27 @@ async function resolverLid(jid: string, maxMs = 10_000): Promise<string | null> 
 }
 
 /**
- * Intenta forzar la resolución de un @lid consultando al servidor de WhatsApp.
- * Usa fetchStatus (que consulta los servidores) para provocar que Baileys
- * dispare el evento contacts.upsert con el mapeo @lid → teléfono real.
+ * Intenta forzar la resolución de un @lid consultando al servidor de WhatsApp
+ * usando onWhatsApp(), que devuelve el JID real con el número de teléfono.
+ * Si tiene éxito, guarda el mapeo en lidAlPhone para usos futuros.
  */
 async function forzarResolucionLid(jid: string): Promise<string | null> {
   if (!sock) return null;
   try {
-    await sock.fetchStatus(jid).catch(() => {});
-  } catch { /* ignorar errores */ }
-  return await resolverLid(jid, 5_000);
+    const resultados = await sock.onWhatsApp(jid);
+    if (resultados && resultados.length > 0 && resultados[0].exists) {
+      const jidReal = resultados[0].jid;
+      lidAlPhone.set(jid, jidReal);
+      guardarLidMap(lidAlPhone);
+      console.log(`📇 [LID] Resuelto via onWhatsApp: ${jid} → ${jidReal}`);
+      let num = jidReal.split("@")[0];
+      if (num.length >= 12 && num.startsWith("1")) num = num.substring(1);
+      return num;
+    }
+  } catch (err) {
+    console.warn(`⚠️ [LID] onWhatsApp falló para ${jid}:`, err);
+  }
+  return null;
 }
 
 let sock: ReturnType<typeof makeWASocket> | null = null;
