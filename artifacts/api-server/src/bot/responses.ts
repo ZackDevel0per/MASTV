@@ -46,6 +46,7 @@ Somos tu mejor opción en entretenimiento en línea.
 *5️⃣* → 🎁 Probar gratis el servicio
 *6️⃣* → 📹 Guías de instalación
 *7️⃣* → 📅 Ver días restantes de mi cuenta
+*8️⃣* → 💬 Solicitar hablar personalmente
 *VERIFICAR* → 🔍 Ver mis cuentas activas
 
 _Escribe el número que prefieres_ ⬇️`;
@@ -650,6 +651,7 @@ Escribe uno de estos números:
 *5* → Probar gratis
 *6* → Guías de instalación
 *7* → Ver días restantes de mi cuenta
+*8* → Hablar personalmente
 
 O escribe *MENU* para volver al menú principal.`;
 

@@ -75,6 +75,7 @@ import { crearCuentaEnCRM, renovarCuentaEnCRM, verificarDemoExistente, consultar
 import { registrarCuenta, actualizarCuenta, buscarCuentasPorTelefono, actualizarTelefonoPorLid } from "./sheets.js";
 import { registrarPedido } from "./payment-store.js";
 import { encontrarIndexPago, marcarPagoUsado } from "./yape-store.js";
+import { enviarNotificacionPushover } from "./pushover-service.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const AUTH_FOLDER = path.join(__dirname, "../../auth_info_baileys");
@@ -789,6 +790,24 @@ async function manejarMensaje(jid: string, texto: string) {
         jid,
         `📅 *Consulta de días restantes*\n\n¿Cuál es tu *nombre de usuario*?\n\n_Escríbelo tal como lo recibiste al activar tu cuenta (ej: zk59176930026)_`,
       );
+      return;
+    }
+
+    // ─── OPCIÓN 8: Solicitar hablar personalmente ──────────────────
+    if (textoUpper === "8") {
+      const telefono = extraerTelefono(jid);
+      await enviarConDelay(
+        jid,
+        `💬 *Solicitud de atención personal recibida*\n\nHemos notificado al administrador. En breve se comunicará contigo.\n\n_Gracias por tu paciencia._ 🙏`,
+      );
+      enviarNotificacionPushover({
+        titulo: "💬 Solicitud de atención personal",
+        mensaje: `El cliente con número +${telefono} quiere hablar personalmente. Toca para abrir su chat de WhatsApp.`,
+        telefono,
+      }).catch((err) =>
+        console.error("[BOT] Error enviando notificación Pushover:", err),
+      );
+      conversaciones[jid] = { ultimoComando: "8", hora: Date.now() };
       return;
     }
 
