@@ -240,18 +240,7 @@ const COMANDOS_DUENO: Record<string, (jid: string) => Promise<string>> = {
     return `✅ Se reactivaron *${total}* chat${total === 1 ? "" : "s"}. El bot responde en todos de nuevo.`;
   },
   "/num": async (jid) => {
-    const esLid = jid.endsWith("@lid");
-    const jidReal = esLid ? (lidAlPhone.get(jid) ?? null) : jid;
-    const telefono = jidReal ? jidReal.split("@")[0] : null;
-    let respuesta = `🔢 *ID de este chat:*\n\`${jid}\``;
-    if (esLid && jidReal) {
-      respuesta += `\n\n📱 *Teléfono resuelto:*\n\`${telefono}\``;
-    } else if (esLid) {
-      respuesta += `\n\n⚠️ Número no resuelto aún. Usa este LID para buscar en Sheets.`;
-    } else if (telefono) {
-      respuesta += `\n\n📱 *Teléfono:*\n\`${telefono}\``;
-    }
-    return respuesta;
+    return jid.split("@")[0];
   },
 };
 
