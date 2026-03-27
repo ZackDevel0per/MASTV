@@ -240,6 +240,14 @@ const COMANDOS_DUENO: Record<string, (jid: string) => Promise<string>> = {
     return `✅ Se reactivaron *${total}* chat${total === 1 ? "" : "s"}. El bot responde en todos de nuevo.`;
   },
   "/num": async (jid) => {
+    if (jid.endsWith("@lid")) {
+      const jidReal = lidAlPhone.get(jid);
+      if (jidReal) {
+        let tel = jidReal.split("@")[0];
+        if (tel.length >= 12 && tel.startsWith("1")) tel = tel.substring(1);
+        return tel;
+      }
+    }
     return jid.split("@")[0];
   },
 };
