@@ -78,7 +78,32 @@ import { encontrarIndexPago, marcarPagoUsado } from "./yape-store.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const AUTH_FOLDER = path.join(__dirname, "../../auth_info_baileys");
+const LID_MAP_FILE = path.join(__dirname, "../../lid_phone_map.json");
 const logger = pino({ level: "silent" });
+
+/**
+ * Carga el mapa @lid → JID desde disco (persiste entre reinicios del servidor).
+ */
+function cargarLidMap(): Map<string, string> {
+  try {
+    if (fs.existsSync(LID_MAP_FILE)) {
+      const raw = fs.readFileSync(LID_MAP_FILE, "utf-8");
+      const obj: Record<string, string> = JSON.parse(raw);
+      console.log(`📂 [LID] Mapa cargado desde disco: ${Object.keys(obj).length} entradas`);
+      return new Map(Object.entries(obj));
+    }
+  } catch { /* ignorar */ }
+  return new Map();
+}
+
+/**
+ * Guarda el mapa @lid → JID en disco de forma asíncrona.
+ */
+function guardarLidMap(mapa: Map<string, string>): void {
+  const obj: Record<string, string> = {};
+  for (const [k, v] of mapa) obj[k] = v;
+  fs.writeFile(LID_MAP_FILE, JSON.stringify(obj, null, 2), () => {});
+}
 
 /**
  * Extrae el número de teléfono limpio de un JID de WhatsApp.
@@ -86,10 +111,10 @@ const logger = pino({ level: "silent" });
  *
  * WhatsApp a veces añade un prefijo "1" de enrutamiento antes del código
  * de país real (ej: "1591XXXXXXXX" en lugar de "591XXXXXXXX").
- * Los números E.164 estándar tienen máximo 12 dígitos (código país + abonado).
- * Si el número tiene 13+ dígitos y empieza con "1", ese "1" es el prefijo y se elimina.
+ * Bolivia: 591 (3 dígitos) + 8 dígitos = 11 total. Con prefijo "1" son 12 dígitos.
+ * Si el número tiene 12+ dígitos y empieza con "1", ese "1" es el prefijo y se elimina.
  *
- * Ejemplo: "159169741630" → "59169741630" (Bolivia 591 + 8 dígitos)
+ * Ejemplo: "159169741630" (12 dígitos) → "59169741630" (11 dígitos, Bolivia)
  */
 function extraerTelefono(jid: string): string {
   // Si el JID es @lid, intentar resolverlo al JID real con el teléfono
@@ -100,12 +125,32 @@ function extraerTelefono(jid: string): string {
 
   let num = jidReal.split("@")[0];
 
-  // WhatsApp a veces añade un prefijo "1" de enrutamiento antes del código
-  // de país real (ej: "1591XXXXXXXX" con 13+ dígitos en lugar de "591XXXXXXXX").
-  if (num.length >= 13 && num.startsWith("1")) {
+  // Eliminar prefijo de enrutamiento "1" si el número resultante es ≥ 12 dígitos.
+  // Bolivia: 1 + 591XXXXXXXX = 12 dígitos → quitar "1" → 59169741630 (11 dígitos)
+  // EE.UU.: 1XXXXXXXXXX = 11 dígitos → NO se quita (el "1" es el código de país)
+  if (num.length >= 12 && num.startsWith("1")) {
     num = num.substring(1);
   }
   return num;
+}
+
+/**
+ * Intenta resolver un JID @lid a su número de teléfono real.
+ * Si no está en el mapa, espera hasta `maxMs` milisegundos reintentando.
+ * Retorna el teléfono limpio o null si no se pudo resolver en tiempo.
+ */
+async function resolverLid(jid: string, maxMs = 10_000): Promise<string | null> {
+  const inicio = Date.now();
+  while (Date.now() - inicio < maxMs) {
+    const resuelto = lidAlPhone.get(jid);
+    if (resuelto) {
+      let num = resuelto.split("@")[0];
+      if (num.length >= 12 && num.startsWith("1")) num = num.substring(1);
+      return num;
+    }
+    await new Promise(r => setTimeout(r, 500));
+  }
+  return null;
 }
 
 let sock: ReturnType<typeof makeWASocket> | null = null;
@@ -173,9 +218,10 @@ const conversaciones: Record<string, EstadoConversacion> = {};
  * Mapa de JIDs en formato @lid → JID real en formato @s.whatsapp.net.
  * WhatsApp usa @lid como identificador interno en dispositivos nuevos.
  * Se rellena automáticamente con el evento contacts.upsert de Baileys.
+ * Se persiste en disco para que sobreviva reinicios del servidor.
  * Ejemplo: "159167646040103@lid" → "59169741630@s.whatsapp.net"
  */
-const lidAlPhone: Map<string, string> = new Map();
+const lidAlPhone: Map<string, string> = cargarLidMap();
 
 // Planes reconocidos para la creación automática de cuentas
 const PLANES_VALIDOS = new Set(Object.keys(PLAN_ID_MAP));
@@ -309,15 +355,30 @@ export async function conectarBot() {
   /**
    * Cuando WhatsApp envía datos de contactos, algunos tendrán tanto `id`
    * (JID real con teléfono) como `lid` (identificador interno @lid).
-   * Guardamos el mapeo para poder resolver @lid → teléfono real.
+   * Guardamos el mapeo y lo persistimos en disco para sobrevivir reinicios.
    */
   sock.ev.on("contacts.upsert", (contacts) => {
+    let nuevos = 0;
     for (const c of contacts) {
       if (c.lid && c.id) {
         lidAlPhone.set(c.lid, c.id);
+        nuevos++;
         console.log(`📇 [LID] Mapeado: ${c.lid} → ${c.id}`);
       }
     }
+    if (nuevos > 0) guardarLidMap(lidAlPhone);
+  });
+
+  sock.ev.on("contacts.update", (updates) => {
+    let nuevos = 0;
+    for (const c of updates) {
+      if (c.lid && c.id) {
+        lidAlPhone.set(c.lid, c.id);
+        nuevos++;
+        console.log(`📇 [LID] Actualizado: ${c.lid} → ${c.id}`);
+      }
+    }
+    if (nuevos > 0) guardarLidMap(lidAlPhone);
   });
 
   sock.ev.on("messages.upsert", async ({ messages, type }) => {
@@ -359,6 +420,18 @@ export async function conectarBot() {
       if (chatsSilenciados.has(remitente)) {
         console.log(`🔇 [SILENCIADO] Ignorando mensaje de ${remitente}`);
         continue;
+      }
+
+      // ── Si el JID es @lid sin resolver, esperar hasta 10s para obtener el teléfono real ──
+      if (remitente.endsWith("@lid") && !lidAlPhone.has(remitente)) {
+        console.log(`⏳ [LID] JID @lid sin resolver: ${remitente}. Esperando contactos...`);
+        const telResuelto = await resolverLid(remitente, 10_000);
+        if (telResuelto) {
+          console.log(`✅ [LID] Resuelto: ${remitente} → ${telResuelto}`);
+        } else {
+          console.warn(`⚠️ [LID] No se pudo resolver ${remitente} en 10s. Ignorando mensaje para evitar guardar número incorrecto.`);
+          continue;
+        }
       }
 
       console.log(`📩 Mensaje de ${remitente}: "${texto}"`);

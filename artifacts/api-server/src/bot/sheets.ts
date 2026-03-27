@@ -51,7 +51,10 @@ let cacheIntervalId: ReturnType<typeof setInterval> | null = null;
  */
 function limpiarTel(tel: string): string {
   let num = tel.replace(/\D/g, "");
-  if (num.length >= 13 && num.startsWith("1")) {
+  // Eliminar prefijo de enrutamiento "1" para números ≥ 12 dígitos.
+  // Bolivia: 1 + 591XXXXXXXX = 12 dígitos → quitar "1" → 59169741630
+  // EE.UU.: 1XXXXXXXXXX = 11 dígitos → NO se quita ("1" es código de país)
+  if (num.length >= 12 && num.startsWith("1")) {
     num = num.substring(1);
   }
   return num;
