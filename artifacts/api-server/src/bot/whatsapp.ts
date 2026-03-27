@@ -106,163 +106,93 @@ function guardarLidMap(mapa: Map<string, string>): void {
 }
 
 /**
- * Escanea el objeto del mensaje buscando un JID real (@s.whatsapp.net)
- * que contenga el número de teléfono del remitente.
- *
- * Cuando WhatsApp usa @lid, a veces el JID real aparece en otros campos
- * del mensaje: participant, senderKeyDistributionMessage.groupId, etc.
- * Esto permite obtener el número SIN llamadas al servidor.
- */
-function extraerJidDelMensaje(msg: any): string | null {
-  // 1. Revisar msg.key.participant (en algunos casos contiene el JID real)
-  const participant = msg?.key?.participant;
-  if (typeof participant === "string" && participant.endsWith("@s.whatsapp.net")) {
-    return participant;
-  }
-
-  // 2. Revisar senderKeyDistributionMessage.groupId
-  //    (se envía al establecer nueva sesión Signal y contiene el JID del remitente)
-  const skdmGroupId = msg?.message?.senderKeyDistributionMessage?.groupId;
-  if (typeof skdmGroupId === "string" && skdmGroupId.endsWith("@s.whatsapp.net")) {
-    return skdmGroupId;
-  }
-
-  // 3. Búsqueda recursiva en todo el objeto del mensaje
-  //    (por si el JID aparece en cualquier otro campo)
-  const buscarJid = (obj: unknown, profundidad = 0): string | null => {
-    if (profundidad > 6 || !obj || typeof obj !== "object") return null;
-    for (const val of Object.values(obj as Record<string, unknown>)) {
-      if (typeof val === "string" && val.endsWith("@s.whatsapp.net")) {
-        return val;
-      }
-      const resultado = buscarJid(val, profundidad + 1);
-      if (resultado) return resultado;
-    }
-    return null;
-  };
-
-  return buscarJid(msg?.message);
-}
-
-/**
  * Extrae el número de teléfono limpio de un JID de WhatsApp.
- * Funciona para cualquier formato: "591...@s.whatsapp.net", "@lid", etc.
- *
- * WhatsApp a veces añade un prefijo "1" de enrutamiento antes del código
- * de país real (ej: "1591XXXXXXXX" en lugar de "591XXXXXXXX").
- * Bolivia: 591 (3 dígitos) + 8 dígitos = 11 total. Con prefijo "1" son 12 dígitos.
- * Si el número tiene 12+ dígitos y empieza con "1", ese "1" es el prefijo y se elimina.
- *
- * Ejemplo: "159169741630" (12 dígitos) → "59169741630" (11 dígitos, Bolivia)
+ * Si el JID ya está en formato @s.whatsapp.net, extrae el número directamente.
+ * Si es @lid y está en el mapa, usa el JID real. Si no, usa el número del @lid tal cual.
  */
 function extraerTelefono(jid: string): string {
-  // Si el JID es @lid, intentar resolverlo al JID real con el teléfono
   let jidReal = jid;
   if (jid.endsWith("@lid")) {
     jidReal = lidAlPhone.get(jid) ?? jid;
   }
-
   let num = jidReal.split("@")[0];
-
-  // Eliminar prefijo de enrutamiento "1" si el número resultante es ≥ 12 dígitos.
-  // Bolivia: 1 + 591XXXXXXXX = 12 dígitos → quitar "1" → 59169741630 (11 dígitos)
-  // EE.UU.: 1XXXXXXXXXX = 11 dígitos → NO se quita (el "1" es el código de país)
   if (num.length >= 12 && num.startsWith("1")) {
     num = num.substring(1);
   }
   return num;
 }
 
-/**
- * Intenta resolver un JID @lid a su número de teléfono real.
- * Si no está en el mapa, espera hasta `maxMs` milisegundos reintentando.
- * Retorna el teléfono limpio o null si no se pudo resolver en tiempo.
- */
-async function resolverLid(jid: string, maxMs = 10_000): Promise<string | null> {
-  const inicio = Date.now();
-  while (Date.now() - inicio < maxMs) {
-    const resuelto = lidAlPhone.get(jid);
-    if (resuelto) {
-      let num = resuelto.split("@")[0];
-      if (num.length >= 12 && num.startsWith("1")) num = num.substring(1);
-      return num;
-    }
-    await new Promise(r => setTimeout(r, 500));
-  }
-  return null;
-}
-
-/**
- * Estrategia creativa multi-método para resolver un @lid al teléfono real.
- *
- * Lanza 3 estrategias en paralelo y retorna con la primera que funcione:
- *
- *   1. onWhatsApp(jid)       → consulta directa al servidor de WhatsApp
- *   2. subscribePresence(jid) → se suscribe a la presencia del contacto;
- *      WhatsApp necesita resolver el @lid internamente y puede emitir
- *      un contacts.upsert con el JID real
- *   3. profilePictureUrl(jid) → solicitar la foto de perfil también fuerza
- *      al servidor a procesar el contacto y puede desencadenar contacts.upsert
- *
- * Es similar a "copiar el link" del contacto: forzamos a WhatsApp a
- * revelar la identidad real del @lid a través de distintas vías de su API.
- */
-async function resolverLidCreativo(jid: string): Promise<string | null> {
-  if (!sock) return null;
-
-  return new Promise<string | null>((resolve) => {
-    let resuelto = false;
-
-    const completar = (jidReal: string, metodo: string) => {
-      if (resuelto) return;
-      resuelto = true;
-      lidAlPhone.set(jid, jidReal);
-      guardarLidMap(lidAlPhone);
-      let num = jidReal.split("@")[0];
-      if (num.length >= 12 && num.startsWith("1")) num = num.substring(1);
-      console.log(`📇 [LID] Resuelto via ${metodo}: ${jid} → ${jidReal} (tel: ${num})`);
-      sock!.ev.off("contacts.upsert", onContactos);
-      resolve(num);
-    };
-
-    const timer = setTimeout(() => {
-      if (!resuelto) {
-        resuelto = true;
-        sock!.ev.off("contacts.upsert", onContactos);
-        resolve(null);
-      }
-    }, 10_000);
-
-    // Escuchar contacts.upsert: cualquiera de las estrategias puede dispararlo
-    const onContactos = (contactos: any[]) => {
-      for (const c of contactos) {
-        if (c.lid === jid && c.id) {
-          clearTimeout(timer);
-          completar(c.id, "contacts.upsert");
-          return;
-        }
-      }
-    };
-    sock!.ev.on("contacts.upsert", onContactos);
-
-    // Estrategia 1: onWhatsApp() - consulta directa
-    sock!.onWhatsApp(jid)
-      .then((res) => {
-        if (res?.[0]?.exists) {
-          clearTimeout(timer);
-          completar(res[0].jid, "onWhatsApp");
-        }
-      })
-      .catch(() => {});
-
-    // Estrategia 2: fetchStatus → consulta el estado del contacto en el servidor
-    sock!.fetchStatus(jid).catch(() => {});
-
-    // Estrategia 3: profilePictureUrl → solicitar la foto de perfil fuerza al servidor
-    // a procesar el contacto y puede desencadenar contacts.upsert con el JID real
-    sock!.profilePictureUrl(jid, "image").catch(() => {});
-  });
-}
+// ═══════════════════════════════════════════════════════════════════════════
+// CÓDIGO ARCHIVADO – RESOLUCIÓN AUTOMÁTICA DE @lid (para retomar en el futuro)
+// ═══════════════════════════════════════════════════════════════════════════
+// Este bloque contiene tres enfoques experimentados para resolver un JID @lid
+// al número de teléfono real sin intervención del propietario:
+//
+//   1. extraerJidDelMensaje(msg)
+//      Escanea campos del mensaje recibido buscando un @s.whatsapp.net:
+//      key.participant, senderKeyDistributionMessage.groupId, búsqueda recursiva.
+//      No requiere llamadas al servidor. En pruebas no se encontró el JID real en el msg.
+//
+//   2. resolverLid(jid, maxMs)
+//      Polling sobre el mapa lidAlPhone esperando que contacts.upsert lo rellene.
+//
+//   3. resolverLidCreativo(jid)
+//      Lanza 3 estrategias en paralelo y retorna con la primera que gane:
+//        · onWhatsApp(jid)         → consulta directa al servidor
+//        · fetchStatus(jid)        → consulta estado/info del contacto
+//        · profilePictureUrl(jid)  → pide la foto de perfil para forzar contacts.upsert
+//      Nota: subscribePresence() fue eliminado en Baileys v7 (causa TypeError).
+//
+// Para reactivar: descomentar las funciones y restaurar el bloque del manejador
+// de messages.upsert que las llama (buscar "RESOLUCIÓN LID AUTOMÁTICA").
+// ═══════════════════════════════════════════════════════════════════════════
+//
+// function extraerJidDelMensaje(msg: any): string | null {
+//   const participant = msg?.key?.participant;
+//   if (typeof participant === "string" && participant.endsWith("@s.whatsapp.net")) return participant;
+//   const skdmGroupId = msg?.message?.senderKeyDistributionMessage?.groupId;
+//   if (typeof skdmGroupId === "string" && skdmGroupId.endsWith("@s.whatsapp.net")) return skdmGroupId;
+//   const buscarJid = (obj: unknown, d = 0): string | null => {
+//     if (d > 6 || !obj || typeof obj !== "object") return null;
+//     for (const val of Object.values(obj as Record<string, unknown>)) {
+//       if (typeof val === "string" && val.endsWith("@s.whatsapp.net")) return val;
+//       const r = buscarJid(val, d + 1); if (r) return r;
+//     }
+//     return null;
+//   };
+//   return buscarJid(msg?.message);
+// }
+//
+// async function resolverLid(jid: string, maxMs = 10_000): Promise<string | null> {
+//   const inicio = Date.now();
+//   while (Date.now() - inicio < maxMs) {
+//     const r = lidAlPhone.get(jid);
+//     if (r) { let n = r.split("@")[0]; if (n.length >= 12 && n.startsWith("1")) n = n.substring(1); return n; }
+//     await new Promise(r => setTimeout(r, 500));
+//   }
+//   return null;
+// }
+//
+// async function resolverLidCreativo(jid: string): Promise<string | null> {
+//   if (!sock) return null;
+//   return new Promise<string | null>((resolve) => {
+//     let resuelto = false;
+//     const completar = (jidReal: string, metodo: string) => {
+//       if (resuelto) return; resuelto = true;
+//       lidAlPhone.set(jid, jidReal); guardarLidMap(lidAlPhone);
+//       let num = jidReal.split("@")[0];
+//       if (num.length >= 12 && num.startsWith("1")) num = num.substring(1);
+//       console.log(`📇 [LID] Resuelto via ${metodo}: ${jid} → ${jidReal} (tel: ${num})`);
+//       sock!.ev.off("contacts.upsert", onContactos); resolve(num);
+//     };
+//     const timer = setTimeout(() => { if (!resuelto) { resuelto = true; sock!.ev.off("contacts.upsert", onContactos); resolve(null); } }, 10_000);
+//     const onContactos = (cs: any[]) => { for (const c of cs) { if (c.lid === jid && c.id) { clearTimeout(timer); completar(c.id, "contacts.upsert"); return; } } };
+//     sock!.ev.on("contacts.upsert", onContactos);
+//     sock!.onWhatsApp(jid).then(res => { if (res?.[0]?.exists) { clearTimeout(timer); completar(res[0].jid, "onWhatsApp"); } }).catch(() => {});
+//     sock!.fetchStatus(jid).catch(() => {});
+//     sock!.profilePictureUrl(jid, "image").catch(() => {});
+//   });
+// }
 
 let sock: ReturnType<typeof makeWASocket> | null = null;
 let estadoConexion:
@@ -308,6 +238,20 @@ const COMANDOS_DUENO: Record<string, (jid: string) => Promise<string>> = {
     console.log(`🧹 [DUEÑO] Todos los chats desilenciados (${total})`);
     if (total === 0) return "📋 No había chats silenciados.";
     return `✅ Se reactivaron *${total}* chat${total === 1 ? "" : "s"}. El bot responde en todos de nuevo.`;
+  },
+  "/num": async (jid) => {
+    const esLid = jid.endsWith("@lid");
+    const jidReal = esLid ? (lidAlPhone.get(jid) ?? null) : jid;
+    const telefono = jidReal ? jidReal.split("@")[0] : null;
+    let respuesta = `🔢 *ID de este chat:*\n\`${jid}\``;
+    if (esLid && jidReal) {
+      respuesta += `\n\n📱 *Teléfono resuelto:*\n\`${telefono}\``;
+    } else if (esLid) {
+      respuesta += `\n\n⚠️ Número no resuelto aún. Usa este LID para buscar en Sheets.`;
+    } else if (telefono) {
+      respuesta += `\n\n📱 *Teléfono:*\n\`${telefono}\``;
+    }
+    return respuesta;
   },
 };
 
@@ -533,28 +477,11 @@ export async function conectarBot() {
         continue;
       }
 
-      // ── Si el JID es @lid sin resolver, intentar obtener el teléfono real ──
+      // ── Si el JID es @lid, usarlo directamente como identificador ──
+      // El LID se usa como "teléfono" en Sheets y para rastrear la conversación.
+      // El propietario puede usar /num en el chat para obtener el LID y buscarlo manualmente.
       if (remitente.endsWith("@lid") && !lidAlPhone.has(remitente)) {
-        console.log(`⏳ [LID] JID @lid sin resolver: ${remitente}. Buscando en el mensaje...`);
-
-        // Paso 1: buscar directamente en los campos del mensaje (sin llamadas al servidor)
-        const jidEnMensaje = extraerJidDelMensaje(msg);
-        if (jidEnMensaje) {
-          lidAlPhone.set(remitente, jidEnMensaje);
-          guardarLidMap(lidAlPhone);
-          let num = jidEnMensaje.split("@")[0];
-          if (num.length >= 12 && num.startsWith("1")) num = num.substring(1);
-          console.log(`✅ [LID] Número extraído del mensaje directamente: ${jidEnMensaje} (tel: ${num})`);
-        } else {
-          // Paso 2: consultar al servidor de WhatsApp con múltiples estrategias
-          console.log(`🔍 [LID] No encontrado en mensaje. Consultando servidor...`);
-          const telResuelto = await resolverLidCreativo(remitente);
-          if (telResuelto) {
-            console.log(`✅ [LID] Número obtenido del servidor: ${telResuelto}`);
-          } else {
-            console.warn(`⚠️ [LID] No resuelto en 10s. Procesando con @lid como identificador temporal.`);
-          }
-        }
+        console.log(`📋 [LID] Contacto sin número resuelto: ${remitente}. Usando LID como identificador.`);
       }
 
       console.log(`📩 Mensaje de ${remitente}: "${texto}"`);
