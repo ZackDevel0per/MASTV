@@ -154,27 +154,74 @@ async function resolverLid(jid: string, maxMs = 10_000): Promise<string | null> 
 }
 
 /**
- * Intenta forzar la resolución de un @lid consultando al servidor de WhatsApp
- * usando onWhatsApp(), que devuelve el JID real con el número de teléfono.
- * Si tiene éxito, guarda el mapeo en lidAlPhone para usos futuros.
+ * Estrategia creativa multi-método para resolver un @lid al teléfono real.
+ *
+ * Lanza 3 estrategias en paralelo y retorna con la primera que funcione:
+ *
+ *   1. onWhatsApp(jid)       → consulta directa al servidor de WhatsApp
+ *   2. subscribePresence(jid) → se suscribe a la presencia del contacto;
+ *      WhatsApp necesita resolver el @lid internamente y puede emitir
+ *      un contacts.upsert con el JID real
+ *   3. profilePictureUrl(jid) → solicitar la foto de perfil también fuerza
+ *      al servidor a procesar el contacto y puede desencadenar contacts.upsert
+ *
+ * Es similar a "copiar el link" del contacto: forzamos a WhatsApp a
+ * revelar la identidad real del @lid a través de distintas vías de su API.
  */
-async function forzarResolucionLid(jid: string): Promise<string | null> {
+async function resolverLidCreativo(jid: string): Promise<string | null> {
   if (!sock) return null;
-  try {
-    const resultados = await sock.onWhatsApp(jid);
-    if (resultados && resultados.length > 0 && resultados[0].exists) {
-      const jidReal = resultados[0].jid;
+
+  return new Promise<string | null>((resolve) => {
+    let resuelto = false;
+
+    const completar = (jidReal: string, metodo: string) => {
+      if (resuelto) return;
+      resuelto = true;
       lidAlPhone.set(jid, jidReal);
       guardarLidMap(lidAlPhone);
-      console.log(`📇 [LID] Resuelto via onWhatsApp: ${jid} → ${jidReal}`);
       let num = jidReal.split("@")[0];
       if (num.length >= 12 && num.startsWith("1")) num = num.substring(1);
-      return num;
-    }
-  } catch (err) {
-    console.warn(`⚠️ [LID] onWhatsApp falló para ${jid}:`, err);
-  }
-  return null;
+      console.log(`📇 [LID] Resuelto via ${metodo}: ${jid} → ${jidReal} (tel: ${num})`);
+      sock!.ev.off("contacts.upsert", onContactos);
+      resolve(num);
+    };
+
+    const timer = setTimeout(() => {
+      if (!resuelto) {
+        resuelto = true;
+        sock!.ev.off("contacts.upsert", onContactos);
+        resolve(null);
+      }
+    }, 10_000);
+
+    // Escuchar contacts.upsert: cualquiera de las estrategias puede dispararlo
+    const onContactos = (contactos: any[]) => {
+      for (const c of contactos) {
+        if (c.lid === jid && c.id) {
+          clearTimeout(timer);
+          completar(c.id, "contacts.upsert");
+          return;
+        }
+      }
+    };
+    sock!.ev.on("contacts.upsert", onContactos);
+
+    // Estrategia 1: onWhatsApp() - consulta directa
+    sock!.onWhatsApp(jid)
+      .then((res) => {
+        if (res?.[0]?.exists) {
+          clearTimeout(timer);
+          completar(res[0].jid, "onWhatsApp");
+        }
+      })
+      .catch(() => {});
+
+    // Estrategia 2: suscripción a presencia → fuerza resolución interna en WhatsApp
+    sock!.subscribePresence(jid).catch(() => {});
+
+    // Estrategia 3: solicitar foto de perfil → otra vía para provocar contacts.upsert
+    sock!.profilePictureUrl(jid, "image").catch(() => {});
+  });
 }
 
 let sock: ReturnType<typeof makeWASocket> | null = null;
@@ -448,22 +495,12 @@ export async function conectarBot() {
 
       // ── Si el JID es @lid sin resolver, intentar obtener el teléfono real ──
       if (remitente.endsWith("@lid") && !lidAlPhone.has(remitente)) {
-        console.log(`⏳ [LID] JID @lid sin resolver: ${remitente}. Intentando resolver...`);
-
-        // Primer intento rápido (3s)
-        let telResuelto = await resolverLid(remitente, 3_000);
-
-        if (!telResuelto) {
-          // Segundo intento: consultar al servidor de WhatsApp para forzar el mapeo
-          console.log(`🔍 [LID] Consultando servidor de WhatsApp para ${remitente}...`);
-          telResuelto = await forzarResolucionLid(remitente);
-        }
-
+        console.log(`⏳ [LID] JID @lid sin resolver: ${remitente}. Lanzando resolución multi-estrategia...`);
+        const telResuelto = await resolverLidCreativo(remitente);
         if (telResuelto) {
-          console.log(`✅ [LID] Resuelto: ${remitente} → ${telResuelto}`);
+          console.log(`✅ [LID] Número obtenido: ${telResuelto}`);
         } else {
-          // Procesar de todas formas usando el @lid como identificador
-          console.warn(`⚠️ [LID] No resuelto. Procesando mensaje con @lid como identificador temporal.`);
+          console.warn(`⚠️ [LID] No resuelto en 10s. Procesando con @lid como identificador temporal.`);
         }
       }
 
