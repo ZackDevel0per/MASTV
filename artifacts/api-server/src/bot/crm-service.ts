@@ -9,6 +9,7 @@
  */
 
 import axios from "axios";
+import { obtenerSiguienteUsername } from "./sheets.js";
 
 const CRM_BASE_URL = "https://resellermastv.com:8443";
 const CRM_USERNAME = "Zack";
@@ -233,10 +234,20 @@ export async function crearCuentaEnCRM(
     return { ok: false, mensaje: `Plan no reconocido: ${planComando}` };
   }
 
+  // Para demos: username determinístico basado en teléfono (Dzk + número)
+  // Para planes pagados: username secuencial desde Sheets (zk00001, zk00002, ...)
+  const esDemo = planComando.toUpperCase().startsWith("DEMO");
+  let username: string;
+  if (esDemo) {
+    username = getDemoUsername(clienteTelefono);
+  } else {
+    username = await obtenerSiguienteUsername();
+  }
+
   for (let intento = 1; intento <= 2; intento++) {
     try {
       console.log(
-        `📝 [CRM] Creando cuenta plan=${planComando} intento=${intento}`,
+        `📝 [CRM] Creando cuenta plan=${planComando} username=${username} intento=${intento}`,
       );
 
       const sessionCookie = await getSession();
@@ -258,17 +269,6 @@ export async function crearCuentaEnCRM(
         );
         cachedSession = null;
         continue;
-      }
-
-      // Para demos: username determinístico basado en teléfono (Dzk + número)
-      // Para planes pagados: zk + número de teléfono completo
-      const esDemo = planComando.toUpperCase().startsWith("DEMO");
-      let username: string;
-      if (esDemo) {
-        username = getDemoUsername(clienteTelefono);
-      } else {
-        const tel = clienteTelefono.replace(/\D/g, "");
-        username = `zk${tel}`;
       }
 
       // 4. POST /lines/store-with-package → crea la línea (302 si OK)

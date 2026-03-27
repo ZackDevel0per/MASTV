@@ -676,3 +676,51 @@ export async function buscarCuentasPorTelefono(telefono: string): Promise<Cuenta
 
   return cuentas;
 }
+
+/**
+ * Encuentra el próximo username secuencial disponible con el prefijo "zk".
+ * Formato: zk00001, zk00002, ... hasta zk99999.
+ *
+ * Escanea la columna "Usuario" (B) de la hoja Cuentas y construye un Set
+ * con todos los usernames existentes. Luego prueba zk00001, zk00002, etc.
+ * hasta encontrar el primero que no esté registrado.
+ */
+export async function obtenerSiguienteUsername(): Promise<string> {
+  const usuariosEnUso = new Set<string>();
+
+  // Primero usar el caché en memoria si ya fue cargado
+  if (cacheListaMs > 0) {
+    for (const cuentas of cacheSheets.values()) {
+      for (const c of cuentas) {
+        if (c.usuario) usuariosEnUso.add(c.usuario.toLowerCase().trim());
+      }
+    }
+  } else {
+    // Caché no disponible: leer directo del sheet
+    try {
+      const sheets = await getSheetsClient();
+      const res = await sheets.spreadsheets.values.get({
+        spreadsheetId: SPREADSHEET_ID,
+        range: `${SHEET_CUENTAS}!B:B`,
+      });
+      const rows = res.data.values ?? [];
+      for (let i = 1; i < rows.length; i++) {
+        const usuario = (rows[i]?.[0] ?? "").toString().toLowerCase().trim();
+        if (usuario) usuariosEnUso.add(usuario);
+      }
+    } catch (err) {
+      console.error("[SHEETS] Error leyendo usuarios para generar username:", err);
+    }
+  }
+
+  for (let n = 1; n <= 99999; n++) {
+    const candidato = `zk${String(n).padStart(5, "0")}`;
+    if (!usuariosEnUso.has(candidato)) {
+      console.log(`🔢 [SHEETS] Siguiente username disponible: ${candidato} (${usuariosEnUso.size} registrados)`);
+      return candidato;
+    }
+  }
+
+  // Fallback extremo (nunca debería ocurrir)
+  throw new Error("[SHEETS] No hay usernames zk disponibles (todos zk00001-zk99999 usados)");
+}
