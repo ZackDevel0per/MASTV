@@ -204,16 +204,13 @@ export class CrmService {
           return { ok: false, mensaje: `Error CRM al crear: HTTP ${storeRes.status}` };
         }
 
-        // Leer cookie actualizada tras el POST
-        const setCookiePost = storeRes.headers["set-cookie"];
-        const cookiePost = Array.isArray(setCookiePost)
-          ? setCookiePost.map((c: string) => c.split(";")[0]).join("; ")
-          : cookie;
-        this.cachedSession = { cookie: cookiePost || cookie, expiresAt: Date.now() + this.SESSION_TTL_MS };
+        // Esperar brevemente para que el CRM registre la cuenta
+        await new Promise(r => setTimeout(r, 1500));
 
-        // Buscar la línea recién creada en el CRM
+        // Usar la cookie de sesión original para consultar la lista
+        // (la del 302 puede no tener la sesión completa)
         const listRes = await axios.get(`${this.baseUrl}/api/line/list`, {
-          headers: { ...BASE_HEADERS, Cookie: cookiePost || cookie, Accept: "application/json", "X-Requested-With": "XMLHttpRequest" },
+          headers: { ...BASE_HEADERS, Cookie: cookie, Accept: "application/json", "X-Requested-With": "XMLHttpRequest" },
           httpsAgent: agent,
           validateStatus: () => true,
         });
