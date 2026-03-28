@@ -3,60 +3,24 @@ import cors from "cors";
 import path from "path";
 import { fileURLToPath } from "url";
 import router from "./routes/index.js";
-import { conectarBot, enviarMensaje } from "./bot/whatsapp.js";
-import { inicializarHojas, iniciarCacheSheets } from "./bot/sheets.js";
-import { iniciarGmailPolling, setCallbackPagoDetectado } from "./bot/gmail-service.js";
-
-// Número de WhatsApp del administrador (recibe notificaciones de pagos)
-const ADMIN_WA = process.env["ADMIN_WHATSAPP"] || "59169741630";
+import { iniciarTodosLosBots } from "./bot/bot-manager.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 const app: Express = express();
 
 app.use(cors());
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+app.use(express.json({ limit: "10mb" }));
+app.use(express.urlencoded({ extended: true, limit: "10mb" }));
 
-// Servir videos e imágenes estáticas
-app.use("/public", express.static(path.join(__dirname, "../../public")));
+const PUBLIC_DIR = path.resolve(__dirname, "..", "public");
+app.use("/public", express.static(PUBLIC_DIR));
 
 app.use("/api", router);
 
-async function iniciarBot() {
-  try {
-    console.log("📊 Inicializando hojas de Google Sheets...");
-    await inicializarHojas();
-    console.log("✅ Hojas de Google Sheets listas.");
-    iniciarCacheSheets();
-  } catch (err) {
-    console.error("⚠️ Error al inicializar Google Sheets:", err);
-  }
-
-  try {
-    console.log("🤖 Iniciando bot de WhatsApp...");
-    await conectarBot();
-  } catch (err) {
-    console.error("❌ Error al iniciar el bot:", err);
-  }
-
-  // Notificar al admin por WhatsApp cuando se detecte un pago via Gmail
-  setCallbackPagoDetectado((nombre, monto) => {
-    const jid = `${ADMIN_WA.replace(/\D/g, "")}@s.whatsapp.net`;
-    const msg =
-      `💰 *Nuevo pago detectado*\n\n` +
-      `👤 Nombre: *${nombre}*\n` +
-      `💵 Monto: *Bs ${monto}*\n\n` +
-      `_El cliente debe escribir *COMPROBAR* para activar su cuenta._`;
-    enviarMensaje(jid, msg).catch((err) =>
-      console.error("[APP] Error enviando notificación de pago al admin:", err)
-    );
-  });
-
-  // Iniciar polling de Gmail (solo arranca si las credenciales están configuradas)
-  iniciarGmailPolling();
-}
-
-iniciarBot();
+// Iniciar todos los bots de los tenants activos
+iniciarTodosLosBots().catch((err) => {
+  console.error("❌ Error iniciando bots:", err);
+});
 
 export default app;

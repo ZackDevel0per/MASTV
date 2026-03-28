@@ -1,0 +1,547 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SuperAdmin — IPTV SaaS</title>
+  <style>
+    :root {
+      --bg: #0f1117;
+      --surface: #1a1d2e;
+      --surface2: #252840;
+      --border: #2e3260;
+      --accent: #6c63ff;
+      --accent2: #ff6584;
+      --green: #00d97e;
+      --red: #e63946;
+      --yellow: #ffd166;
+      --text: #e2e8f0;
+      --muted: #7e8ba0;
+      --radius: 10px;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { background: var(--bg); color: var(--text); font-family: 'Segoe UI', system-ui, sans-serif; font-size: 14px; }
+    header { background: var(--surface); border-bottom: 1px solid var(--border); padding: 14px 24px; display: flex; align-items: center; gap: 16px; }
+    header h1 { font-size: 18px; font-weight: 700; color: var(--accent); }
+    header span { color: var(--muted); font-size: 13px; }
+    #token-bar { background: var(--surface2); border-bottom: 1px solid var(--border); padding: 10px 24px; display: flex; align-items: center; gap: 10px; }
+    #token-bar input { background: var(--bg); border: 1px solid var(--border); color: var(--text); border-radius: 6px; padding: 6px 10px; flex: 1; max-width: 280px; outline: none; }
+    nav { background: var(--surface); border-bottom: 1px solid var(--border); display: flex; gap: 2px; padding: 0 16px; }
+    nav button { background: none; border: none; color: var(--muted); padding: 12px 16px; cursor: pointer; font-size: 13px; font-weight: 600; border-bottom: 2px solid transparent; transition: all 0.15s; }
+    nav button.active { color: var(--accent); border-bottom-color: var(--accent); }
+    nav button:hover:not(.active) { color: var(--text); }
+    main { padding: 24px; max-width: 1400px; margin: 0 auto; }
+    .section { display: none; }
+    .section.active { display: block; }
+
+    /* Cards */
+    .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px; margin-bottom: 16px; }
+    .card-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
+    .card-header h2 { font-size: 15px; font-weight: 700; }
+
+    /* Badges */
+    .badge { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; font-weight: 700; padding: 3px 8px; border-radius: 20px; }
+    .badge-green { background: rgba(0,217,126,.15); color: var(--green); }
+    .badge-red { background: rgba(230,57,70,.15); color: var(--red); }
+    .badge-yellow { background: rgba(255,209,102,.15); color: var(--yellow); }
+    .badge-purple { background: rgba(108,99,255,.15); color: var(--accent); }
+
+    /* Buttons */
+    .btn { display: inline-flex; align-items: center; gap: 6px; padding: 7px 14px; border-radius: 7px; border: none; cursor: pointer; font-size: 13px; font-weight: 600; transition: opacity 0.15s; }
+    .btn:hover { opacity: 0.85; }
+    .btn-primary { background: var(--accent); color: #fff; }
+    .btn-success { background: var(--green); color: #000; }
+    .btn-danger { background: var(--red); color: #fff; }
+    .btn-warn { background: var(--yellow); color: #000; }
+    .btn-ghost { background: var(--surface2); color: var(--text); }
+    .btn-sm { padding: 4px 10px; font-size: 11px; }
+
+    /* Table */
+    .tbl-wrap { overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; }
+    th { text-align: left; color: var(--muted); font-size: 11px; font-weight: 700; padding: 8px 12px; border-bottom: 1px solid var(--border); text-transform: uppercase; letter-spacing: 0.5px; }
+    td { padding: 11px 12px; border-bottom: 1px solid rgba(46,50,96,.5); vertical-align: middle; }
+    tr:hover td { background: rgba(255,255,255,.02); }
+    tr:last-child td { border-bottom: none; }
+
+    /* Form */
+    .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+    .form-full { grid-column: 1 / -1; }
+    label { display: block; font-size: 11px; font-weight: 700; color: var(--muted); margin-bottom: 5px; text-transform: uppercase; letter-spacing: 0.5px; }
+    input[type=text], input[type=password], input[type=date], textarea, select {
+      width: 100%; background: var(--bg); border: 1px solid var(--border); color: var(--text); border-radius: 6px; padding: 8px 10px; outline: none; font-size: 13px; transition: border-color 0.15s;
+    }
+    input:focus, textarea:focus, select:focus { border-color: var(--accent); }
+    textarea { resize: vertical; min-height: 80px; font-family: monospace; font-size: 11px; }
+
+    /* Modal */
+    .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.7); z-index: 100; align-items: center; justify-content: center; }
+    .modal-overlay.open { display: flex; }
+    .modal { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 28px; width: 90%; max-width: 680px; max-height: 90vh; overflow-y: auto; }
+    .modal h3 { font-size: 16px; margin-bottom: 20px; }
+    .modal-actions { margin-top: 20px; display: flex; gap: 10px; justify-content: flex-end; }
+
+    /* Stats */
+    .stats-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 14px; margin-bottom: 20px; }
+    .stat-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 18px; }
+    .stat-card .val { font-size: 28px; font-weight: 800; }
+    .stat-card .lbl { font-size: 11px; color: var(--muted); margin-top: 4px; }
+
+    /* Toast */
+    #toast { position: fixed; bottom: 24px; right: 24px; background: var(--surface2); border: 1px solid var(--border); padding: 12px 18px; border-radius: 8px; font-size: 13px; z-index: 999; display: none; box-shadow: 0 4px 20px rgba(0,0,0,.4); }
+    #toast.show { display: block; }
+
+    /* Actions bar */
+    .actions-bar { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+
+    .dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+    .dot-green { background: var(--green); box-shadow: 0 0 6px var(--green); }
+    .dot-red { background: var(--red); }
+    .dot-yellow { background: var(--yellow); }
+
+    .empty { text-align: center; color: var(--muted); padding: 32px; }
+    code { background: var(--bg); padding: 2px 6px; border-radius: 4px; font-size: 11px; color: var(--accent); }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>⚡ IPTV SaaS Admin</h1>
+  <span>Panel de Superadmin — Control total de tenants</span>
+  <div style="margin-left:auto; display:flex; align-items:center; gap:10px;">
+    <span id="header-status" style="font-size:12px; color:var(--muted)">Cargando...</span>
+    <button class="btn btn-ghost btn-sm" onclick="recargarTodo()">↻ Recargar</button>
+  </div>
+</header>
+
+<div id="token-bar">
+  <label style="margin:0; white-space:nowrap">Admin Token:</label>
+  <input type="password" id="admin-token" placeholder="superadmin_token_seguro_2024" value="superadmin_token_seguro_2024" />
+  <button class="btn btn-primary btn-sm" onclick="recargarTodo()">Conectar</button>
+</div>
+
+<nav>
+  <button class="active" onclick="switchTab('tenants')">🏢 Tenants</button>
+  <button onclick="switchTab('pagos')">💰 Pagos</button>
+  <button onclick="switchTab('cuentas')">📋 Cuentas</button>
+  <button onclick="switchTab('nuevo')">➕ Nuevo Tenant</button>
+</nav>
+
+<main>
+
+  <!-- TENANTS -->
+  <div class="section active" id="tab-tenants">
+    <div class="stats-grid" id="stats-grid">
+      <div class="stat-card"><div class="val" id="st-total">—</div><div class="lbl">Tenants totales</div></div>
+      <div class="stat-card"><div class="val" id="st-activos">—</div><div class="lbl">Bots activos</div></div>
+      <div class="stat-card"><div class="val" id="st-conectados">—</div><div class="lbl">Bots conectados</div></div>
+      <div class="stat-card"><div class="val" id="st-pagos">—</div><div class="lbl">Pagos registrados</div></div>
+      <div class="stat-card"><div class="val" id="st-cuentas">—</div><div class="lbl">Cuentas registradas</div></div>
+    </div>
+    <div class="card">
+      <div class="card-header">
+        <h2>Tenants registrados</h2>
+      </div>
+      <div class="tbl-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>ID</th><th>Empresa</th><th>Admin WA</th><th>Integrac.</th><th>Bot</th><th>Suscripción</th><th>Acciones</th>
+            </tr>
+          </thead>
+          <tbody id="tenants-tbody">
+            <tr><td colspan="7" class="empty">Cargando...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- PAGOS -->
+  <div class="section" id="tab-pagos">
+    <div class="card">
+      <div class="card-header">
+        <h2>Pagos consolidados (todos los tenants)</h2>
+        <div class="actions-bar">
+          <select id="filtro-pagos-tenant" onchange="cargarPagos()" style="width:180px">
+            <option value="">Todos los tenants</option>
+          </select>
+        </div>
+      </div>
+      <div class="tbl-wrap">
+        <table>
+          <thead>
+            <tr><th>Tenant</th><th>Fecha</th><th>Nombre</th><th>Monto</th><th>Teléfono</th><th>Estado</th><th>Sincronizado</th></tr>
+          </thead>
+          <tbody id="pagos-tbody">
+            <tr><td colspan="7" class="empty">Selecciona un tenant o carga todos</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- CUENTAS -->
+  <div class="section" id="tab-cuentas">
+    <div class="card">
+      <div class="card-header">
+        <h2>Cuentas IPTV consolidadas (todos los tenants)</h2>
+        <div class="actions-bar">
+          <select id="filtro-cuentas-tenant" onchange="cargarCuentas()" style="width:180px">
+            <option value="">Todos los tenants</option>
+          </select>
+        </div>
+      </div>
+      <div class="tbl-wrap">
+        <table>
+          <thead>
+            <tr><th>Tenant</th><th>Teléfono</th><th>Usuario</th><th>Plan</th><th>Creación</th><th>Expiración</th><th>Estado</th></tr>
+          </thead>
+          <tbody id="cuentas-tbody">
+            <tr><td colspan="7" class="empty">Cargando cuentas...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- NUEVO TENANT -->
+  <div class="section" id="tab-nuevo">
+    <div class="card">
+      <h2 style="margin-bottom:20px">Crear nuevo tenant</h2>
+      <form id="form-nuevo-tenant" onsubmit="crearTenant(event)">
+        <div class="form-grid">
+          <div>
+            <label>ID único (slug)</label>
+            <input type="text" name="id" placeholder="ej: mi-empresa" required />
+          </div>
+          <div>
+            <label>Nombre corto</label>
+            <input type="text" name="nombre" placeholder="ej: Mi Empresa TV" required />
+          </div>
+          <div>
+            <label>Nombre empresa</label>
+            <input type="text" name="nombreEmpresa" placeholder="ej: Mi Empresa Bolivia" required />
+          </div>
+          <div>
+            <label>Admin WhatsApp (con código país)</label>
+            <input type="text" name="adminWhatsapp" placeholder="59169741630" required />
+          </div>
+
+          <div><label>CRM Base URL</label><input type="text" name="crmBaseUrl" value="https://resellermastv.com:8443" /></div>
+          <div><label>CRM Username</label><input type="text" name="crmUsername" placeholder="Zack" /></div>
+          <div><label>CRM Password</label><input type="password" name="crmPassword" placeholder="••••••" /></div>
+          <div><label>CRM Prefijo de usuario</label><input type="text" name="crmUsernamePrefix" value="zk" /></div>
+
+          <div><label>Google Spreadsheet ID</label><input type="text" name="spreadsheetId" placeholder="1IMij-hFL..." /></div>
+          <div><label>Gmail — Remitente filtro</label><input type="text" name="gmailRemitenteFiltro" placeholder="PagosBcp@bcp.com.bo" /></div>
+          <div><label>Pushover User Key</label><input type="text" name="pushoverUserKey" placeholder="u..." /></div>
+          <div><label>Pushover API Token</label><input type="text" name="pushoverApiToken" placeholder="a..." /></div>
+
+          <div><label>Suscripción vence</label><input type="date" name="suscripcionVence" /></div>
+          <div style="display:flex; align-items:flex-end;">
+            <label style="display:flex; align-items:center; gap:8px; margin:0; cursor:pointer; font-size:13px; text-transform:none; letter-spacing:0;">
+              <input type="checkbox" name="activo" checked style="width:auto; accentColor:var(--accent)" />
+              Activar bot inmediatamente
+            </label>
+          </div>
+
+          <div class="form-full">
+            <label>Google Service Account JSON</label>
+            <textarea name="googleServiceAccountJson" placeholder='{"type":"service_account","project_id":"..."}'></textarea>
+          </div>
+          <div class="form-full">
+            <label>Planes personalizados (JSON, dejar vacío para usar defaults)</label>
+            <textarea name="planesJson" placeholder='[{"nombre":"1 MES","precio":"35 Bs","id":"1month"}]'></textarea>
+          </div>
+        </div>
+        <div style="margin-top:20px; display:flex; gap:10px;">
+          <button type="submit" class="btn btn-primary">Crear tenant y arrancar bot</button>
+          <button type="reset" class="btn btn-ghost">Limpiar</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+</main>
+
+<!-- Modal editar tenant -->
+<div class="modal-overlay" id="modal-editar">
+  <div class="modal">
+    <h3>Editar tenant</h3>
+    <form id="form-editar-tenant" onsubmit="guardarEdicion(event)">
+      <input type="hidden" name="id" id="edit-id" />
+      <div class="form-grid">
+        <div><label>Nombre</label><input type="text" name="nombre" id="edit-nombre" required /></div>
+        <div><label>Nombre empresa</label><input type="text" name="nombreEmpresa" id="edit-nombreEmpresa" required /></div>
+        <div><label>Admin WhatsApp</label><input type="text" name="adminWhatsapp" id="edit-adminWhatsapp" required /></div>
+        <div><label>CRM Username</label><input type="text" name="crmUsername" id="edit-crmUsername" /></div>
+        <div><label>CRM Password</label><input type="password" name="crmPassword" id="edit-crmPassword" /></div>
+        <div><label>CRM Prefijo</label><input type="text" name="crmUsernamePrefix" id="edit-crmUsernamePrefix" /></div>
+        <div><label>Spreadsheet ID</label><input type="text" name="spreadsheetId" id="edit-spreadsheetId" /></div>
+        <div><label>Suscripción vence</label><input type="date" name="suscripcionVence" id="edit-suscripcionVence" /></div>
+        <div class="form-full"><label>Google Service Account JSON</label><textarea name="googleServiceAccountJson" id="edit-googleServiceAccountJson"></textarea></div>
+      </div>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-ghost" onclick="cerrarModal()">Cancelar</button>
+        <button type="submit" class="btn btn-primary">Guardar cambios</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Modal enviar mensaje -->
+<div class="modal-overlay" id="modal-mensaje">
+  <div class="modal" style="max-width:420px">
+    <h3>Enviar mensaje desde el bot</h3>
+    <input type="hidden" id="msg-tenant-id" />
+    <div style="margin-bottom:14px">
+      <label>Teléfono destino</label>
+      <input type="text" id="msg-telefono" placeholder="59169741630" />
+    </div>
+    <div style="margin-bottom:14px">
+      <label>Mensaje</label>
+      <textarea id="msg-texto" rows="5" placeholder="Escribe el mensaje..."></textarea>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="cerrarModal()">Cancelar</button>
+      <button class="btn btn-primary" onclick="enviarMensaje()">Enviar por WhatsApp</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+const API = () => location.origin + '/api';
+const token = () => document.getElementById('admin-token').value;
+const headers = () => ({ 'Content-Type': 'application/json', 'x-admin-token': token() });
+
+let tenantsList = [];
+
+function switchTab(tab) {
+  document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+  document.querySelectorAll('nav button').forEach(b => b.classList.remove('active'));
+  document.getElementById(`tab-${tab}`).classList.add('active');
+  event.target.classList.add('active');
+  if (tab === 'pagos') cargarPagos();
+  if (tab === 'cuentas') cargarCuentas();
+}
+
+function toast(msg, tipo = 'ok') {
+  const el = document.getElementById('toast');
+  el.textContent = (tipo === 'ok' ? '✅ ' : '❌ ') + msg;
+  el.style.borderColor = tipo === 'ok' ? 'var(--green)' : 'var(--red)';
+  el.classList.add('show');
+  setTimeout(() => el.classList.remove('show'), 3500);
+}
+
+async function apiFetch(url, opts = {}) {
+  const res = await fetch(API() + url, { ...opts, headers: { ...headers(), ...(opts.headers || {}) } });
+  return res.json();
+}
+
+async function recargarTodo() {
+  await cargarTenants();
+  await cargarEstado();
+}
+
+async function cargarEstado() {
+  try {
+    const data = await apiFetch('/admin/estado');
+    const conectados = data.bots.filter(b => b.conectado).length;
+    document.getElementById('st-conectados').textContent = conectados;
+    document.getElementById('header-status').textContent = `${conectados} bot(s) conectado(s)`;
+  } catch {}
+}
+
+async function cargarTenants() {
+  try {
+    const data = await apiFetch('/admin/tenants');
+    tenantsList = data.tenants || [];
+    document.getElementById('st-total').textContent = tenantsList.length;
+    document.getElementById('st-activos').textContent = tenantsList.filter(t => t.activo).length;
+    renderTenants(tenantsList);
+    popularFiltros(tenantsList);
+  } catch (e) {
+    toast('Error cargando tenants: ' + e.message, 'err');
+  }
+}
+
+function popularFiltros(tenants) {
+  ['filtro-pagos-tenant','filtro-cuentas-tenant'].forEach(id => {
+    const sel = document.getElementById(id);
+    const val = sel.value;
+    sel.innerHTML = '<option value="">Todos los tenants</option>';
+    tenants.forEach(t => { const o = document.createElement('option'); o.value = t.id; o.textContent = t.nombre; sel.appendChild(o); });
+    sel.value = val;
+  });
+}
+
+function renderTenants(tenants) {
+  const tbody = document.getElementById('tenants-tbody');
+  if (!tenants.length) { tbody.innerHTML = '<tr><td colspan="7" class="empty">No hay tenants registrados</td></tr>'; return; }
+  tbody.innerHTML = tenants.map(t => `
+    <tr>
+      <td><code>${t.id}</code></td>
+      <td>
+        <div style="font-weight:600">${t.nombreEmpresa}</div>
+        <div style="font-size:11px;color:var(--muted)">${t.nombre}</div>
+      </td>
+      <td style="font-family:monospace;font-size:12px">${t.adminWhatsapp}</td>
+      <td>
+        <div style="display:flex;gap:4px;flex-wrap:wrap">
+          ${t.tieneSheets ? '<span class="badge badge-green">📊 Sheets</span>' : '<span class="badge badge-red">Sin Sheets</span>'}
+          ${t.tieneCRM ? '<span class="badge badge-green">🎬 CRM</span>' : '<span class="badge badge-red">Sin CRM</span>'}
+          ${t.tieneGmail ? '<span class="badge badge-green">📧 Gmail</span>' : ''}
+        </div>
+      </td>
+      <td>
+        <div style="display:flex;align-items:center;gap:6px">
+          <span class="dot ${t.bot.conectado ? 'dot-green' : t.bot.estado === 'desconectado' ? 'dot-red' : 'dot-yellow'}"></span>
+          <span style="font-size:12px">${t.bot.estado}</span>
+        </div>
+      </td>
+      <td>${t.activo ? '<span class="badge badge-green">Activo</span>' : '<span class="badge badge-red">Suspendido</span>'} ${t.suscripcionVence ? `<div style="font-size:11px;color:var(--muted)">${new Date(t.suscripcionVence).toLocaleDateString()}</div>` : ''}</td>
+      <td>
+        <div class="actions-bar">
+          <button class="btn btn-ghost btn-sm" onclick='abrirEditar(${JSON.stringify(t)})'>✏️</button>
+          <button class="btn btn-ghost btn-sm" onclick="reiniciarBot('${t.id}')">🔄</button>
+          <button class="btn btn-ghost btn-sm" onclick="abrirMensaje('${t.id}')">💬</button>
+          ${t.activo
+            ? `<button class="btn btn-danger btn-sm" onclick="suspenderTenant('${t.id}')">Suspender</button>`
+            : `<button class="btn btn-success btn-sm" onclick="activarTenant('${t.id}')">Activar</button>`}
+        </div>
+      </td>
+    </tr>
+  `).join('');
+}
+
+async function reiniciarBot(id) {
+  if (!confirm(`¿Reiniciar el bot de "${id}"?`)) return;
+  const r = await apiFetch(`/admin/tenants/${id}/bot/reiniciar`, { method: 'POST' });
+  toast(r.mensaje, r.ok ? 'ok' : 'err');
+  setTimeout(recargarTodo, 2000);
+}
+
+async function suspenderTenant(id) {
+  if (!confirm(`¿Suspender tenant "${id}"? Se detendrá su bot.`)) return;
+  const r = await apiFetch(`/admin/tenants/${id}/suspender`, { method: 'POST' });
+  toast(r.mensaje, r.ok ? 'ok' : 'err');
+  setTimeout(cargarTenants, 1500);
+}
+
+async function activarTenant(id) {
+  const r = await apiFetch(`/admin/tenants/${id}/activar`, { method: 'POST' });
+  toast(r.mensaje, r.ok ? 'ok' : 'err');
+  setTimeout(cargarTenants, 1500);
+}
+
+function abrirEditar(t) {
+  document.getElementById('edit-id').value = t.id;
+  document.getElementById('edit-nombre').value = t.nombre || '';
+  document.getElementById('edit-nombreEmpresa').value = t.nombreEmpresa || '';
+  document.getElementById('edit-adminWhatsapp').value = t.adminWhatsapp || '';
+  document.getElementById('edit-crmUsername').value = t.crmUsername || '';
+  document.getElementById('edit-crmUsernamePrefix').value = t.crmUsernamePrefix || '';
+  document.getElementById('edit-spreadsheetId').value = t.spreadsheetId || '';
+  if (t.suscripcionVence) document.getElementById('edit-suscripcionVence').value = t.suscripcionVence.substring(0,10);
+  document.getElementById('modal-editar').classList.add('open');
+}
+
+async function guardarEdicion(e) {
+  e.preventDefault();
+  const form = e.target;
+  const id = form.querySelector('[name=id]').value;
+  const body = {};
+  new FormData(form).forEach((v, k) => { if (k !== 'id' && v) body[k] = v; });
+  const r = await apiFetch(`/admin/tenants/${id}`, { method: 'PUT', body: JSON.stringify(body) });
+  toast(r.mensaje, r.ok ? 'ok' : 'err');
+  cerrarModal();
+  setTimeout(cargarTenants, 2000);
+}
+
+function abrirMensaje(tenantId) {
+  document.getElementById('msg-tenant-id').value = tenantId;
+  document.getElementById('msg-telefono').value = '';
+  document.getElementById('msg-texto').value = '';
+  document.getElementById('modal-mensaje').classList.add('open');
+}
+
+async function enviarMensaje() {
+  const id = document.getElementById('msg-tenant-id').value;
+  const telefono = document.getElementById('msg-telefono').value;
+  const mensaje = document.getElementById('msg-texto').value;
+  const r = await apiFetch(`/admin/tenants/${id}/mensaje`, { method: 'POST', body: JSON.stringify({ telefono, mensaje }) });
+  toast(r.mensaje, r.ok ? 'ok' : 'err');
+  if (r.ok) cerrarModal();
+}
+
+function cerrarModal() {
+  document.querySelectorAll('.modal-overlay').forEach(m => m.classList.remove('open'));
+}
+
+async function crearTenant(e) {
+  e.preventDefault();
+  const form = e.target;
+  const body = {};
+  new FormData(form).forEach((v, k) => { if (v) body[k] = v; });
+  body.activo = form.querySelector('[name=activo]').checked;
+  const r = await apiFetch('/admin/tenants', { method: 'POST', body: JSON.stringify(body) });
+  toast(r.mensaje, r.ok ? 'ok' : 'err');
+  if (r.ok) { form.reset(); switchTab('tenants'); setTimeout(cargarTenants, 1500); }
+}
+
+async function cargarPagos() {
+  const filtro = document.getElementById('filtro-pagos-tenant').value;
+  const url = filtro ? `/admin/pagos/${filtro}` : '/admin/pagos';
+  const data = await apiFetch(url);
+  const tbody = document.getElementById('pagos-tbody');
+  const pagos = data.pagos || [];
+  document.getElementById('st-pagos').textContent = pagos.length;
+  if (!pagos.length) { tbody.innerHTML = '<tr><td colspan="7" class="empty">Sin pagos registrados</td></tr>'; return; }
+  tbody.innerHTML = pagos.map(p => `
+    <tr>
+      <td><code>${p.tenantId}</code></td>
+      <td>${p.fecha}</td>
+      <td style="font-weight:600">${p.nombre}</td>
+      <td style="color:var(--green);font-weight:700">Bs ${p.monto}</td>
+      <td style="font-family:monospace">${p.telefono || '—'}</td>
+      <td><span class="badge ${p.estado === 'Usado' ? 'badge-green' : 'badge-yellow'}">${p.estado}</span></td>
+      <td style="font-size:11px;color:var(--muted)">${new Date(p.sincronizadoEn).toLocaleString()}</td>
+    </tr>
+  `).join('');
+}
+
+async function cargarCuentas() {
+  const filtro = document.getElementById('filtro-cuentas-tenant').value;
+  const url = filtro ? `/admin/cuentas/${filtro}` : '/admin/cuentas';
+  const data = await apiFetch(url);
+  const tbody = document.getElementById('cuentas-tbody');
+  const cuentas = data.cuentas || [];
+  document.getElementById('st-cuentas').textContent = cuentas.length;
+  if (!cuentas.length) { tbody.innerHTML = '<tr><td colspan="7" class="empty">Sin cuentas registradas</td></tr>'; return; }
+  tbody.innerHTML = cuentas.map(c => `
+    <tr>
+      <td><code>${c.tenantId}</code></td>
+      <td style="font-family:monospace">${c.telefono}</td>
+      <td style="font-family:monospace">${c.usuario}</td>
+      <td><span class="badge badge-purple">${c.plan}</span></td>
+      <td style="font-size:11px">${c.fechaCreacion || '—'}</td>
+      <td style="font-size:11px">${c.fechaExpiracion || '—'}</td>
+      <td><span class="badge ${c.estado === 'ACTIVA' ? 'badge-green' : 'badge-red'}">${c.estado}</span></td>
+    </tr>
+  `).join('');
+}
+
+// Click fuera del modal para cerrar
+document.querySelectorAll('.modal-overlay').forEach(m => {
+  m.addEventListener('click', e => { if (e.target === m) cerrarModal(); });
+});
+
+// Carga inicial
+recargarTodo();
+setInterval(cargarEstado, 30000);
+</script>
+</body>
+</html>
