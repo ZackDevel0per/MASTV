@@ -695,6 +695,7 @@ export async function sincronizarLineasCRMEnSheets(
     username: string;
     password: string;
     planNombre: string;
+    fechaCreacion: string;
     fechaExpiracion: string;
     estado: string;
   }>,
@@ -724,7 +725,7 @@ export async function sincronizarLineasCRMEnSheets(
       "",                          // A: Teléfono (desconocido, viene del CRM)
       l.username,                  // B: Usuario
       l.planNombre,                // C: Plan
-      "",                          // D: Fecha Creación (desconocida)
+      l.fechaCreacion,             // D: Fecha Creación
       l.fechaExpiracion,           // E: Fecha Expiración
       l.estado,                    // F: Estado
     ]);

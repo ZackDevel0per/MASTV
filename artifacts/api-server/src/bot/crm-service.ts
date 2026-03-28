@@ -443,6 +443,7 @@ interface LineaCRM {
   username: string;
   password: string;
   exp_date?: string;
+  created_at?: string | number;
   package_id?: string | number;
   max_connections?: number;
   is_trial?: boolean | number;
@@ -1011,6 +1012,7 @@ export interface LineaCRMCompleta {
   username: string;
   password: string;
   planNombre: string;
+  fechaCreacion: string;
   fechaExpiracion: string;
   estado: string;
   maxConexiones: number;
@@ -1056,29 +1058,26 @@ export async function obtenerTodasLasLineasCRM(): Promise<LineaCRMCompleta[]> {
 
     const planNombre = PLAN_ID_A_NOMBRE[pkgId] ?? `Plan ${pkgId}`;
 
-    // exp_date puede ser Unix timestamp (segundos) o cadena "YYYY-MM-DD HH:MM:SS"
-    // Se convierte siempre al mismo formato es-BO que usa el bot.
-    // Fechas inválidas (0000-00-00, null, 0) se guardan como cadena vacía.
-    let fechaExpiracion = "";
-    if (l.exp_date) {
-      const raw = String(l.exp_date).trim();
-      if (raw && !raw.startsWith("0000") && raw !== "0") {
-        const ts = Number(raw);
-        if (!isNaN(ts) && ts > 100_000_000) {
-          // Unix timestamp en segundos (valor razonable > año 1973)
-          const d = new Date(ts * 1000);
-          if (!isNaN(d.getTime())) {
-            fechaExpiracion = d.toLocaleString("es-BO", { timeZone: "America/La_Paz" });
-          }
-        } else {
-          // Cadena de fecha: "2026-06-17 20:17:00" → parsear y reformatear
-          const d = new Date(raw.replace(" ", "T"));
-          if (!isNaN(d.getTime()) && d.getFullYear() > 2000) {
-            fechaExpiracion = d.toLocaleString("es-BO", { timeZone: "America/La_Paz" });
-          }
-        }
+    // Función auxiliar: convierte un campo de fecha del CRM al formato es-BO
+    // Acepta Unix timestamp (segundos) o string "YYYY-MM-DD HH:MM:SS"
+    // Retorna "" si la fecha es inválida (0000-00-00, null, 0, negativo)
+    function parsearFechaCRM(valor: string | number | undefined): string {
+      if (!valor) return "";
+      const raw = String(valor).trim();
+      if (!raw || raw.startsWith("0000") || raw === "0") return "";
+      const ts = Number(raw);
+      if (!isNaN(ts) && ts > 100_000_000) {
+        const d = new Date(ts * 1000);
+        return isNaN(d.getTime()) ? "" : d.toLocaleString("es-BO", { timeZone: "America/La_Paz" });
       }
+      const d = new Date(raw.replace(" ", "T"));
+      return (!isNaN(d.getTime()) && d.getFullYear() > 2000)
+        ? d.toLocaleString("es-BO", { timeZone: "America/La_Paz" })
+        : "";
     }
+
+    const fechaCreacion = parsearFechaCRM(l.created_at);
+    const fechaExpiracion = parsearFechaCRM(l.exp_date);
 
     let estado = "ACTIVA";
     if (l.is_expired) {
@@ -1093,6 +1092,7 @@ export async function obtenerTodasLasLineasCRM(): Promise<LineaCRMCompleta[]> {
       username: l.username,
       password: l.password,
       planNombre,
+      fechaCreacion,
       fechaExpiracion,
       estado,
       maxConexiones: l.max_connections ?? 1,
