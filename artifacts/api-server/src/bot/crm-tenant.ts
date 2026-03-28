@@ -151,7 +151,10 @@ export class CrmService {
       });
 
       const csrf = extractCsrf(createPage.data);
-      const username = await this.obtenerSiguienteUsername(usernamesEnUso);
+      const isDemo = planClave === "DEMO_1H" || planClave === "DEMO_3H";
+      const username = isDemo
+        ? telefono.replace(/\D/g, "")
+        : await this.obtenerSiguienteUsername(usernamesEnUso);
       const password = `${this.prefix}${telefono.replace(/\D/g, "").slice(-6)}`;
 
       const isDemoHora = planClave === "DEMO_1H";
@@ -303,7 +306,7 @@ export class CrmService {
       });
       const lineas: Array<{ username: string }> = listRes.data?.data ?? listRes.data ?? [];
       const telLimpio = telefono.replace(/\D/g, "");
-      return lineas.some((l) => l.username?.includes(telLimpio) && l.username?.includes("Demo"));
+      return lineas.some((l) => l.username?.toLowerCase() === telLimpio.toLowerCase());
     } catch {
       return false;
     }
