@@ -450,7 +450,7 @@
           </div>
           <div class="form-full"><label>Google Service Account JSON</label><textarea name="googleServiceAccountJson" placeholder='{"type":"service_account","project_id":"..."}'></textarea></div>
           <div class="form-full">
-            <label>Precios por plan <span style="color:var(--muted);font-weight:400;text-transform:none;letter-spacing:0">— activa/desactiva cada plan y ajusta su precio</span></label>
+            <label>Precios por plan <span style="color:var(--muted);font-weight:400;text-transform:none;letter-spacing:0">— ajusta el precio de cada plan (vacío = precios por defecto)</span></label>
             <div id="nuevo-planes-list"></div>
             <input type="hidden" name="planesJson" id="nuevo-planes-json">
           </div>
@@ -516,7 +516,7 @@
         <div><label>Pushover User Key</label><input type="text" name="pushoverUserKey" id="edit-pushoverUserKey" /></div>
         <div><label>Pushover API Token</label><input type="text" name="pushoverApiToken" id="edit-pushoverApiToken" /></div>
       </div>
-      <p style="font-size:12px;color:var(--muted);margin:16px 0 12px;padding-top:12px;border-top:1px solid var(--border)">Precios por plan — activa/desactiva y ajusta el precio de cada plan</p>
+      <p style="font-size:12px;color:var(--muted);margin:16px 0 12px;padding-top:12px;border-top:1px solid var(--border)">Precios por plan — ajusta el precio de cada plan</p>
       <div id="edit-planes-list"></div>
       <input type="hidden" name="planesJson" id="edit-planes-json">
       <div class="modal-actions">
@@ -1032,7 +1032,7 @@ const PLANES_DEFAULT = [
   { codigo:'3D12M', nombre:'3 Dispositivos — 12 Meses +2 GRATIS', monto:440, tolerancia:1, dispositivos:3, duracion:'12 meses + 2 gratis',   descripcion:'📺 *3 Dispositivos - 12 Meses + 2 GRATIS*\n💰 Bs 440\n🎁 +2 meses gratis\n✅ Total: 14 meses' },
 ];
 
-// Estado por contexto: { codigo → { activo, monto } }
+// Estado por contexto: { codigo → monto }
 const _planesState = { nuevo: {}, edit: {} };
 
 function renderPlanesEditor(ctx) {
@@ -1045,16 +1045,12 @@ function renderPlanesEditor(ctx) {
       <div style="margin-bottom:12px">
         <div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px;padding-bottom:4px;border-bottom:1px solid var(--border)">📺 ${disp} Dispositivo${disp>1?'s':''}</div>
         ${planes.map(p => {
-          const s = state[p.codigo] || { activo: true, monto: p.monto };
+          const monto = state[p.codigo] != null ? state[p.codigo] : p.monto;
           return `
-          <div class="plan-card${!s.activo ? ' plan-disabled' : ''}" style="display:flex;align-items:center;gap:12px;padding:9px 12px;margin-bottom:6px">
-            <label class="toggle" title="${s.activo?'Desactivar':'Activar'} plan">
-              <input type="checkbox" ${s.activo ? 'checked' : ''} onchange="togglePlanEditor('${ctx}','${p.codigo}',this.checked)">
-              <span class="toggle-slider"></span>
-            </label>
-            <span style="flex:1;font-size:13px;color:${s.activo?'var(--text)':'var(--muted)'}">${p.nombre}</span>
+          <div class="plan-card" style="display:flex;align-items:center;gap:12px;padding:9px 12px;margin-bottom:6px">
+            <span style="flex:1;font-size:13px">${p.nombre}</span>
             <span style="font-size:11px;color:var(--muted);margin-right:4px">Bs</span>
-            <input type="number" value="${s.monto}" min="0" step="0.5" style="width:70px;text-align:right;font-weight:700" oninput="updatePrecioEditor('${ctx}','${p.codigo}',+this.value)" ${!s.activo?'disabled':''}>
+            <input type="number" value="${monto}" min="0" step="0.5" style="width:70px;text-align:right;font-weight:700" oninput="updatePrecioEditor('${ctx}','${p.codigo}',+this.value)">
           </div>`;
         }).join('')}
       </div>`;
@@ -1062,31 +1058,19 @@ function renderPlanesEditor(ctx) {
   actualizarPlanesJson(ctx);
 }
 
-function togglePlanEditor(ctx, codigo, checked) {
-  if (!_planesState[ctx][codigo]) _planesState[ctx][codigo] = { activo: true, monto: PLANES_DEFAULT.find(p=>p.codigo===codigo).monto };
-  _planesState[ctx][codigo].activo = checked;
-  renderPlanesEditor(ctx);
-}
-
 function updatePrecioEditor(ctx, codigo, monto) {
-  if (!_planesState[ctx][codigo]) _planesState[ctx][codigo] = { activo: true, monto };
-  _planesState[ctx][codigo].monto = monto;
+  _planesState[ctx][codigo] = monto;
   actualizarPlanesJson(ctx);
 }
 
 function actualizarPlanesJson(ctx) {
   const state = _planesState[ctx];
-  const resultado = PLANES_DEFAULT.filter(p => {
-    const s = state[p.codigo];
-    return !s || s.activo !== false;
-  }).map(p => {
-    const s = state[p.codigo];
-    const monto = s ? s.monto : p.monto;
-    return { ...p, monto };
-  });
-  // Si todos los precios son default y todos están activos → vacío (usa defaults del sistema)
-  const todosDefault = resultado.length === PLANES_DEFAULT.length &&
-    resultado.every(r => r.monto === PLANES_DEFAULT.find(d => d.codigo === r.codigo).monto);
+  const resultado = PLANES_DEFAULT.map(p => ({
+    ...p,
+    monto: state[p.codigo] != null ? state[p.codigo] : p.monto,
+  }));
+  // Si todos los precios son los mismos que los defaults → no guardar nada
+  const todosDefault = resultado.every(r => r.monto === PLANES_DEFAULT.find(d => d.codigo === r.codigo).monto);
   document.getElementById(`${ctx}-planes-json`).value = todosDefault ? '' : JSON.stringify(resultado);
 }
 
@@ -1094,15 +1078,8 @@ function cargarPlanesEnEditor(ctx, planesJson) {
   _planesState[ctx] = {};
   if (planesJson) {
     try {
-      const guardados = JSON.parse(planesJson);
-      // Marcar cuáles están activos (presentes en el JSON) y con qué precio
-      const codigosActivos = new Set(guardados.map(p => p.codigo));
-      PLANES_DEFAULT.forEach(p => {
-        const guardado = guardados.find(g => g.codigo === p.codigo);
-        _planesState[ctx][p.codigo] = {
-          activo: codigosActivos.has(p.codigo),
-          monto: guardado ? guardado.monto : p.monto,
-        };
+      JSON.parse(planesJson).forEach(p => {
+        _planesState[ctx][p.codigo] = p.monto;
       });
     } catch {}
   }
