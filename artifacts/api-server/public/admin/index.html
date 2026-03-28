@@ -149,6 +149,32 @@
     .monitor-card.disconnected { border-color: rgba(230,57,70,.2); }
     .monitor-card h4 { font-size: 13px; font-weight: 700; margin-bottom: 4px; }
     .monitor-card .mc-actions { display: flex; gap: 6px; margin-top: 12px; }
+
+    /* Toggle switch */
+    .toggle { position: relative; display: inline-block; width: 36px; height: 20px; flex-shrink: 0; }
+    .toggle input { opacity: 0; width: 0; height: 0; }
+    .toggle-slider { position: absolute; cursor: pointer; inset: 0; background: var(--border); border-radius: 20px; transition: 0.2s; }
+    .toggle-slider:before { position: absolute; content: ''; height: 14px; width: 14px; left: 3px; bottom: 3px; background: white; border-radius: 50%; transition: 0.2s; }
+    .toggle input:checked + .toggle-slider { background: var(--accent); }
+    .toggle input:checked + .toggle-slider:before { transform: translateX(16px); }
+
+    /* Plan editor */
+    .plan-card { background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 12px; margin-bottom: 8px; }
+    .plan-card.plan-disabled { opacity: 0.5; }
+    .plan-card-header { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+    .plan-card-title { font-size: 13px; font-weight: 700; flex: 1; }
+    .plan-fields { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
+    .plan-fields input { font-size: 12px; padding: 6px 8px; }
+    .plan-fields label { font-size: 10px; }
+    .planes-add-btn { display: flex; align-items: center; gap: 6px; background: none; border: 1px dashed var(--border); color: var(--muted); border-radius: 7px; padding: 8px 14px; cursor: pointer; font-size: 12px; font-weight: 600; width: 100%; justify-content: center; margin-top: 6px; transition: all 0.15s; }
+    .planes-add-btn:hover { border-color: var(--accent); color: var(--accent); }
+    .planes-empty { color: var(--muted); font-size: 12px; text-align: center; padding: 16px; background: var(--bg); border: 1px dashed var(--border); border-radius: 8px; margin-bottom: 8px; }
+
+    /* Suscripcion widget */
+    .sus-modes { display: flex; gap: 6px; margin-bottom: 8px; flex-wrap: wrap; }
+    .sus-mode-btn { padding: 5px 10px; border-radius: 6px; border: 1px solid var(--border); background: var(--bg); color: var(--muted); cursor: pointer; font-size: 11px; font-weight: 600; transition: all 0.15s; }
+    .sus-mode-btn.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+    .sus-mode-btn:hover:not(.active) { border-color: var(--accent); color: var(--text); }
   </style>
 </head>
 <body>
@@ -380,7 +406,7 @@
   <div class="section" id="tab-nuevo">
     <div class="card">
       <h2 style="margin-bottom:20px">Crear nuevo tenant</h2>
-      <form id="form-nuevo-tenant" onsubmit="crearTenant(event)">
+      <form id="form-nuevo-tenant" onsubmit="crearTenant(event)" onreset="setTimeout(()=>{renderPlanesEditor('nuevo');setSusMode('nuevo','lifetime')},0)">
         <div class="form-grid">
           <div><label>ID único (slug)*</label><input type="text" name="id" placeholder="ej: mi-empresa" required /></div>
           <div><label>Nombre corto*</label><input type="text" name="nombre" placeholder="ej: Mi Empresa TV" required /></div>
@@ -398,7 +424,24 @@
           <div><label>Gmail Client Secret</label><input type="password" name="gmailClientSecret" placeholder="GOCSPX-..." /></div>
           <div><label>Pushover User Key</label><input type="text" name="pushoverUserKey" placeholder="u..." /></div>
           <div><label>Pushover API Token</label><input type="text" name="pushoverApiToken" placeholder="a..." /></div>
-          <div><label>Suscripción vence</label><input type="date" name="suscripcionVence" /></div>
+          <div>
+            <label>Suscripción vence</label>
+            <div id="nuevo-sus-widget">
+              <div class="sus-modes">
+                <button type="button" class="sus-mode-btn active" data-mode="lifetime" onclick="setSusMode('nuevo','lifetime')">♾️ De por vida</button>
+                <button type="button" class="sus-mode-btn" data-mode="dias" onclick="setSusMode('nuevo','dias')">📅 Días</button>
+                <button type="button" class="sus-mode-btn" data-mode="fecha" onclick="setSusMode('nuevo','fecha')">🗓️ Fecha exacta</button>
+              </div>
+              <div class="sus-dias-wrap" style="display:none; align-items:center; gap:8px">
+                <input type="number" id="nuevo-sus-dias-n" placeholder="30" min="1" style="width:80px" oninput="calcSuscripcionVence('nuevo')">
+                <span style="color:var(--muted);font-size:12px">días desde hoy</span>
+              </div>
+              <div class="sus-fecha-wrap" style="display:none">
+                <input type="date" id="nuevo-sus-fecha-input" oninput="calcSuscripcionVence('nuevo')">
+              </div>
+              <input type="hidden" name="suscripcionVence" id="nuevo-sus-hidden">
+            </div>
+          </div>
           <div style="display:flex; align-items:flex-end;">
             <label style="display:flex; align-items:center; gap:8px; margin:0; cursor:pointer; font-size:13px; text-transform:none; letter-spacing:0;">
               <input type="checkbox" name="activo" checked style="width:auto; accentColor:var(--accent)" />
@@ -406,7 +449,12 @@
             </label>
           </div>
           <div class="form-full"><label>Google Service Account JSON</label><textarea name="googleServiceAccountJson" placeholder='{"type":"service_account","project_id":"..."}'></textarea></div>
-          <div class="form-full"><label>Planes personalizados (JSON, dejar vacío para defaults)</label><textarea name="planesJson" placeholder='[{"nombre":"1 MES","precio":"35 Bs","id":"1month"}]'></textarea></div>
+          <div class="form-full">
+            <label>Planes personalizados <span style="color:var(--muted);font-weight:400;text-transform:none;letter-spacing:0">(desactivar todos = usar planes por defecto)</span></label>
+            <div id="nuevo-planes-list"></div>
+            <button type="button" class="planes-add-btn" onclick="agregarPlanEditor('nuevo')">+ Agregar plan</button>
+            <input type="hidden" name="planesJson" id="nuevo-planes-json">
+          </div>
         </div>
         <div style="margin-top:20px; display:flex; gap:10px;">
           <button type="submit" class="btn btn-primary">Crear tenant y arrancar bot</button>
@@ -431,7 +479,24 @@
         <div><label>Nombre</label><input type="text" name="nombre" id="edit-nombre" required /></div>
         <div><label>Nombre empresa</label><input type="text" name="nombreEmpresa" id="edit-nombreEmpresa" required /></div>
         <div><label>Admin WhatsApp</label><input type="text" name="adminWhatsapp" id="edit-adminWhatsapp" required /></div>
-        <div><label>Suscripción vence</label><input type="date" name="suscripcionVence" id="edit-suscripcionVence" /></div>
+        <div>
+          <label>Suscripción vence</label>
+          <div id="edit-sus-widget">
+            <div class="sus-modes">
+              <button type="button" class="sus-mode-btn active" data-mode="lifetime" onclick="setSusMode('edit','lifetime')">♾️ De por vida</button>
+              <button type="button" class="sus-mode-btn" data-mode="dias" onclick="setSusMode('edit','dias')">📅 Días</button>
+              <button type="button" class="sus-mode-btn" data-mode="fecha" onclick="setSusMode('edit','fecha')">🗓️ Fecha exacta</button>
+            </div>
+            <div class="sus-dias-wrap" style="display:none; align-items:center; gap:8px">
+              <input type="number" id="edit-sus-dias-n" placeholder="30" min="1" style="width:80px" oninput="calcSuscripcionVence('edit')">
+              <span style="color:var(--muted);font-size:12px">días desde hoy</span>
+            </div>
+            <div class="sus-fecha-wrap" style="display:none">
+              <input type="date" id="edit-sus-fecha-input" oninput="calcSuscripcionVence('edit')">
+            </div>
+            <input type="hidden" name="suscripcionVence" id="edit-sus-hidden">
+          </div>
+        </div>
       </div>
       <p style="font-size:12px;color:var(--muted);margin:16px 0 12px;padding-top:12px;border-top:1px solid var(--border)">CRM Mastv</p>
       <div class="form-grid">
@@ -452,6 +517,10 @@
         <div><label>Pushover User Key</label><input type="text" name="pushoverUserKey" id="edit-pushoverUserKey" /></div>
         <div><label>Pushover API Token</label><input type="text" name="pushoverApiToken" id="edit-pushoverApiToken" /></div>
       </div>
+      <p style="font-size:12px;color:var(--muted);margin:16px 0 12px;padding-top:12px;border-top:1px solid var(--border)">Planes personalizados</p>
+      <div id="edit-planes-list"></div>
+      <button type="button" class="planes-add-btn" onclick="agregarPlanEditor('edit')" style="margin-bottom:10px">+ Agregar plan</button>
+      <input type="hidden" name="planesJson" id="edit-planes-json">
       <div class="modal-actions">
         <button type="button" class="btn btn-ghost" onclick="cerrarModal()">Cancelar</button>
         <button type="submit" class="btn btn-primary">Guardar cambios</button>
@@ -948,6 +1017,123 @@ async function activarTenant(id) {
   setTimeout(cargarTenants, 1500);
 }
 
+// ═══════════════════════ PLANES EDITOR ═══════════════════════
+const _planesState = { nuevo: [], edit: [] };
+
+function renderPlanesEditor(ctx) {
+  const list = document.getElementById(`${ctx}-planes-list`);
+  const planes = _planesState[ctx];
+  if (!planes.length) {
+    list.innerHTML = '<div class="planes-empty">Sin planes personalizados — se usarán los planes por defecto</div>';
+    document.getElementById(`${ctx}-planes-json`).value = '';
+    return;
+  }
+  list.innerHTML = planes.map((p, i) => `
+    <div class="plan-card${p.activo === false ? ' plan-disabled' : ''}">
+      <div class="plan-card-header">
+        <label class="toggle" title="${p.activo === false ? 'Activar' : 'Desactivar'} plan">
+          <input type="checkbox" ${p.activo !== false ? 'checked' : ''} onchange="togglePlanEditor('${ctx}',${i},this.checked)">
+          <span class="toggle-slider"></span>
+        </label>
+        <span class="plan-card-title">${p.nombre || 'Nuevo plan'}</span>
+        <button type="button" class="btn btn-ghost btn-sm" style="color:var(--red);padding:3px 8px" onclick="eliminarPlanEditor('${ctx}',${i})">🗑️</button>
+      </div>
+      <div class="plan-fields">
+        <div><label>Código</label><input type="text" value="${escHtml(p.codigo||'')}" placeholder="Ej: 1D1M" oninput="updatePlanEditor('${ctx}',${i},'codigo',this.value)"></div>
+        <div><label>Nombre</label><input type="text" value="${escHtml(p.nombre||'')}" placeholder="1 Mes 1 Disp." oninput="updatePlanEditor('${ctx}',${i},'nombre',this.value)"></div>
+        <div><label>Monto (Bs)</label><input type="number" value="${p.monto!=null?p.monto:''}" placeholder="35" min="0" step="0.5" oninput="updatePlanEditor('${ctx}',${i},'monto',+this.value)"></div>
+        <div><label>Tolerancia (Bs)</label><input type="number" value="${p.tolerancia!=null?p.tolerancia:1}" min="0" step="0.5" oninput="updatePlanEditor('${ctx}',${i},'tolerancia',+this.value)"></div>
+        <div><label>Dispositivos</label><input type="number" value="${p.dispositivos||1}" min="1" oninput="updatePlanEditor('${ctx}',${i},'dispositivos',+this.value)"></div>
+        <div><label>Duración</label><input type="text" value="${escHtml(p.duracion||'')}" placeholder="1 mes" oninput="updatePlanEditor('${ctx}',${i},'duracion',this.value)"></div>
+      </div>
+    </div>
+  `).join('');
+  actualizarPlanesJson(ctx);
+}
+
+function escHtml(s) { return String(s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;'); }
+
+function togglePlanEditor(ctx, i, checked) {
+  _planesState[ctx][i].activo = checked;
+  const card = document.getElementById(`${ctx}-planes-list`).querySelectorAll('.plan-card')[i];
+  if (card) card.classList.toggle('plan-disabled', !checked);
+  actualizarPlanesJson(ctx);
+}
+
+function updatePlanEditor(ctx, i, field, value) {
+  _planesState[ctx][i][field] = value;
+  if (field === 'nombre') {
+    const titleEl = document.getElementById(`${ctx}-planes-list`).querySelectorAll('.plan-card-title')[i];
+    if (titleEl) titleEl.textContent = value || 'Nuevo plan';
+  }
+  actualizarPlanesJson(ctx);
+}
+
+function eliminarPlanEditor(ctx, i) {
+  _planesState[ctx].splice(i, 1);
+  renderPlanesEditor(ctx);
+}
+
+function agregarPlanEditor(ctx) {
+  _planesState[ctx].push({ activo: true, codigo: '', nombre: '', monto: 0, tolerancia: 1, dispositivos: 1, duracion: '' });
+  renderPlanesEditor(ctx);
+}
+
+function actualizarPlanesJson(ctx) {
+  const activos = _planesState[ctx].filter(p => p.activo !== false);
+  const clean = activos.map(({ activo, ...rest }) => rest);
+  document.getElementById(`${ctx}-planes-json`).value = clean.length ? JSON.stringify(clean) : '';
+}
+
+function cargarPlanesEnEditor(ctx, planesJson) {
+  let planes = [];
+  if (planesJson) {
+    try { planes = JSON.parse(planesJson).map(p => ({ ...p, activo: true })); } catch {}
+  }
+  _planesState[ctx] = planes;
+  renderPlanesEditor(ctx);
+}
+
+// Inicializar editor nuevo al cargar la página
+renderPlanesEditor('nuevo');
+
+// ═══════════════════════ SUSCRIPCION WIDGET ═══════════════════════
+const _susMode = { nuevo: 'lifetime', edit: 'lifetime' };
+
+function setSusMode(ctx, mode) {
+  _susMode[ctx] = mode;
+  const widget = document.getElementById(`${ctx}-sus-widget`);
+  widget.querySelectorAll('.sus-mode-btn').forEach(b => b.classList.toggle('active', b.dataset.mode === mode));
+  widget.querySelector('.sus-dias-wrap').style.display = mode === 'dias' ? 'flex' : 'none';
+  widget.querySelector('.sus-fecha-wrap').style.display = mode === 'fecha' ? '' : 'none';
+  calcSuscripcionVence(ctx);
+}
+
+function calcSuscripcionVence(ctx) {
+  const mode = _susMode[ctx];
+  let val = '';
+  if (mode === 'dias') {
+    const n = parseInt(document.getElementById(`${ctx}-sus-dias-n`).value);
+    if (n > 0) {
+      const d = new Date();
+      d.setDate(d.getDate() + n);
+      val = d.toISOString().split('T')[0];
+    }
+  } else if (mode === 'fecha') {
+    val = document.getElementById(`${ctx}-sus-fecha-input`).value;
+  }
+  document.getElementById(`${ctx}-sus-hidden`).value = val;
+}
+
+function loadSuscripcionVence(ctx, isoDate) {
+  if (!isoDate) {
+    setSusMode(ctx, 'lifetime');
+  } else {
+    document.getElementById(`${ctx}-sus-fecha-input`).value = isoDate.substring(0, 10);
+    setSusMode(ctx, 'fecha');
+  }
+}
+
 // ═══════════════════════ MODAL EDITAR ═══════════════════════
 function abrirEditar(t) {
   document.getElementById('edit-id').value = t.id;
@@ -963,8 +1149,8 @@ function abrirEditar(t) {
   document.getElementById('edit-googleServiceAccountJson').value = t.googleServiceAccountJson || '';
   document.getElementById('edit-pushoverUserKey').value = t.pushoverUserKey || '';
   document.getElementById('edit-pushoverApiToken').value = t.pushoverApiToken || '';
-  if (t.suscripcionVence) document.getElementById('edit-suscripcionVence').value = t.suscripcionVence.substring(0, 10);
-  else document.getElementById('edit-suscripcionVence').value = '';
+  loadSuscripcionVence('edit', t.suscripcionVence || null);
+  cargarPlanesEnEditor('edit', t.planesJson || null);
   document.getElementById('modal-editar').classList.add('open');
 }
 
@@ -974,6 +1160,11 @@ async function guardarEdicion(e) {
   const id = form.querySelector('[name=id]').value;
   const body = {};
   new FormData(form).forEach((v, k) => { if (k !== 'id' && v !== '') body[k] = v; });
+  // Siempre incluir suscripcionVence para poder borrarla (lifetime = cadena vacía → null en backend)
+  body.suscripcionVence = document.getElementById('edit-sus-hidden').value;
+  // Planes: enviar vacío si no hay planes activos (usa defaults)
+  const planesVal = document.getElementById('edit-planes-json').value;
+  if (planesVal) body.planesJson = planesVal; else body.planesJson = '';
   const r = await apiFetch(`/admin/tenants/${id}`, { method: 'PUT', body: JSON.stringify(body) });
   toast(r.mensaje, r.ok ? 'ok' : 'err');
   cerrarModal();
