@@ -63,20 +63,29 @@ export class CrmService {
     return !!this.cachedSession && Date.now() < this.cachedSession.expiresAt;
   }
 
+  private cookieFromHeaders(headers: Record<string, unknown>): string {
+    const sc = headers["set-cookie"];
+    if (!sc) return "";
+    const arr = Array.isArray(sc) ? sc : [sc as string];
+    return arr.map((c) => (c as string).split(";")[0]).join("; ");
+  }
+
   private async login(): Promise<string> {
+    const https = (await import("https")).default;
+    const agent = new https.Agent({ rejectUnauthorized: false });
+
+    // GET /login → CSRF + cookie inicial
     const loginPage = await axios.get(`${this.baseUrl}/login`, {
       headers: BASE_HEADERS,
-      httpsAgent: new (await import("https")).Agent({ rejectUnauthorized: false }),
-      maxRedirects: 0,
-      validateStatus: (s) => s < 400,
+      httpsAgent: agent,
+      maxRedirects: 3,
+      validateStatus: () => true,
     });
 
     const csrf = extractCsrf(loginPage.data);
-    const setCookie = loginPage.headers["set-cookie"];
-    const sessionCookie = Array.isArray(setCookie)
-      ? setCookie.map((c: string) => c.split(";")[0]).join("; ")
-      : "";
+    const cookieInicial = this.cookieFromHeaders(loginPage.headers as Record<string, unknown>);
 
+    // POST /login → cookie autenticada
     const loginRes = await axios.post(
       `${this.baseUrl}/login`,
       new URLSearchParams({ _token: csrf ?? "", username: this.username, password: this.password }),
@@ -84,22 +93,29 @@ export class CrmService {
         headers: {
           ...BASE_HEADERS,
           "Content-Type": "application/x-www-form-urlencoded",
-          Cookie: sessionCookie,
+          Cookie: cookieInicial,
           Referer: `${this.baseUrl}/login`,
         },
-        httpsAgent: new (await import("https")).Agent({ rejectUnauthorized: false }),
+        httpsAgent: agent,
         maxRedirects: 0,
-        validateStatus: (s) => s < 400,
+        validateStatus: () => true,
       },
     );
 
-    const allCookies = [
-      ...(Array.isArray(loginPage.headers["set-cookie"]) ? loginPage.headers["set-cookie"] : []),
-      ...(Array.isArray(loginRes.headers["set-cookie"]) ? loginRes.headers["set-cookie"] : []),
-    ].map((c: string) => c.split(";")[0]).join("; ");
+    let cookie = this.cookieFromHeaders(loginRes.headers as Record<string, unknown>) || cookieInicial;
 
-    this.cachedSession = { cookie: allCookies, expiresAt: Date.now() + this.SESSION_TTL_MS };
-    return allCookies;
+    // Visitar /lines para establecer la sesión completamente (igual que bot legacy)
+    const linesCheck = await axios.get(`${this.baseUrl}/lines`, {
+      headers: { ...BASE_HEADERS, Cookie: cookie },
+      httpsAgent: agent,
+      maxRedirects: 3,
+      validateStatus: () => true,
+    });
+    const cookieActualizado = this.cookieFromHeaders(linesCheck.headers as Record<string, unknown>);
+    if (cookieActualizado) cookie = cookieActualizado;
+
+    this.cachedSession = { cookie, expiresAt: Date.now() + this.SESSION_TTL_MS };
+    return cookie;
   }
 
   private async getSession(): Promise<string> {
