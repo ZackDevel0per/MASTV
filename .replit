@@ -83,7 +83,7 @@ channel = "stable-25_05"
 [userenv.shared]
 TASKER_TOKEN = "cambia_este_token_seguro_2024"
 GMAIL_REMITENTE_FILTRO = "PagosBcp@bcp.com.bo"
-ADMIN_USER = "zack"
+ADMIN_USER = "Zack"
 ADMIN_PASSWORD = "admin123"
 
 [objectStorage]
