@@ -11,6 +11,7 @@
 import { Router, type IRouter, type Request, type Response } from "express";
 import {
   getGmailEstado,
+  getUltimoCorreoFallido,
   generarUrlAutorizacion,
   intercambiarCodigo,
   iniciarGmailPolling,
@@ -116,6 +117,23 @@ router.get("/gmail/callback", async (req: Request, res: Response) => {
       </body></html>
     `);
   }
+});
+
+// ═════════════════════════════════════════════════════════
+// DIAGNÓSTICO — Ver el texto del último correo que falló
+// ═════════════════════════════════════════════════════════
+router.get("/gmail/ultimo-fallido", (_req: Request, res: Response) => {
+  const fallido = getUltimoCorreoFallido();
+  if (!fallido) {
+    res.json({ ok: true, mensaje: "No hay correos fallidos registrados" });
+    return;
+  }
+  res.json({
+    ok: true,
+    id: fallido.id,
+    asunto: fallido.asunto,
+    texto: fallido.texto,
+  });
 });
 
 // ═════════════════════════════════════════════════════════

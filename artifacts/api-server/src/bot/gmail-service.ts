@@ -50,6 +50,8 @@ let totalProcesados = 0;
 let errorActual: string | null = null;
 
 const idsProcessados = new Set<string>();
+const contadorReintentos = new Map<string, number>();
+let ultimoTextoFallido: { id: string; asunto: string; texto: string } | null = null;
 
 function crearCliente() {
   const clientId = process.env["GMAIL_CLIENT_ID"];
@@ -80,9 +82,16 @@ function extraerTexto(
   if (payload.mimeType === "text/html" && payload.body?.data) {
     const html = Buffer.from(payload.body.data, "base64").toString("utf-8");
     return html
-      .replace(/<[^>]+>/g, " ")
+      .replace(/<style[\s\S]*?<\/style>/gi, " ")   // elimina bloques CSS
+      .replace(/<script[\s\S]*?<\/script>/gi, " ") // elimina bloques JS
+      .replace(/<[^>]+>/g, " ")                    // elimina etiquetas HTML
       .replace(/&nbsp;/gi, " ")
-      .replace(/\s+/g, " ");
+      .replace(/&amp;/gi, "&")
+      .replace(/&lt;/gi, "<")
+      .replace(/&gt;/gi, ">")
+      .replace(/&#\d+;/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
   }
 
   if (payload.parts) {
@@ -163,6 +172,48 @@ function parsearCorreo(texto: string): DatosPago | null {
     const monto = parseFloat(matchMontoYape[1]!.replace(",", "."));
     if (nombre && !isNaN(monto) && monto > 0) {
       console.log(`📱 [GMAIL] Formato Yape detectado: ${nombre} → Bs ${monto}`);
+      return { nombre, monto };
+    }
+  }
+
+  // ── Patrón 4: "Ordenante: NOMBRE" + "Monto: Bs X.XX" (BCP/otros bancos BO) ─
+  const matchOrdenante = texto.match(
+    /Ordenante\s*[:\s]+([A-ZÁÉÍÓÚÑ\s]{3,60}?)(?:\s{2,}|\n|Bs|$)/i,
+  );
+  const matchMontoBs = texto.match(/Monto\s*[:\s]+Bs\.?\s*([\d.,]+)/i);
+
+  if (matchOrdenante && matchMontoBs) {
+    const nombre = matchOrdenante[1]!.trim().toUpperCase();
+    const monto = parseFloat(matchMontoBs[1]!.replace(",", "."));
+    if (nombre && !isNaN(monto) && monto > 0) {
+      console.log(`🏦 [GMAIL] Formato Ordenante/Monto detectado: ${nombre} → Bs ${monto}`);
+      return { nombre, monto };
+    }
+  }
+
+  // ── Patrón 5: "Remitente: NOMBRE" + monto en Bs ───────────────────────
+  const matchRemitente = texto.match(
+    /Remitente\s*[:\s]+([A-ZÁÉÍÓÚÑ\s]{3,60}?)(?:\s{2,}|\n|$)/i,
+  );
+  if (matchRemitente && matchMontoBs) {
+    const nombre = matchRemitente[1]!.trim().toUpperCase();
+    const monto = parseFloat(matchMontoBs[1]!.replace(",", "."));
+    if (nombre && !isNaN(monto) && monto > 0) {
+      console.log(`🏦 [GMAIL] Formato Remitente/Monto detectado: ${nombre} → Bs ${monto}`);
+      return { nombre, monto };
+    }
+  }
+
+  // ── Patrón 6: "Importe: Bs X.XX" con cualquier campo de nombre ─────────
+  const matchImporte = texto.match(/Importe\s*[:\s]+Bs\.?\s*([\d.,]+)/i);
+  const matchCualquierNombre = texto.match(
+    /(?:Nombre|Cliente|Titular|Pagador|Depositante|De)\s*[:\s]+([A-ZÁÉÍÓÚÑ][A-ZÁÉÍÓÚÑ\s]{2,50}?)(?:\s{2,}|\n|$)/i,
+  );
+  if (matchImporte && matchCualquierNombre) {
+    const nombre = matchCualquierNombre[1]!.trim().toUpperCase();
+    const monto = parseFloat(matchImporte[1]!.replace(",", "."));
+    if (nombre && !isNaN(monto) && monto > 0) {
+      console.log(`🏦 [GMAIL] Formato Importe detectado: ${nombre} → Bs ${monto}`);
       return { nombre, monto };
     }
   }
@@ -255,21 +306,37 @@ async function procesarCorreosNuevos() {
             console.error("[GMAIL] Error en callback de pago:", cbErr);
           }
         }
+        // Marcar como leído solo si se procesó correctamente
+        await gmail.users.messages.modify({
+          userId: "me",
+          id,
+          requestBody: { removeLabelIds: ["UNREAD"] },
+        });
+        idsProcessados.add(id);
       } else {
+        // Contar reintentos — después de 5 fallas se descarta
+        const reintentos = (contadorReintentos.get(id) ?? 0) + 1;
+        contadorReintentos.set(id, reintentos);
+
         console.warn(
-          `⚠️  [GMAIL] No se pudo extraer nombre/monto del correo ID ${id}`,
+          `⚠️  [GMAIL] No se pudo extraer nombre/monto del correo ID ${id} (intento ${reintentos}/5)`,
         );
-        console.warn(`📄 [GMAIL] Texto del correo: ${texto.substring(0, 300)}`);
+        console.warn(`📄 [GMAIL] Asunto: ${asunto}`);
+        console.warn(`📄 [GMAIL] Texto (primeros 1500 chars):\n${texto.substring(0, 1500)}`);
+        ultimoTextoFallido = { id, asunto, texto };
+
+        if (reintentos >= 5) {
+          console.warn(`🗑️  [GMAIL] Descartando correo ${id} después de 5 intentos`);
+          await gmail.users.messages.modify({
+            userId: "me",
+            id,
+            requestBody: { removeLabelIds: ["UNREAD"] },
+          });
+          idsProcessados.add(id);
+          contadorReintentos.delete(id);
+        }
+        // Si no llegó a 5 reintentos: NO se marca como leído → se reintentará en el próximo ciclo
       }
-
-      // Marcar como leído
-      await gmail.users.messages.modify({
-        userId: "me",
-        id,
-        requestBody: { removeLabelIds: ["UNREAD"] },
-      });
-
-      idsProcessados.add(id);
     }
 
     errorActual = null;
@@ -322,6 +389,11 @@ export function detenerGmailPolling() {
   }
   activo = false;
   console.log("⏹️  [GMAIL] Polling detenido.");
+}
+
+/** Devuelve el último correo que no pudo ser parseado (para diagnóstico) */
+export function getUltimoCorreoFallido() {
+  return ultimoTextoFallido;
 }
 
 export function getGmailEstado() {
