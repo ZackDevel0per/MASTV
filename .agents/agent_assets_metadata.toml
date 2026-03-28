@@ -1,0 +1,8 @@
+uploads = []
+generated = []
+
+[[outputs]]
+id = "cT2lbEDfoXoYjUqGm9Q0Y"
+uri = "file://CONFIGURACION_GOOGLE.txt"
+type = "text"
+title = "Guía de configuración Google"

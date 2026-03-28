@@ -1,0 +1,90 @@
+================================================================
+  CONFIGURACIÓN GOOGLE PARA EL BOT DE WHATSAPP IPTV
+================================================================
+
+PASO 1 — Crear proyecto en Google Cloud
+----------------------------------------
+Sitio: https://console.cloud.google.com
+- Entrar y crear un proyecto nuevo
+- Dentro del proyecto, activar estas 2 APIs:
+    * Gmail API
+    * Google Sheets API
+  (Menú → APIs y servicios → Biblioteca → buscar cada una → Habilitar)
+
+
+PASO 2 — Credenciales OAuth 2.0 (para leer Gmail)
+---------------------------------------------------
+Sitio: console.cloud.google.com
+- Menú → APIs y servicios → Credenciales
+- Clic en "Crear credencial" → "ID de cliente OAuth 2.0"
+- Tipo: Aplicación web
+- En "URIs de redireccionamiento autorizados" agregar:
+    https://TU_DOMINIO_REPLIT/api/gmail/callback
+
+Esto te dará:
+  [1] GMAIL_CLIENT_ID      → guardar en Replit Secrets
+  [2] GMAIL_CLIENT_SECRET  → guardar en Replit Secrets
+
+Luego para obtener el Refresh Token:
+- Guardar los 2 secrets anteriores en Replit
+- Reiniciar el servidor
+- Visitar en el navegador:
+    https://TU_DOMINIO_REPLIT/api/gmail/autorizar
+- Iniciar sesión con la cuenta Gmail que recibirá los pagos
+- Copiar el token que aparece en pantalla:
+  [3] GMAIL_REFRESH_TOKEN  → guardar en Replit Secrets
+
+
+PASO 3 — Cuenta de Servicio (para editar Google Sheets)
+---------------------------------------------------------
+Sitio: console.cloud.google.com
+- Menú → IAM y administración → Cuentas de servicio
+- Clic en "Crear cuenta de servicio"
+- Asignarle cualquier nombre
+- En la cuenta creada → Claves → Agregar clave → JSON
+- Se descarga un archivo .json
+
+El contenido COMPLETO de ese archivo JSON va en Replit Secrets como:
+  [4] GOOGLE_SERVICE_ACCOUNT_JSON  → guardar en Replit Secrets
+
+Guarda también el valor del campo "client_email" del JSON
+(lo vas a necesitar en el Paso 4)
+
+
+PASO 4 — Hoja de Google Sheets
+--------------------------------
+Sitio: https://sheets.google.com
+- Crear una hoja nueva
+- Crear 2 pestañas con estos nombres exactos:
+
+  Pestaña "Cuentas":
+    A: Teléfono | B: Usuario | C: Plan | D: Fecha Creación | E: Fecha Expiración | F: Estado
+
+  Pestaña "Pagos":
+    A: Fecha | B: Nombre | C: Monto | D: Teléfono | E: Fecha Registro | F: Estado | G: Gmail ID
+
+- Compartir la hoja con el email "client_email" del JSON (Paso 3)
+  con permisos de Editor
+
+- Copiar el ID de la URL de la hoja:
+    docs.google.com/spreadsheets/d/  [ESTE_ES_EL_ID]  /edit
+  → Dárselo al desarrollador para actualizar el código
+
+
+PASO 5 — Configuración del remitente del banco (no es credencial)
+------------------------------------------------------------------
+En Replit Secrets agregar:
+  [5] GMAIL_REMITENTE_FILTRO = email del banco (ej: pagos@banco.com.bo)
+
+
+================================================================
+  RESUMEN DE SECRETS EN REPLIT
+================================================================
+
+  GMAIL_CLIENT_ID            → Paso 2
+  GMAIL_CLIENT_SECRET        → Paso 2
+  GMAIL_REFRESH_TOKEN        → Paso 2 (endpoint /autorizar)
+  GOOGLE_SERVICE_ACCOUNT_JSON → Paso 3 (contenido completo del JSON)
+  GMAIL_REMITENTE_FILTRO     → Paso 5 (email del banco)
+
+================================================================
