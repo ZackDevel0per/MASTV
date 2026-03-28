@@ -1,0 +1,15 @@
+packages:
+  "framer-motion": "For beautiful page transitions, modal animations, and layout changes"
+  "date-fns": "For elegant date formatting and human-readable timestamps"
+  "lucide-react": "For crisp, modern icons used throughout the dashboard"
+  "clsx": "For conditional tailwind class joining"
+  "tailwind-merge": "For conflict-free tailwind class merging"
+
+images:
+  - path: "artifacts/admin-panel/public/images/auth-bg.png"
+    description: "Abstract dark background with deep indigo and navy gradient mesh, glowing soft light leaks, corporate tech aesthetic, clean and modern"
+    aspect_ratio: "16:9"
+
+notes:
+  - The admin panel uses the x-admin-token header for all authenticated requests.
+  - Using generated orval hooks from @workspace/api-client-react.

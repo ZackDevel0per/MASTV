@@ -10,6 +10,8 @@ servers:
 tags:
   - name: health
     description: Health operations
+  - name: admin
+    description: Superadmin operations
 paths:
   /healthz:
     get:
@@ -24,7 +26,340 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+
+  /admin/login:
+    post:
+      operationId: adminLogin
+      tags: [admin]
+      summary: Admin login with username and password
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AdminLoginRequest"
+      responses:
+        "200":
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminLoginResponse"
+        "401":
+          description: Invalid credentials
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /admin/estado:
+    get:
+      operationId: adminGetEstado
+      tags: [admin]
+      summary: Get all bots status
+      security:
+        - adminToken: []
+      responses:
+        "200":
+          description: Bots state
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminEstadoResponse"
+
+  /admin/tenants:
+    get:
+      operationId: adminListTenants
+      tags: [admin]
+      summary: List all tenants with bot status
+      security:
+        - adminToken: []
+      responses:
+        "200":
+          description: Tenant list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminTenantsResponse"
+    post:
+      operationId: adminCreateTenant
+      tags: [admin]
+      summary: Create a new tenant and start its bot
+      security:
+        - adminToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateTenantRequest"
+      responses:
+        "200":
+          description: Tenant created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OkResponse"
+
+  /admin/tenants/{id}:
+    put:
+      operationId: adminUpdateTenant
+      tags: [admin]
+      summary: Update a tenant and restart its bot
+      security:
+        - adminToken: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateTenantRequest"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OkResponse"
+
+  /admin/tenants/{id}/suspender:
+    post:
+      operationId: adminSuspendTenant
+      tags: [admin]
+      summary: Suspend a tenant and stop its bot
+      security:
+        - adminToken: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Suspended
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OkResponse"
+
+  /admin/tenants/{id}/activar:
+    post:
+      operationId: adminActivateTenant
+      tags: [admin]
+      summary: Activate a tenant and start its bot
+      security:
+        - adminToken: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Activated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OkResponse"
+
+  /admin/tenants/{id}/bot/reiniciar:
+    post:
+      operationId: adminRestartBot
+      tags: [admin]
+      summary: Restart a tenant bot
+      security:
+        - adminToken: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Restarted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OkResponse"
+
+  /admin/tenants/{id}/bot/codigo-pareo:
+    post:
+      operationId: adminGetPairingCode
+      tags: [admin]
+      summary: Get WhatsApp pairing code for a tenant bot
+      security:
+        - adminToken: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [telefono]
+              properties:
+                telefono:
+                  type: string
+      responses:
+        "200":
+          description: Pairing code
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                  codigo:
+                    type: string
+
+  /admin/tenants/{id}/bot/sesion/borrar:
+    post:
+      operationId: adminDeleteSession
+      tags: [admin]
+      summary: Delete WhatsApp session for a tenant
+      security:
+        - adminToken: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Session deleted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OkResponse"
+
+  /admin/tenants/{id}/mensaje:
+    post:
+      operationId: adminSendMessage
+      tags: [admin]
+      summary: Send WhatsApp message from a tenant bot
+      security:
+        - adminToken: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [telefono, mensaje]
+              properties:
+                telefono:
+                  type: string
+                mensaje:
+                  type: string
+      responses:
+        "200":
+          description: Message sent
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OkResponse"
+
+  /admin/pagos:
+    get:
+      operationId: adminGetPagos
+      tags: [admin]
+      summary: Get all payments from all tenants
+      security:
+        - adminToken: []
+      responses:
+        "200":
+          description: Payments list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminPagosResponse"
+
+  /admin/pagos/{tenantId}:
+    get:
+      operationId: adminGetPagosByTenant
+      tags: [admin]
+      summary: Get payments for a specific tenant
+      security:
+        - adminToken: []
+      parameters:
+        - name: tenantId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Payments list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminPagosResponse"
+
+  /admin/cuentas:
+    get:
+      operationId: adminGetCuentas
+      tags: [admin]
+      summary: Get all IPTV accounts from all tenants
+      security:
+        - adminToken: []
+      responses:
+        "200":
+          description: Accounts list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminCuentasResponse"
+
+  /admin/cuentas/{tenantId}:
+    get:
+      operationId: adminGetCuentasByTenant
+      tags: [admin]
+      summary: Get IPTV accounts for a specific tenant
+      security:
+        - adminToken: []
+      parameters:
+        - name: tenantId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Accounts list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminCuentasResponse"
+
 components:
+  securitySchemes:
+    adminToken:
+      type: apiKey
+      in: header
+      name: x-admin-token
+
   schemas:
     HealthStatus:
       type: object
@@ -34,3 +369,296 @@ components:
       required:
         - status
 
+    OkResponse:
+      type: object
+      properties:
+        ok:
+          type: boolean
+        mensaje:
+          type: string
+      required:
+        - ok
+
+    ErrorResponse:
+      type: object
+      properties:
+        ok:
+          type: boolean
+        mensaje:
+          type: string
+      required:
+        - ok
+        - mensaje
+
+    AdminLoginRequest:
+      type: object
+      required: [usuario, password]
+      properties:
+        usuario:
+          type: string
+        password:
+          type: string
+
+    AdminLoginResponse:
+      type: object
+      properties:
+        ok:
+          type: boolean
+        token:
+          type: string
+        mensaje:
+          type: string
+      required:
+        - ok
+
+    BotStatus:
+      type: object
+      properties:
+        tenantId:
+          type: string
+        conectado:
+          type: boolean
+        estado:
+          type: string
+      required:
+        - tenantId
+        - conectado
+        - estado
+
+    AdminEstadoResponse:
+      type: object
+      properties:
+        ok:
+          type: boolean
+        bots:
+          type: array
+          items:
+            $ref: "#/components/schemas/BotStatus"
+      required:
+        - ok
+        - bots
+
+    TenantSummary:
+      type: object
+      properties:
+        id:
+          type: string
+        nombre:
+          type: string
+        nombreEmpresa:
+          type: string
+        adminWhatsapp:
+          type: string
+        activo:
+          type: boolean
+        suscripcionVence:
+          type: string
+          nullable: true
+        creadoEn:
+          type: string
+          nullable: true
+        tieneSheets:
+          type: boolean
+        tieneCRM:
+          type: boolean
+        tieneGmail:
+          type: boolean
+        bot:
+          type: object
+          properties:
+            conectado:
+              type: boolean
+            estado:
+              type: string
+          required:
+            - conectado
+            - estado
+      required:
+        - id
+        - nombre
+        - nombreEmpresa
+        - adminWhatsapp
+        - activo
+        - tieneSheets
+        - tieneCRM
+        - tieneGmail
+        - bot
+
+    AdminTenantsResponse:
+      type: object
+      properties:
+        ok:
+          type: boolean
+        tenants:
+          type: array
+          items:
+            $ref: "#/components/schemas/TenantSummary"
+      required:
+        - ok
+        - tenants
+
+    CreateTenantRequest:
+      type: object
+      required: [id, nombre, nombreEmpresa, adminWhatsapp]
+      properties:
+        id:
+          type: string
+        nombre:
+          type: string
+        nombreEmpresa:
+          type: string
+        adminWhatsapp:
+          type: string
+        crmBaseUrl:
+          type: string
+        crmUsername:
+          type: string
+        crmPassword:
+          type: string
+        crmUsernamePrefix:
+          type: string
+        spreadsheetId:
+          type: string
+        googleServiceAccountJson:
+          type: string
+        gmailClientId:
+          type: string
+        gmailClientSecret:
+          type: string
+        gmailRefreshToken:
+          type: string
+        gmailRemitenteFiltro:
+          type: string
+        pushoverUserKey:
+          type: string
+        pushoverApiToken:
+          type: string
+        planesJson:
+          type: string
+        suscripcionVence:
+          type: string
+        activo:
+          type: boolean
+
+    UpdateTenantRequest:
+      type: object
+      properties:
+        nombre:
+          type: string
+        nombreEmpresa:
+          type: string
+        adminWhatsapp:
+          type: string
+        crmUsername:
+          type: string
+        crmPassword:
+          type: string
+        crmUsernamePrefix:
+          type: string
+        spreadsheetId:
+          type: string
+        googleServiceAccountJson:
+          type: string
+        gmailClientId:
+          type: string
+        gmailClientSecret:
+          type: string
+        gmailRefreshToken:
+          type: string
+        gmailRemitenteFiltro:
+          type: string
+        pushoverUserKey:
+          type: string
+        pushoverApiToken:
+          type: string
+        planesJson:
+          type: string
+        suscripcionVence:
+          type: string
+        activo:
+          type: boolean
+
+    Pago:
+      type: object
+      properties:
+        id:
+          type: number
+        tenantId:
+          type: string
+        fecha:
+          type: string
+        nombre:
+          type: string
+        monto:
+          type: number
+        telefono:
+          type: string
+          nullable: true
+        estado:
+          type: string
+        sincronizadoEn:
+          type: string
+      required:
+        - id
+        - tenantId
+        - fecha
+        - nombre
+        - monto
+        - estado
+
+    AdminPagosResponse:
+      type: object
+      properties:
+        ok:
+          type: boolean
+        pagos:
+          type: array
+          items:
+            $ref: "#/components/schemas/Pago"
+      required:
+        - ok
+        - pagos
+
+    Cuenta:
+      type: object
+      properties:
+        id:
+          type: number
+        tenantId:
+          type: string
+        telefono:
+          type: string
+        usuario:
+          type: string
+        plan:
+          type: string
+        fechaCreacion:
+          type: string
+          nullable: true
+        fechaExpiracion:
+          type: string
+          nullable: true
+        estado:
+          type: string
+        sincronizadoEn:
+          type: string
+      required:
+        - id
+        - tenantId
+        - telefono
+        - usuario
+        - plan
+        - estado
+
+    AdminCuentasResponse:
+      type: object
+      properties:
+        ok:
+          type: boolean
+        cuentas:
+          type: array
+          items:
+            $ref: "#/components/schemas/Cuenta"
+      required:
+        - ok
+        - cuentas

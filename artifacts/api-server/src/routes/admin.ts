@@ -26,6 +26,8 @@ router.get("/panel", (_req, res) => {
 });
 
 const ADMIN_TOKEN = process.env["ADMIN_TOKEN"] || "superadmin_token_seguro_2024";
+const ADMIN_USER = process.env["ADMIN_USER"] || "admin";
+const ADMIN_PASSWORD = process.env["ADMIN_PASSWORD"] || "admin1234";
 
 function verificarAdmin(req: Request, res: Response): boolean {
   const token = req.headers["x-admin-token"] || req.query["token"] || req.body?.token;
@@ -35,6 +37,16 @@ function verificarAdmin(req: Request, res: Response): boolean {
   }
   return true;
 }
+
+// ── Login con usuario y contraseña ──────────────────────────────────────────
+router.post("/admin/login", (req, res) => {
+  const { usuario, password } = req.body || {};
+  if (usuario === ADMIN_USER && password === ADMIN_PASSWORD) {
+    res.json({ ok: true, token: ADMIN_TOKEN, mensaje: "Login exitoso" });
+  } else {
+    res.status(401).json({ ok: false, mensaje: "Usuario o contraseña incorrectos" });
+  }
+});
 
 // ═══════════════════════════════════════════════════════════════════════
 // ESTADO GENERAL — todos los bots

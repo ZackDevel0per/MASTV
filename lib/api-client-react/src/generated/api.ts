@@ -5,18 +5,36 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import type {
+  MutationFunction,
   QueryFunction,
   QueryKey,
+  UseMutationOptions,
+  UseMutationResult,
   UseQueryOptions,
   UseQueryResult,
 } from "@tanstack/react-query";
 
-import type { HealthStatus } from "./api.schemas";
+import type {
+  AdminCuentasResponse,
+  AdminEstadoResponse,
+  AdminGetPairingCode200,
+  AdminGetPairingCodeBody,
+  AdminLoginRequest,
+  AdminLoginResponse,
+  AdminPagosResponse,
+  AdminSendMessageBody,
+  AdminTenantsResponse,
+  CreateTenantRequest,
+  ErrorResponse,
+  HealthStatus,
+  OkResponse,
+  UpdateTenantRequest,
+} from "./api.schemas";
 
 import { customFetch } from "../custom-fetch";
-import type { ErrorType } from "../custom-fetch";
+import type { ErrorType, BodyType } from "../custom-fetch";
 
 type AwaitedInput<T> = PromiseLike<T> | T;
 
@@ -92,6 +110,1262 @@ export function useHealthCheck<
   request?: SecondParameter<typeof customFetch>;
 }): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
   const queryOptions = getHealthCheckQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Admin login with username and password
+ */
+export const getAdminLoginUrl = () => {
+  return `/api/admin/login`;
+};
+
+export const adminLogin = async (
+  adminLoginRequest: AdminLoginRequest,
+  options?: RequestInit,
+): Promise<AdminLoginResponse> => {
+  return customFetch<AdminLoginResponse>(getAdminLoginUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(adminLoginRequest),
+  });
+};
+
+export const getAdminLoginMutationOptions = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof adminLogin>>,
+    TError,
+    { data: BodyType<AdminLoginRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof adminLogin>>,
+  TError,
+  { data: BodyType<AdminLoginRequest> },
+  TContext
+> => {
+  const mutationKey = ["adminLogin"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof adminLogin>>,
+    { data: BodyType<AdminLoginRequest> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return adminLogin(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type AdminLoginMutationResult = NonNullable<
+  Awaited<ReturnType<typeof adminLogin>>
+>;
+export type AdminLoginMutationBody = BodyType<AdminLoginRequest>;
+export type AdminLoginMutationError = ErrorType<ErrorResponse>;
+
+/**
+ * @summary Admin login with username and password
+ */
+export const useAdminLogin = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof adminLogin>>,
+    TError,
+    { data: BodyType<AdminLoginRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof adminLogin>>,
+  TError,
+  { data: BodyType<AdminLoginRequest> },
+  TContext
+> => {
+  return useMutation(getAdminLoginMutationOptions(options));
+};
+
+/**
+ * @summary Get all bots status
+ */
+export const getAdminGetEstadoUrl = () => {
+  return `/api/admin/estado`;
+};
+
+export const adminGetEstado = async (
+  options?: RequestInit,
+): Promise<AdminEstadoResponse> => {
+  return customFetch<AdminEstadoResponse>(getAdminGetEstadoUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getAdminGetEstadoQueryKey = () => {
+  return [`/api/admin/estado`] as const;
+};
+
+export const getAdminGetEstadoQueryOptions = <
+  TData = Awaited<ReturnType<typeof adminGetEstado>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof adminGetEstado>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getAdminGetEstadoQueryKey();
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof adminGetEstado>>> = ({
+    signal,
+  }) => adminGetEstado({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof adminGetEstado>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type AdminGetEstadoQueryResult = NonNullable<
+  Awaited<ReturnType<typeof adminGetEstado>>
+>;
+export type AdminGetEstadoQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Get all bots status
+ */
+
+export function useAdminGetEstado<
+  TData = Awaited<ReturnType<typeof adminGetEstado>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof adminGetEstado>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getAdminGetEstadoQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary List all tenants with bot status
+ */
+export const getAdminListTenantsUrl = () => {
+  return `/api/admin/tenants`;
+};
+
+export const adminListTenants = async (
+  options?: RequestInit,
+): Promise<AdminTenantsResponse> => {
+  return customFetch<AdminTenantsResponse>(getAdminListTenantsUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getAdminListTenantsQueryKey = () => {
+  return [`/api/admin/tenants`] as const;
+};
+
+export const getAdminListTenantsQueryOptions = <
+  TData = Awaited<ReturnType<typeof adminListTenants>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof adminListTenants>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getAdminListTenantsQueryKey();
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof adminListTenants>>
+  > = ({ signal }) => adminListTenants({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof adminListTenants>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type AdminListTenantsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof adminListTenants>>
+>;
+export type AdminListTenantsQueryError = ErrorType<unknown>;
+
+/**
+ * @summary List all tenants with bot status
+ */
+
+export function useAdminListTenants<
+  TData = Awaited<ReturnType<typeof adminListTenants>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof adminListTenants>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getAdminListTenantsQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Create a new tenant and start its bot
+ */
+export const getAdminCreateTenantUrl = () => {
+  return `/api/admin/tenants`;
+};
+
+export const adminCreateTenant = async (
+  createTenantRequest: CreateTenantRequest,
+  options?: RequestInit,
+): Promise<OkResponse> => {
+  return customFetch<OkResponse>(getAdminCreateTenantUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(createTenantRequest),
+  });
+};
+
+export const getAdminCreateTenantMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof adminCreateTenant>>,
+    TError,
+    { data: BodyType<CreateTenantRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof adminCreateTenant>>,
+  TError,
+  { data: BodyType<CreateTenantRequest> },
+  TContext
+> => {
+  const mutationKey = ["adminCreateTenant"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof adminCreateTenant>>,
+    { data: BodyType<CreateTenantRequest> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return adminCreateTenant(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type AdminCreateTenantMutationResult = NonNullable<
+  Awaited<ReturnType<typeof adminCreateTenant>>
+>;
+export type AdminCreateTenantMutationBody = BodyType<CreateTenantRequest>;
+export type AdminCreateTenantMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Create a new tenant and start its bot
+ */
+export const useAdminCreateTenant = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof adminCreateTenant>>,
+    TError,
+    { data: BodyType<CreateTenantRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof adminCreateTenant>>,
+  TError,
+  { data: BodyType<CreateTenantRequest> },
+  TContext
+> => {
+  return useMutation(getAdminCreateTenantMutationOptions(options));
+};
+
+/**
+ * @summary Update a tenant and restart its bot
+ */
+export const getAdminUpdateTenantUrl = (id: string) => {
+  return `/api/admin/tenants/${id}`;
+};
+
+export const adminUpdateTenant = async (
+  id: string,
+  updateTenantRequest: UpdateTenantRequest,
+  options?: RequestInit,
+): Promise<OkResponse> => {
+  return customFetch<OkResponse>(getAdminUpdateTenantUrl(id), {
+    ...options,
+    method: "PUT",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(updateTenantRequest),
+  });
+};
+
+export const getAdminUpdateTenantMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof adminUpdateTenant>>,
+    TError,
+    { id: string; data: BodyType<UpdateTenantRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof adminUpdateTenant>>,
+  TError,
+  { id: string; data: BodyType<UpdateTenantRequest> },
+  TContext
+> => {
+  const mutationKey = ["adminUpdateTenant"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof adminUpdateTenant>>,
+    { id: string; data: BodyType<UpdateTenantRequest> }
+  > = (props) => {
+    const { id, data } = props ?? {};
+
+    return adminUpdateTenant(id, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type AdminUpdateTenantMutationResult = NonNullable<
+  Awaited<ReturnType<typeof adminUpdateTenant>>
+>;
+export type AdminUpdateTenantMutationBody = BodyType<UpdateTenantRequest>;
+export type AdminUpdateTenantMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Update a tenant and restart its bot
+ */
+export const useAdminUpdateTenant = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof adminUpdateTenant>>,
+    TError,
+    { id: string; data: BodyType<UpdateTenantRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof adminUpdateTenant>>,
+  TError,
+  { id: string; data: BodyType<UpdateTenantRequest> },
+  TContext
+> => {
+  return useMutation(getAdminUpdateTenantMutationOptions(options));
+};
+
+/**
+ * @summary Suspend a tenant and stop its bot
+ */
+export const getAdminSuspendTenantUrl = (id: string) => {
+  return `/api/admin/tenants/${id}/suspender`;
+};
+
+export const adminSuspendTenant = async (
+  id: string,
+  options?: RequestInit,
+): Promise<OkResponse> => {
+  return customFetch<OkResponse>(getAdminSuspendTenantUrl(id), {
+    ...options,
+    method: "POST",
+  });
+};
+
+export const getAdminSuspendTenantMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof adminSuspendTenant>>,
+    TError,
+    { id: string },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof adminSuspendTenant>>,
+  TError,
+  { id: string },
+  TContext
+> => {
+  const mutationKey = ["adminSuspendTenant"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof adminSuspendTenant>>,
+    { id: string }
+  > = (props) => {
+    const { id } = props ?? {};
+
+    return adminSuspendTenant(id, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type AdminSuspendTenantMutationResult = NonNullable<
+  Awaited<ReturnType<typeof adminSuspendTenant>>
+>;
+
+export type AdminSuspendTenantMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Suspend a tenant and stop its bot
+ */
+export const useAdminSuspendTenant = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof adminSuspendTenant>>,
+    TError,
+    { id: string },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof adminSuspendTenant>>,
+  TError,
+  { id: string },
+  TContext
+> => {
+  return useMutation(getAdminSuspendTenantMutationOptions(options));
+};
+
+/**
+ * @summary Activate a tenant and start its bot
+ */
+export const getAdminActivateTenantUrl = (id: string) => {
+  return `/api/admin/tenants/${id}/activar`;
+};
+
+export const adminActivateTenant = async (
+  id: string,
+  options?: RequestInit,
+): Promise<OkResponse> => {
+  return customFetch<OkResponse>(getAdminActivateTenantUrl(id), {
+    ...options,
+    method: "POST",
+  });
+};
+
+export const getAdminActivateTenantMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof adminActivateTenant>>,
+    TError,
+    { id: string },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof adminActivateTenant>>,
+  TError,
+  { id: string },
+  TContext
+> => {
+  const mutationKey = ["adminActivateTenant"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof adminActivateTenant>>,
+    { id: string }
+  > = (props) => {
+    const { id } = props ?? {};
+
+    return adminActivateTenant(id, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type AdminActivateTenantMutationResult = NonNullable<
+  Awaited<ReturnType<typeof adminActivateTenant>>
+>;
+
+export type AdminActivateTenantMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Activate a tenant and start its bot
+ */
+export const useAdminActivateTenant = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof adminActivateTenant>>,
+    TError,
+    { id: string },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof adminActivateTenant>>,
+  TError,
+  { id: string },
+  TContext
+> => {
+  return useMutation(getAdminActivateTenantMutationOptions(options));
+};
+
+/**
+ * @summary Restart a tenant bot
+ */
+export const getAdminRestartBotUrl = (id: string) => {
+  return `/api/admin/tenants/${id}/bot/reiniciar`;
+};
+
+export const adminRestartBot = async (
+  id: string,
+  options?: RequestInit,
+): Promise<OkResponse> => {
+  return customFetch<OkResponse>(getAdminRestartBotUrl(id), {
+    ...options,
+    method: "POST",
+  });
+};
+
+export const getAdminRestartBotMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof adminRestartBot>>,
+    TError,
+    { id: string },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof adminRestartBot>>,
+  TError,
+  { id: string },
+  TContext
+> => {
+  const mutationKey = ["adminRestartBot"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof adminRestartBot>>,
+    { id: string }
+  > = (props) => {
+    const { id } = props ?? {};
+
+    return adminRestartBot(id, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type AdminRestartBotMutationResult = NonNullable<
+  Awaited<ReturnType<typeof adminRestartBot>>
+>;
+
+export type AdminRestartBotMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Restart a tenant bot
+ */
+export const useAdminRestartBot = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof adminRestartBot>>,
+    TError,
+    { id: string },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof adminRestartBot>>,
+  TError,
+  { id: string },
+  TContext
+> => {
+  return useMutation(getAdminRestartBotMutationOptions(options));
+};
+
+/**
+ * @summary Get WhatsApp pairing code for a tenant bot
+ */
+export const getAdminGetPairingCodeUrl = (id: string) => {
+  return `/api/admin/tenants/${id}/bot/codigo-pareo`;
+};
+
+export const adminGetPairingCode = async (
+  id: string,
+  adminGetPairingCodeBody: AdminGetPairingCodeBody,
+  options?: RequestInit,
+): Promise<AdminGetPairingCode200> => {
+  return customFetch<AdminGetPairingCode200>(getAdminGetPairingCodeUrl(id), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(adminGetPairingCodeBody),
+  });
+};
+
+export const getAdminGetPairingCodeMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof adminGetPairingCode>>,
+    TError,
+    { id: string; data: BodyType<AdminGetPairingCodeBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof adminGetPairingCode>>,
+  TError,
+  { id: string; data: BodyType<AdminGetPairingCodeBody> },
+  TContext
+> => {
+  const mutationKey = ["adminGetPairingCode"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof adminGetPairingCode>>,
+    { id: string; data: BodyType<AdminGetPairingCodeBody> }
+  > = (props) => {
+    const { id, data } = props ?? {};
+
+    return adminGetPairingCode(id, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type AdminGetPairingCodeMutationResult = NonNullable<
+  Awaited<ReturnType<typeof adminGetPairingCode>>
+>;
+export type AdminGetPairingCodeMutationBody = BodyType<AdminGetPairingCodeBody>;
+export type AdminGetPairingCodeMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Get WhatsApp pairing code for a tenant bot
+ */
+export const useAdminGetPairingCode = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof adminGetPairingCode>>,
+    TError,
+    { id: string; data: BodyType<AdminGetPairingCodeBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof adminGetPairingCode>>,
+  TError,
+  { id: string; data: BodyType<AdminGetPairingCodeBody> },
+  TContext
+> => {
+  return useMutation(getAdminGetPairingCodeMutationOptions(options));
+};
+
+/**
+ * @summary Delete WhatsApp session for a tenant
+ */
+export const getAdminDeleteSessionUrl = (id: string) => {
+  return `/api/admin/tenants/${id}/bot/sesion/borrar`;
+};
+
+export const adminDeleteSession = async (
+  id: string,
+  options?: RequestInit,
+): Promise<OkResponse> => {
+  return customFetch<OkResponse>(getAdminDeleteSessionUrl(id), {
+    ...options,
+    method: "POST",
+  });
+};
+
+export const getAdminDeleteSessionMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof adminDeleteSession>>,
+    TError,
+    { id: string },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof adminDeleteSession>>,
+  TError,
+  { id: string },
+  TContext
+> => {
+  const mutationKey = ["adminDeleteSession"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof adminDeleteSession>>,
+    { id: string }
+  > = (props) => {
+    const { id } = props ?? {};
+
+    return adminDeleteSession(id, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type AdminDeleteSessionMutationResult = NonNullable<
+  Awaited<ReturnType<typeof adminDeleteSession>>
+>;
+
+export type AdminDeleteSessionMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Delete WhatsApp session for a tenant
+ */
+export const useAdminDeleteSession = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof adminDeleteSession>>,
+    TError,
+    { id: string },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof adminDeleteSession>>,
+  TError,
+  { id: string },
+  TContext
+> => {
+  return useMutation(getAdminDeleteSessionMutationOptions(options));
+};
+
+/**
+ * @summary Send WhatsApp message from a tenant bot
+ */
+export const getAdminSendMessageUrl = (id: string) => {
+  return `/api/admin/tenants/${id}/mensaje`;
+};
+
+export const adminSendMessage = async (
+  id: string,
+  adminSendMessageBody: AdminSendMessageBody,
+  options?: RequestInit,
+): Promise<OkResponse> => {
+  return customFetch<OkResponse>(getAdminSendMessageUrl(id), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(adminSendMessageBody),
+  });
+};
+
+export const getAdminSendMessageMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof adminSendMessage>>,
+    TError,
+    { id: string; data: BodyType<AdminSendMessageBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof adminSendMessage>>,
+  TError,
+  { id: string; data: BodyType<AdminSendMessageBody> },
+  TContext
+> => {
+  const mutationKey = ["adminSendMessage"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof adminSendMessage>>,
+    { id: string; data: BodyType<AdminSendMessageBody> }
+  > = (props) => {
+    const { id, data } = props ?? {};
+
+    return adminSendMessage(id, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type AdminSendMessageMutationResult = NonNullable<
+  Awaited<ReturnType<typeof adminSendMessage>>
+>;
+export type AdminSendMessageMutationBody = BodyType<AdminSendMessageBody>;
+export type AdminSendMessageMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Send WhatsApp message from a tenant bot
+ */
+export const useAdminSendMessage = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof adminSendMessage>>,
+    TError,
+    { id: string; data: BodyType<AdminSendMessageBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof adminSendMessage>>,
+  TError,
+  { id: string; data: BodyType<AdminSendMessageBody> },
+  TContext
+> => {
+  return useMutation(getAdminSendMessageMutationOptions(options));
+};
+
+/**
+ * @summary Get all payments from all tenants
+ */
+export const getAdminGetPagosUrl = () => {
+  return `/api/admin/pagos`;
+};
+
+export const adminGetPagos = async (
+  options?: RequestInit,
+): Promise<AdminPagosResponse> => {
+  return customFetch<AdminPagosResponse>(getAdminGetPagosUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getAdminGetPagosQueryKey = () => {
+  return [`/api/admin/pagos`] as const;
+};
+
+export const getAdminGetPagosQueryOptions = <
+  TData = Awaited<ReturnType<typeof adminGetPagos>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof adminGetPagos>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getAdminGetPagosQueryKey();
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof adminGetPagos>>> = ({
+    signal,
+  }) => adminGetPagos({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof adminGetPagos>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type AdminGetPagosQueryResult = NonNullable<
+  Awaited<ReturnType<typeof adminGetPagos>>
+>;
+export type AdminGetPagosQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Get all payments from all tenants
+ */
+
+export function useAdminGetPagos<
+  TData = Awaited<ReturnType<typeof adminGetPagos>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof adminGetPagos>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getAdminGetPagosQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Get payments for a specific tenant
+ */
+export const getAdminGetPagosByTenantUrl = (tenantId: string) => {
+  return `/api/admin/pagos/${tenantId}`;
+};
+
+export const adminGetPagosByTenant = async (
+  tenantId: string,
+  options?: RequestInit,
+): Promise<AdminPagosResponse> => {
+  return customFetch<AdminPagosResponse>(
+    getAdminGetPagosByTenantUrl(tenantId),
+    {
+      ...options,
+      method: "GET",
+    },
+  );
+};
+
+export const getAdminGetPagosByTenantQueryKey = (tenantId: string) => {
+  return [`/api/admin/pagos/${tenantId}`] as const;
+};
+
+export const getAdminGetPagosByTenantQueryOptions = <
+  TData = Awaited<ReturnType<typeof adminGetPagosByTenant>>,
+  TError = ErrorType<unknown>,
+>(
+  tenantId: string,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof adminGetPagosByTenant>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getAdminGetPagosByTenantQueryKey(tenantId);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof adminGetPagosByTenant>>
+  > = ({ signal }) =>
+    adminGetPagosByTenant(tenantId, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!tenantId,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof adminGetPagosByTenant>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type AdminGetPagosByTenantQueryResult = NonNullable<
+  Awaited<ReturnType<typeof adminGetPagosByTenant>>
+>;
+export type AdminGetPagosByTenantQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Get payments for a specific tenant
+ */
+
+export function useAdminGetPagosByTenant<
+  TData = Awaited<ReturnType<typeof adminGetPagosByTenant>>,
+  TError = ErrorType<unknown>,
+>(
+  tenantId: string,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof adminGetPagosByTenant>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getAdminGetPagosByTenantQueryOptions(tenantId, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Get all IPTV accounts from all tenants
+ */
+export const getAdminGetCuentasUrl = () => {
+  return `/api/admin/cuentas`;
+};
+
+export const adminGetCuentas = async (
+  options?: RequestInit,
+): Promise<AdminCuentasResponse> => {
+  return customFetch<AdminCuentasResponse>(getAdminGetCuentasUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getAdminGetCuentasQueryKey = () => {
+  return [`/api/admin/cuentas`] as const;
+};
+
+export const getAdminGetCuentasQueryOptions = <
+  TData = Awaited<ReturnType<typeof adminGetCuentas>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof adminGetCuentas>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getAdminGetCuentasQueryKey();
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof adminGetCuentas>>> = ({
+    signal,
+  }) => adminGetCuentas({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof adminGetCuentas>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type AdminGetCuentasQueryResult = NonNullable<
+  Awaited<ReturnType<typeof adminGetCuentas>>
+>;
+export type AdminGetCuentasQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Get all IPTV accounts from all tenants
+ */
+
+export function useAdminGetCuentas<
+  TData = Awaited<ReturnType<typeof adminGetCuentas>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof adminGetCuentas>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getAdminGetCuentasQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Get IPTV accounts for a specific tenant
+ */
+export const getAdminGetCuentasByTenantUrl = (tenantId: string) => {
+  return `/api/admin/cuentas/${tenantId}`;
+};
+
+export const adminGetCuentasByTenant = async (
+  tenantId: string,
+  options?: RequestInit,
+): Promise<AdminCuentasResponse> => {
+  return customFetch<AdminCuentasResponse>(
+    getAdminGetCuentasByTenantUrl(tenantId),
+    {
+      ...options,
+      method: "GET",
+    },
+  );
+};
+
+export const getAdminGetCuentasByTenantQueryKey = (tenantId: string) => {
+  return [`/api/admin/cuentas/${tenantId}`] as const;
+};
+
+export const getAdminGetCuentasByTenantQueryOptions = <
+  TData = Awaited<ReturnType<typeof adminGetCuentasByTenant>>,
+  TError = ErrorType<unknown>,
+>(
+  tenantId: string,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof adminGetCuentasByTenant>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getAdminGetCuentasByTenantQueryKey(tenantId);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof adminGetCuentasByTenant>>
+  > = ({ signal }) =>
+    adminGetCuentasByTenant(tenantId, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!tenantId,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof adminGetCuentasByTenant>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type AdminGetCuentasByTenantQueryResult = NonNullable<
+  Awaited<ReturnType<typeof adminGetCuentasByTenant>>
+>;
+export type AdminGetCuentasByTenantQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Get IPTV accounts for a specific tenant
+ */
+
+export function useAdminGetCuentasByTenant<
+  TData = Awaited<ReturnType<typeof adminGetCuentasByTenant>>,
+  TError = ErrorType<unknown>,
+>(
+  tenantId: string,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof adminGetCuentasByTenant>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getAdminGetCuentasByTenantQueryOptions(
+    tenantId,
+    options,
+  );
 
   const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
     queryKey: QueryKey;

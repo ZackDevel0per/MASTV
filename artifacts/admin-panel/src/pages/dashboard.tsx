@@ -1,0 +1,326 @@
+import { useState } from "react";
+import { 
+  useTenants, 
+  useSuspendTenant, 
+  useActivateTenant, 
+  useRestartBot, 
+  useDeleteSession, 
+  useGetPairingCode,
+  useSendMessage,
+  useUpdateTenant
+} from "@/hooks/use-api";
+import { Modal } from "@/components/modal";
+import { format } from "date-fns";
+import { 
+  Edit2, RefreshCw, MessageSquare, Power, 
+  QrCode, Trash2, Activity, PlayCircle, StopCircle, CheckCircle2, ShieldAlert
+} from "lucide-react";
+import { cn } from "@/lib/utils";
+
+// Make sure to unwrap the Orval type safely
+type Tenant = any; // Fallback since exact schema extraction might have deep utility type issues
+
+export function Dashboard() {
+  const { data, isLoading, refetch } = useTenants();
+  
+  const [selectedTenant, setSelectedTenant] = useState<Tenant | null>(null);
+  const [modalType, setModalType] = useState<"edit" | "msg" | "pair" | null>(null);
+
+  const suspendMut = useSuspendTenant();
+  const activateMut = useActivateTenant();
+  const restartMut = useRestartBot();
+  const deleteSessionMut = useDeleteSession();
+
+  if (isLoading) {
+    return <div className="flex h-64 items-center justify-center"><Activity className="animate-pulse text-primary" size={48} /></div>;
+  }
+
+  const tenants = data?.tenants || [];
+  const stats = {
+    total: tenants.length,
+    activos: tenants.filter((t: any) => t.activo).length,
+    conectados: tenants.filter((t: any) => t.bot.conectado).length,
+  };
+
+  const handleAction = async (action: 'suspend' | 'activate' | 'restart' | 'delete', id: string) => {
+    if (!confirm(`¿Seguro que deseas ${action} este tenant?`)) return;
+    
+    try {
+      if (action === 'suspend') await suspendMut.mutateAsync({ id });
+      if (action === 'activate') await activateMut.mutateAsync({ id });
+      if (action === 'restart') await restartMut.mutateAsync({ id });
+      if (action === 'delete') await deleteSessionMut.mutateAsync({ id });
+      refetch();
+    } catch (e) {
+      alert("Error en la operación");
+    }
+  };
+
+  return (
+    <div className="space-y-8 animate-in fade-in duration-500">
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-display font-bold text-white">Tenants</h1>
+          <p className="text-muted-foreground mt-1">Gestión general y estado de bots en tiempo real</p>
+        </div>
+        <button onClick={() => refetch()} className="btn-secondary">
+          <RefreshCw size={18} /> Actualizar
+        </button>
+      </div>
+
+      {/* Stats */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <StatCard title="Tenants Totales" value={stats.total} icon={Activity} />
+        <StatCard title="Bots Activos" value={stats.activos} icon={CheckCircle2} color="text-emerald-400" />
+        <StatCard title="Conectados (WhatsApp)" value={stats.conectados} icon={MessageSquare} color="text-primary" />
+      </div>
+
+      {/* Table */}
+      <div className="glass-panel rounded-2xl overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm text-left">
+            <thead className="bg-white/5 border-b border-white/10 text-muted-foreground">
+              <tr>
+                <th className="px-6 py-4 font-semibold uppercase tracking-wider text-xs">ID / Empresa</th>
+                <th className="px-6 py-4 font-semibold uppercase tracking-wider text-xs">Admin WA</th>
+                <th className="px-6 py-4 font-semibold uppercase tracking-wider text-xs">Integraciones</th>
+                <th className="px-6 py-4 font-semibold uppercase tracking-wider text-xs">Estado Bot</th>
+                <th className="px-6 py-4 font-semibold uppercase tracking-wider text-xs">Suscripción</th>
+                <th className="px-6 py-4 font-semibold uppercase tracking-wider text-xs text-right">Acciones</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-white/5">
+              {tenants.map((t: any) => (
+                <tr key={t.id} className="hover:bg-white/[0.02] transition-colors">
+                  <td className="px-6 py-4">
+                    <div className="font-bold text-white">{t.nombreEmpresa}</div>
+                    <code className="text-xs text-primary bg-primary/10 px-2 py-0.5 rounded mt-1 inline-block">{t.id}</code>
+                  </td>
+                  <td className="px-6 py-4 text-muted-foreground font-mono">{t.adminWhatsapp}</td>
+                  <td className="px-6 py-4">
+                    <div className="flex flex-wrap gap-2">
+                      {t.tieneSheets && <Badge>Sheets</Badge>}
+                      {t.tieneCRM && <Badge>CRM</Badge>}
+                      {t.tieneGmail && <Badge>Gmail</Badge>}
+                      {!t.tieneSheets && !t.tieneCRM && <span className="text-muted-foreground/50 text-xs">Sin config</span>}
+                    </div>
+                  </td>
+                  <td className="px-6 py-4">
+                    <div className="flex items-center gap-2">
+                      <div className={cn(
+                        "w-2.5 h-2.5 rounded-full shadow-lg",
+                        t.bot.conectado ? "bg-emerald-500 shadow-emerald-500/50" :
+                        t.bot.estado === "desconectado" ? "bg-rose-500 shadow-rose-500/50" :
+                        "bg-amber-500 shadow-amber-500/50 animate-pulse"
+                      )} />
+                      <span className="capitalize font-medium text-muted-foreground">
+                        {t.bot.estado.replace('_', ' ')}
+                      </span>
+                    </div>
+                  </td>
+                  <td className="px-6 py-4">
+                    {t.activo ? (
+                      <span className="text-emerald-400 font-medium">Activo</span>
+                    ) : (
+                      <span className="text-rose-400 font-medium">Suspendido</span>
+                    )}
+                    <div className="text-xs text-muted-foreground mt-1">
+                      {t.suscripcionVence ? format(new Date(t.suscripcionVence), "dd/MM/yyyy") : "Sin límite"}
+                    </div>
+                  </td>
+                  <td className="px-6 py-4 text-right">
+                    <div className="flex items-center justify-end gap-2">
+                      <ActionBtn icon={Edit2} title="Editar" onClick={() => { setSelectedTenant(t); setModalType("edit"); }} />
+                      <ActionBtn icon={QrCode} title="Parear WA" onClick={() => { setSelectedTenant(t); setModalType("pair"); }} />
+                      <ActionBtn icon={MessageSquare} title="Enviar MSJ" onClick={() => { setSelectedTenant(t); setModalType("msg"); }} />
+                      <ActionBtn icon={RefreshCw} title="Reiniciar Bot" onClick={() => handleAction('restart', t.id)} />
+                      <ActionBtn icon={Trash2} title="Borrar Sesión" onClick={() => handleAction('delete', t.id)} className="hover:text-rose-400" />
+                      <div className="w-px h-6 bg-white/10 mx-1" />
+                      {t.activo ? (
+                        <ActionBtn icon={StopCircle} title="Suspender" onClick={() => handleAction('suspend', t.id)} className="text-rose-400 hover:bg-rose-500/20" />
+                      ) : (
+                        <ActionBtn icon={PlayCircle} title="Activar" onClick={() => handleAction('activate', t.id)} className="text-emerald-400 hover:bg-emerald-500/20" />
+                      )}
+                    </div>
+                  </td>
+                </tr>
+              ))}
+              {tenants.length === 0 && (
+                <tr>
+                  <td colSpan={6} className="px-6 py-12 text-center text-muted-foreground">
+                    <ShieldAlert className="mx-auto mb-3 opacity-50" size={32} />
+                    No hay tenants registrados. Crea uno nuevo.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* Modals */}
+      <PairingModal isOpen={modalType === 'pair'} onClose={() => setModalType(null)} tenant={selectedTenant} />
+      <MessageModal isOpen={modalType === 'msg'} onClose={() => setModalType(null)} tenant={selectedTenant} />
+      <EditTenantModal 
+        isOpen={modalType === 'edit'} 
+        onClose={() => { setModalType(null); refetch(); }} 
+        tenant={selectedTenant} 
+      />
+    </div>
+  );
+}
+
+// --- Helper Components ---
+
+function StatCard({ title, value, icon: Icon, color = "text-white" }: any) {
+  return (
+    <div className="glass-panel p-6 rounded-2xl flex items-center justify-between relative overflow-hidden group">
+      <div className="absolute inset-0 bg-gradient-to-br from-white/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+      <div>
+        <p className="text-muted-foreground text-sm font-medium mb-1">{title}</p>
+        <p className={cn("text-4xl font-display font-bold", color)}>{value}</p>
+      </div>
+      <div className="bg-white/5 p-4 rounded-xl">
+        <Icon size={28} className="text-muted-foreground" />
+      </div>
+    </div>
+  );
+}
+
+function Badge({ children }: { children: React.ReactNode }) {
+  return (
+    <span className="px-2.5 py-1 rounded-md text-[10px] font-bold bg-white/10 text-white/90 border border-white/10">
+      {children}
+    </span>
+  );
+}
+
+function ActionBtn({ icon: Icon, title, onClick, className }: any) {
+  return (
+    <button 
+      onClick={onClick}
+      title={title}
+      className={cn("p-2 rounded-lg text-muted-foreground hover:text-white hover:bg-white/10 transition-colors", className)}
+    >
+      <Icon size={16} />
+    </button>
+  );
+}
+
+// --- Specific Modals ---
+
+function PairingModal({ isOpen, onClose, tenant }: any) {
+  const mut = useGetPairingCode();
+  const [code, setCode] = useState("");
+
+  const handleSubmit = async (e: any) => {
+    e.preventDefault();
+    const tel = new FormData(e.currentTarget).get("telefono") as string;
+    const res = await mut.mutateAsync({ id: tenant.id, data: { telefono: tel } });
+    if (res.codigo) setCode(res.codigo);
+  };
+
+  return (
+    <Modal isOpen={isOpen} onClose={() => { onClose(); setCode(""); }} title={`Vincular WhatsApp: ${tenant?.nombre}`}>
+      {!code ? (
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <p className="text-muted-foreground text-sm mb-4">Ingresa el número de WhatsApp que actuará como bot (ej. 59160000000).</p>
+          <input name="telefono" required placeholder="591..." className="input-base" />
+          <button disabled={mut.isPending} className="btn-primary w-full">Obtener Código</button>
+        </form>
+      ) : (
+        <div className="text-center py-6 space-y-4">
+          <p className="text-muted-foreground">Código de vinculación generado:</p>
+          <div className="text-4xl tracking-[0.2em] font-mono font-bold text-primary bg-primary/10 py-4 rounded-xl border border-primary/20">
+            {code}
+          </div>
+          <p className="text-xs text-muted-foreground mt-4">Ve a WhatsApp &gt; Dispositivos vinculados &gt; Vincular con número, e ingresa este código.</p>
+        </div>
+      )}
+    </Modal>
+  );
+}
+
+function MessageModal({ isOpen, onClose, tenant }: any) {
+  const mut = useSendMessage();
+
+  const handleSubmit = async (e: any) => {
+    e.preventDefault();
+    const data = Object.fromEntries(new FormData(e.currentTarget));
+    await mut.mutateAsync({ id: tenant.id, data: data as any });
+    alert("Mensaje enviado");
+    onClose();
+  };
+
+  return (
+    <Modal isOpen={isOpen} onClose={onClose} title={`Enviar Mensaje - ${tenant?.nombre}`}>
+      <form onSubmit={handleSubmit} className="space-y-4">
+        <div>
+          <label className="label-base">Teléfono Destino</label>
+          <input name="telefono" required placeholder="591..." className="input-base" />
+        </div>
+        <div>
+          <label className="label-base">Mensaje</label>
+          <textarea name="mensaje" required rows={4} className="input-base resize-none" placeholder="Hola, este es un mensaje de prueba..."></textarea>
+        </div>
+        <div className="flex justify-end pt-2">
+          <button disabled={mut.isPending} className="btn-primary">Enviar por WA</button>
+        </div>
+      </form>
+    </Modal>
+  );
+}
+
+function EditTenantModal({ isOpen, onClose, tenant }: any) {
+  const mut = useUpdateTenant();
+
+  const handleSubmit = async (e: any) => {
+    e.preventDefault();
+    const fd = new FormData(e.currentTarget);
+    const data = Object.fromEntries(fd);
+    if (!data.suscripcionVence) delete data.suscripcionVence;
+    
+    await mut.mutateAsync({ id: tenant.id, data: data as any });
+    onClose();
+  };
+
+  if (!tenant) return null;
+
+  return (
+    <Modal isOpen={isOpen} onClose={onClose} title={`Editar Configuración`}>
+      <form onSubmit={handleSubmit} className="space-y-4 grid grid-cols-1 sm:grid-cols-2 gap-4">
+        {/* Fields pre-filled */}
+        <div className="col-span-2 sm:col-span-1 mt-4">
+          <label className="label-base">Nombre Corto</label>
+          <input name="nombre" defaultValue={tenant.nombre} className="input-base" />
+        </div>
+        <div className="col-span-2 sm:col-span-1">
+          <label className="label-base">Nombre Empresa</label>
+          <input name="nombreEmpresa" defaultValue={tenant.nombreEmpresa} className="input-base" />
+        </div>
+        <div className="col-span-2">
+          <label className="label-base">Admin WhatsApp</label>
+          <input name="adminWhatsapp" defaultValue={tenant.adminWhatsapp} className="input-base" />
+        </div>
+        
+        <div className="col-span-2 pt-4 border-t border-white/10">
+          <h3 className="text-sm font-bold text-primary mb-3 uppercase tracking-wider">CRM Mastv</h3>
+        </div>
+        <div><label className="label-base">Username</label><input name="crmUsername" defaultValue={tenant.crmUsername} className="input-base" /></div>
+        <div><label className="label-base">Password</label><input name="crmPassword" type="password" placeholder="Dejar vacío para no cambiar" className="input-base" /></div>
+        <div><label className="label-base">Prefijo</label><input name="crmUsernamePrefix" defaultValue={tenant.crmUsernamePrefix} className="input-base" /></div>
+        
+        <div className="col-span-2 pt-4 border-t border-white/10">
+          <h3 className="text-sm font-bold text-primary mb-3 uppercase tracking-wider">Google</h3>
+        </div>
+        <div className="col-span-2"><label className="label-base">Spreadsheet ID</label><input name="spreadsheetId" defaultValue={tenant.spreadsheetId} className="input-base" /></div>
+        <div className="col-span-2"><label className="label-base">Service Account JSON</label><textarea name="googleServiceAccountJson" defaultValue={tenant.googleServiceAccountJson} rows={3} className="input-base font-mono text-xs"></textarea></div>
+
+        <div className="col-span-2 pt-4 border-t border-white/10 flex justify-end gap-3">
+          <button type="button" onClick={onClose} className="btn-secondary">Cancelar</button>
+          <button type="submit" disabled={mut.isPending} className="btn-primary">Guardar Cambios</button>
+        </div>
+      </form>
+    </Modal>
+  );
+}

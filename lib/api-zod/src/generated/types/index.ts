@@ -6,4 +6,22 @@
  * OpenAPI spec version: 0.1.0
  */
 
+export * from "./adminCuentasResponse";
+export * from "./adminEstadoResponse";
+export * from "./adminGetPairingCode200";
+export * from "./adminGetPairingCodeBody";
+export * from "./adminLoginRequest";
+export * from "./adminLoginResponse";
+export * from "./adminPagosResponse";
+export * from "./adminSendMessageBody";
+export * from "./adminTenantsResponse";
+export * from "./botStatus";
+export * from "./createTenantRequest";
+export * from "./cuenta";
+export * from "./errorResponse";
 export * from "./healthStatus";
+export * from "./okResponse";
+export * from "./pago";
+export * from "./tenantSummary";
+export * from "./tenantSummaryBot";
+export * from "./updateTenantRequest";

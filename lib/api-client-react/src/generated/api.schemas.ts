@@ -8,3 +8,148 @@
 export interface HealthStatus {
   status: string;
 }
+
+export interface OkResponse {
+  ok: boolean;
+  mensaje?: string;
+}
+
+export interface ErrorResponse {
+  ok: boolean;
+  mensaje: string;
+}
+
+export interface AdminLoginRequest {
+  usuario: string;
+  password: string;
+}
+
+export interface AdminLoginResponse {
+  ok: boolean;
+  token?: string;
+  mensaje?: string;
+}
+
+export interface BotStatus {
+  tenantId: string;
+  conectado: boolean;
+  estado: string;
+}
+
+export interface AdminEstadoResponse {
+  ok: boolean;
+  bots: BotStatus[];
+}
+
+export type TenantSummaryBot = {
+  conectado: boolean;
+  estado: string;
+};
+
+export interface TenantSummary {
+  id: string;
+  nombre: string;
+  nombreEmpresa: string;
+  adminWhatsapp: string;
+  activo: boolean;
+  suscripcionVence?: string | null;
+  creadoEn?: string | null;
+  tieneSheets: boolean;
+  tieneCRM: boolean;
+  tieneGmail: boolean;
+  bot: TenantSummaryBot;
+}
+
+export interface AdminTenantsResponse {
+  ok: boolean;
+  tenants: TenantSummary[];
+}
+
+export interface CreateTenantRequest {
+  id: string;
+  nombre: string;
+  nombreEmpresa: string;
+  adminWhatsapp: string;
+  crmBaseUrl?: string;
+  crmUsername?: string;
+  crmPassword?: string;
+  crmUsernamePrefix?: string;
+  spreadsheetId?: string;
+  googleServiceAccountJson?: string;
+  gmailClientId?: string;
+  gmailClientSecret?: string;
+  gmailRefreshToken?: string;
+  gmailRemitenteFiltro?: string;
+  pushoverUserKey?: string;
+  pushoverApiToken?: string;
+  planesJson?: string;
+  suscripcionVence?: string;
+  activo?: boolean;
+}
+
+export interface UpdateTenantRequest {
+  nombre?: string;
+  nombreEmpresa?: string;
+  adminWhatsapp?: string;
+  crmUsername?: string;
+  crmPassword?: string;
+  crmUsernamePrefix?: string;
+  spreadsheetId?: string;
+  googleServiceAccountJson?: string;
+  gmailClientId?: string;
+  gmailClientSecret?: string;
+  gmailRefreshToken?: string;
+  gmailRemitenteFiltro?: string;
+  pushoverUserKey?: string;
+  pushoverApiToken?: string;
+  planesJson?: string;
+  suscripcionVence?: string;
+  activo?: boolean;
+}
+
+export interface Pago {
+  id: number;
+  tenantId: string;
+  fecha: string;
+  nombre: string;
+  monto: number;
+  telefono?: string | null;
+  estado: string;
+  sincronizadoEn?: string;
+}
+
+export interface AdminPagosResponse {
+  ok: boolean;
+  pagos: Pago[];
+}
+
+export interface Cuenta {
+  id: number;
+  tenantId: string;
+  telefono: string;
+  usuario: string;
+  plan: string;
+  fechaCreacion?: string | null;
+  fechaExpiracion?: string | null;
+  estado: string;
+  sincronizadoEn?: string;
+}
+
+export interface AdminCuentasResponse {
+  ok: boolean;
+  cuentas: Cuenta[];
+}
+
+export type AdminGetPairingCodeBody = {
+  telefono: string;
+};
+
+export type AdminGetPairingCode200 = {
+  ok?: boolean;
+  codigo?: string;
+};
+
+export type AdminSendMessageBody = {
+  telefono: string;
+  mensaje: string;
+};

@@ -14,3 +14,285 @@ import * as zod from "zod";
 export const HealthCheckResponse = zod.object({
   status: zod.string(),
 });
+
+/**
+ * @summary Admin login with username and password
+ */
+export const AdminLoginBody = zod.object({
+  usuario: zod.string(),
+  password: zod.string(),
+});
+
+export const AdminLoginResponse = zod.object({
+  ok: zod.boolean(),
+  token: zod.string().optional(),
+  mensaje: zod.string().optional(),
+});
+
+/**
+ * @summary Get all bots status
+ */
+export const AdminGetEstadoResponse = zod.object({
+  ok: zod.boolean(),
+  bots: zod.array(
+    zod.object({
+      tenantId: zod.string(),
+      conectado: zod.boolean(),
+      estado: zod.string(),
+    }),
+  ),
+});
+
+/**
+ * @summary List all tenants with bot status
+ */
+export const AdminListTenantsResponse = zod.object({
+  ok: zod.boolean(),
+  tenants: zod.array(
+    zod.object({
+      id: zod.string(),
+      nombre: zod.string(),
+      nombreEmpresa: zod.string(),
+      adminWhatsapp: zod.string(),
+      activo: zod.boolean(),
+      suscripcionVence: zod.string().nullish(),
+      creadoEn: zod.string().nullish(),
+      tieneSheets: zod.boolean(),
+      tieneCRM: zod.boolean(),
+      tieneGmail: zod.boolean(),
+      bot: zod.object({
+        conectado: zod.boolean(),
+        estado: zod.string(),
+      }),
+    }),
+  ),
+});
+
+/**
+ * @summary Create a new tenant and start its bot
+ */
+export const AdminCreateTenantBody = zod.object({
+  id: zod.string(),
+  nombre: zod.string(),
+  nombreEmpresa: zod.string(),
+  adminWhatsapp: zod.string(),
+  crmBaseUrl: zod.string().optional(),
+  crmUsername: zod.string().optional(),
+  crmPassword: zod.string().optional(),
+  crmUsernamePrefix: zod.string().optional(),
+  spreadsheetId: zod.string().optional(),
+  googleServiceAccountJson: zod.string().optional(),
+  gmailClientId: zod.string().optional(),
+  gmailClientSecret: zod.string().optional(),
+  gmailRefreshToken: zod.string().optional(),
+  gmailRemitenteFiltro: zod.string().optional(),
+  pushoverUserKey: zod.string().optional(),
+  pushoverApiToken: zod.string().optional(),
+  planesJson: zod.string().optional(),
+  suscripcionVence: zod.string().optional(),
+  activo: zod.boolean().optional(),
+});
+
+export const AdminCreateTenantResponse = zod.object({
+  ok: zod.boolean(),
+  mensaje: zod.string().optional(),
+});
+
+/**
+ * @summary Update a tenant and restart its bot
+ */
+export const AdminUpdateTenantParams = zod.object({
+  id: zod.coerce.string(),
+});
+
+export const AdminUpdateTenantBody = zod.object({
+  nombre: zod.string().optional(),
+  nombreEmpresa: zod.string().optional(),
+  adminWhatsapp: zod.string().optional(),
+  crmUsername: zod.string().optional(),
+  crmPassword: zod.string().optional(),
+  crmUsernamePrefix: zod.string().optional(),
+  spreadsheetId: zod.string().optional(),
+  googleServiceAccountJson: zod.string().optional(),
+  gmailClientId: zod.string().optional(),
+  gmailClientSecret: zod.string().optional(),
+  gmailRefreshToken: zod.string().optional(),
+  gmailRemitenteFiltro: zod.string().optional(),
+  pushoverUserKey: zod.string().optional(),
+  pushoverApiToken: zod.string().optional(),
+  planesJson: zod.string().optional(),
+  suscripcionVence: zod.string().optional(),
+  activo: zod.boolean().optional(),
+});
+
+export const AdminUpdateTenantResponse = zod.object({
+  ok: zod.boolean(),
+  mensaje: zod.string().optional(),
+});
+
+/**
+ * @summary Suspend a tenant and stop its bot
+ */
+export const AdminSuspendTenantParams = zod.object({
+  id: zod.coerce.string(),
+});
+
+export const AdminSuspendTenantResponse = zod.object({
+  ok: zod.boolean(),
+  mensaje: zod.string().optional(),
+});
+
+/**
+ * @summary Activate a tenant and start its bot
+ */
+export const AdminActivateTenantParams = zod.object({
+  id: zod.coerce.string(),
+});
+
+export const AdminActivateTenantResponse = zod.object({
+  ok: zod.boolean(),
+  mensaje: zod.string().optional(),
+});
+
+/**
+ * @summary Restart a tenant bot
+ */
+export const AdminRestartBotParams = zod.object({
+  id: zod.coerce.string(),
+});
+
+export const AdminRestartBotResponse = zod.object({
+  ok: zod.boolean(),
+  mensaje: zod.string().optional(),
+});
+
+/**
+ * @summary Get WhatsApp pairing code for a tenant bot
+ */
+export const AdminGetPairingCodeParams = zod.object({
+  id: zod.coerce.string(),
+});
+
+export const AdminGetPairingCodeBody = zod.object({
+  telefono: zod.string(),
+});
+
+export const AdminGetPairingCodeResponse = zod.object({
+  ok: zod.boolean().optional(),
+  codigo: zod.string().optional(),
+});
+
+/**
+ * @summary Delete WhatsApp session for a tenant
+ */
+export const AdminDeleteSessionParams = zod.object({
+  id: zod.coerce.string(),
+});
+
+export const AdminDeleteSessionResponse = zod.object({
+  ok: zod.boolean(),
+  mensaje: zod.string().optional(),
+});
+
+/**
+ * @summary Send WhatsApp message from a tenant bot
+ */
+export const AdminSendMessageParams = zod.object({
+  id: zod.coerce.string(),
+});
+
+export const AdminSendMessageBody = zod.object({
+  telefono: zod.string(),
+  mensaje: zod.string(),
+});
+
+export const AdminSendMessageResponse = zod.object({
+  ok: zod.boolean(),
+  mensaje: zod.string().optional(),
+});
+
+/**
+ * @summary Get all payments from all tenants
+ */
+export const AdminGetPagosResponse = zod.object({
+  ok: zod.boolean(),
+  pagos: zod.array(
+    zod.object({
+      id: zod.number(),
+      tenantId: zod.string(),
+      fecha: zod.string(),
+      nombre: zod.string(),
+      monto: zod.number(),
+      telefono: zod.string().nullish(),
+      estado: zod.string(),
+      sincronizadoEn: zod.string().optional(),
+    }),
+  ),
+});
+
+/**
+ * @summary Get payments for a specific tenant
+ */
+export const AdminGetPagosByTenantParams = zod.object({
+  tenantId: zod.coerce.string(),
+});
+
+export const AdminGetPagosByTenantResponse = zod.object({
+  ok: zod.boolean(),
+  pagos: zod.array(
+    zod.object({
+      id: zod.number(),
+      tenantId: zod.string(),
+      fecha: zod.string(),
+      nombre: zod.string(),
+      monto: zod.number(),
+      telefono: zod.string().nullish(),
+      estado: zod.string(),
+      sincronizadoEn: zod.string().optional(),
+    }),
+  ),
+});
+
+/**
+ * @summary Get all IPTV accounts from all tenants
+ */
+export const AdminGetCuentasResponse = zod.object({
+  ok: zod.boolean(),
+  cuentas: zod.array(
+    zod.object({
+      id: zod.number(),
+      tenantId: zod.string(),
+      telefono: zod.string(),
+      usuario: zod.string(),
+      plan: zod.string(),
+      fechaCreacion: zod.string().nullish(),
+      fechaExpiracion: zod.string().nullish(),
+      estado: zod.string(),
+      sincronizadoEn: zod.string().optional(),
+    }),
+  ),
+});
+
+/**
+ * @summary Get IPTV accounts for a specific tenant
+ */
+export const AdminGetCuentasByTenantParams = zod.object({
+  tenantId: zod.coerce.string(),
+});
+
+export const AdminGetCuentasByTenantResponse = zod.object({
+  ok: zod.boolean(),
+  cuentas: zod.array(
+    zod.object({
+      id: zod.number(),
+      tenantId: zod.string(),
+      telefono: zod.string(),
+      usuario: zod.string(),
+      plan: zod.string(),
+      fechaCreacion: zod.string().nullish(),
+      fechaExpiracion: zod.string().nullish(),
+      estado: zod.string(),
+      sincronizadoEn: zod.string().optional(),
+    }),
+  ),
+});
