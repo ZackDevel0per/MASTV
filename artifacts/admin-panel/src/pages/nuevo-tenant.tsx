@@ -105,7 +105,11 @@ export function NuevoTenant() {
             <div className="col-span-1 sm:col-span-2"><label className="label-base">CRM Base URL</label><input name="crmBaseUrl" defaultValue="https://resellermastv.com:8443" className="input-base" /></div>
             <div><label className="label-base">Username</label><input name="crmUsername" className="input-base" /></div>
             <div><label className="label-base">Password</label><input type="password" name="crmPassword" className="input-base" /></div>
-            <div><label className="label-base">Prefijo Usuarios (ej: zk)</label><input name="crmUsernamePrefix" defaultValue="zk" className="input-base" /></div>
+            <div>
+                <label className="label-base">Prefijo de Usuarios</label>
+                <input name="crmUsernamePrefix" defaultValue="zk" className="input-base" placeholder="zk" />
+                <p className="text-xs text-muted-foreground mt-1">Las cuentas se crearán como <span className="text-primary font-mono">zk00001</span>, <span className="text-primary font-mono">zk00002</span>... Usa las iniciales del tenant.</p>
+              </div>
           </div>
         </Section>
 
