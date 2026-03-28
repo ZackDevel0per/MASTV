@@ -392,7 +392,7 @@ export async function crearCuentaEnCRM(
 
 /** Obtener el username determinístico de demo para un teléfono dado */
 export function getDemoUsername(telefono: string): string {
-  return telefono.replace(/\D/g, "");
+  return `dem${telefono.replace(/\D/g, "")}`;
 }
 
 /**
