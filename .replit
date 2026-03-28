@@ -82,7 +82,7 @@ channel = "stable-25_05"
 
 [userenv.shared]
 TASKER_TOKEN = "cambia_este_token_seguro_2024"
-GMAIL_REMITENTE_FILTRO = "zackreavedeveloper@gmail.com"
+GMAIL_REMITENTE_FILTRO = "PagosBcp@bcp.com.bo"
 
 [objectStorage]
 defaultBucketID = "replit-objstore-857678be-49cc-4374-9817-a0884a469282"
