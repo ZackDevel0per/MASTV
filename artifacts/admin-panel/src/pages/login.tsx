@@ -18,7 +18,7 @@ export function Login() {
     const password = formData.get("password") as string;
 
     try {
-      const res = await loginMutation.mutateAsync({ data: { usuario, password } });
+      const res = await loginMutation.mutateAsync({ usuario, password });
       if (res.ok && res.token) {
         setAdminToken(res.token);
         setLocation("/");

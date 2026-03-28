@@ -6,13 +6,13 @@ import { Dashboard } from "@/pages/dashboard";
 import { Pagos } from "@/pages/pagos";
 import { Cuentas } from "@/pages/cuentas";
 import { NuevoTenant } from "@/pages/nuevo-tenant";
+import { TenantDetalle } from "@/pages/tenant-detalle";
 import NotFound from "@/pages/not-found";
 import { getAdminToken } from "@/lib/utils";
 import { useEffect } from "react";
 
 const queryClient = new QueryClient();
 
-// Add global styles for base UI elements
 function GlobalStyles() {
   return (
     <style dangerouslySetInnerHTML={{__html: `
@@ -52,7 +52,6 @@ function Router() {
     <Switch>
       <Route path="/login" component={Login} />
       
-      {/* Protected Routes */}
       <Route path="/">
         <RequireAuth><Dashboard /></RequireAuth>
       </Route>
@@ -64,6 +63,9 @@ function Router() {
       </Route>
       <Route path="/nuevo">
         <RequireAuth><NuevoTenant /></RequireAuth>
+      </Route>
+      <Route path="/tenant/:id">
+        {(params) => <RequireAuth><TenantDetalle /></RequireAuth>}
       </Route>
       
       <Route component={NotFound} />

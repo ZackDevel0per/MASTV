@@ -4,7 +4,7 @@
  * Endpoints:
  *   GET  /api/gmail/estado      — Ver si Gmail está activo y configurado
  *   GET  /api/gmail/autorizar   — Obtener la URL de autorización (visitar una vez)
- *   GET  /api/gmail/callback    — Recibe el código OAuth2 y muestra el refresh_token
+ *   GET  /api/gmail/callback    — Recibe el código OAuth2. Si state=tenantId, guarda en DB automáticamente.
  *   POST /api/gmail/pausar      — Pausar/reanudar el polling
  */
 
@@ -17,8 +17,20 @@ import {
   iniciarGmailPolling,
   detenerGmailPolling,
 } from "../bot/gmail-service.js";
+import { db } from "@workspace/db";
+import { tenantsTable } from "@workspace/db";
+import { eq } from "drizzle-orm";
+import { google } from "googleapis";
+import { reiniciarBot } from "../bot/bot-manager.js";
 
 const router: IRouter = Router();
+
+function getRedirectUri(req: Request): string {
+  const replitDomain = process.env["REPLIT_DEV_DOMAIN"] ?? process.env["REPLIT_DOMAINS"];
+  return replitDomain
+    ? `https://${replitDomain}/api/gmail/callback`
+    : `${req.headers["x-forwarded-proto"] ?? "https"}://${req.headers["x-forwarded-host"] ?? req.headers["host"]}/api/gmail/callback`;
+}
 
 // ═════════════════════════════════════════════════════════
 // ESTADO DE GMAIL
@@ -33,11 +45,7 @@ router.get("/gmail/estado", (_req: Request, res: Response) => {
 // ═════════════════════════════════════════════════════════
 router.get("/gmail/autorizar", (req: Request, res: Response) => {
   try {
-    const replitDomain = process.env["REPLIT_DEV_DOMAIN"] ?? process.env["REPLIT_DOMAINS"];
-    const redirectUri = replitDomain
-      ? `https://${replitDomain}/api/gmail/callback`
-      : `${req.headers["x-forwarded-proto"] ?? "https"}://${req.headers["x-forwarded-host"] ?? req.headers["host"]}/api/gmail/callback`;
-
+    const redirectUri = getRedirectUri(req);
     const url = generarUrlAutorizacion(redirectUri);
 
     res.json({
@@ -63,17 +71,19 @@ router.get("/gmail/autorizar", (req: Request, res: Response) => {
 
 // ═════════════════════════════════════════════════════════
 // CALLBACK OAuth2 — Recibe el code y devuelve el refresh_token
+// Si state=tenantId, guarda automáticamente en la DB del tenant
 // ═════════════════════════════════════════════════════════
 router.get("/gmail/callback", async (req: Request, res: Response) => {
   const code = req.query["code"] as string | undefined;
   const error = req.query["error"] as string | undefined;
+  const state = req.query["state"] as string | undefined; // tenantId si viene del panel
 
   if (error) {
     res.status(400).send(`
       <html><body style="font-family:monospace;padding:2rem">
         <h2>❌ Autorización rechazada</h2>
         <p>Error: ${error}</p>
-        <p>Vuelve a intentarlo desde <code>/api/gmail/autorizar</code></p>
+        <p>Vuelve a intentarlo desde el panel.</p>
       </body></html>
     `);
     return;
@@ -88,12 +98,63 @@ router.get("/gmail/callback", async (req: Request, res: Response) => {
     return;
   }
 
-  try {
-    const replitDomain = process.env["REPLIT_DEV_DOMAIN"] ?? process.env["REPLIT_DOMAINS"];
-    const redirectUri = replitDomain
-      ? `https://${replitDomain}/api/gmail/callback`
-      : `${req.headers["x-forwarded-proto"] ?? "https"}://${req.headers["x-forwarded-host"] ?? req.headers["host"]}/api/gmail/callback`;
+  const redirectUri = getRedirectUri(req);
 
+  // ── Flujo per-tenant (viene del panel admin) ────────────────────────────
+  if (state && state.length > 0 && state !== "global") {
+    try {
+      const tenantId = state;
+      const [tenant] = await db
+        .select({ gmailClientId: tenantsTable.gmailClientId, gmailClientSecret: tenantsTable.gmailClientSecret })
+        .from(tenantsTable)
+        .where(eq(tenantsTable.id, tenantId))
+        .limit(1);
+
+      if (!tenant?.gmailClientId || !tenant?.gmailClientSecret) {
+        res.status(400).send(`<html><body style="font-family:monospace;padding:2rem"><h2>❌ Tenant sin credenciales Gmail</h2><p>El tenant <strong>${tenantId}</strong> no tiene Client ID o Client Secret configurados.</p></body></html>`);
+        return;
+      }
+
+      const oAuth2Client = new google.auth.OAuth2(tenant.gmailClientId, tenant.gmailClientSecret, redirectUri);
+      const { tokens } = await oAuth2Client.getToken(code);
+      const refreshToken = tokens.refresh_token;
+
+      if (!refreshToken) {
+        res.status(400).send(`<html><body style="font-family:monospace;padding:2rem"><h2>⚠️ No se obtuvo refresh_token</h2><p>Google no devolvió un refresh_token. Asegúrate de haber revocado el acceso previo en <a href="https://myaccount.google.com/permissions">Google Account Permissions</a> y reintenta.</p></body></html>`);
+        return;
+      }
+
+      await db.update(tenantsTable)
+        .set({ gmailRefreshToken: refreshToken, actualizadoEn: new Date() })
+        .where(eq(tenantsTable.id, tenantId));
+
+      // Reiniciar el bot para que tome el nuevo token
+      reiniciarBot(tenantId).catch(() => {});
+
+      const panelDomain = process.env["REPLIT_DEV_DOMAIN"] ?? process.env["REPLIT_DOMAINS"];
+      const panelUrl = panelDomain ? `https://${panelDomain}/api/panel` : "/api/panel";
+
+      res.send(`
+        <html>
+        <head><meta charset="utf-8"><title>Gmail Autorizado</title></head>
+        <body style="font-family:system-ui,sans-serif;padding:2rem;max-width:600px;margin:0 auto;background:#0f1117;color:#fff">
+          <div style="background:#10b981;color:#fff;padding:1rem 1.5rem;border-radius:12px;margin-bottom:1.5rem">
+            <h2 style="margin:0">✅ Gmail autorizado correctamente</h2>
+          </div>
+          <p>El tenant <strong>${tenantId}</strong> ha sido autorizado con Gmail.</p>
+          <p style="color:#6b7280">El bot se reiniciará automáticamente con las nuevas credenciales. Puedes cerrar esta ventana.</p>
+          <a href="${panelUrl}" style="display:inline-block;margin-top:1rem;padding:0.75rem 1.5rem;background:#7c3aed;color:#fff;border-radius:8px;text-decoration:none;font-weight:600">← Volver al Panel</a>
+        </body>
+        </html>
+      `);
+    } catch (err) {
+      res.status(500).send(`<html><body style="font-family:monospace;padding:2rem"><h2>❌ Error al obtener el token</h2><p>${err instanceof Error ? err.message : String(err)}</p></body></html>`);
+    }
+    return;
+  }
+
+  // ── Flujo global (legacy) ───────────────────────────────────────────────
+  try {
     const refreshToken = await intercambiarCodigo(code, redirectUri);
 
     res.send(`

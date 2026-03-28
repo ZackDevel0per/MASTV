@@ -9,11 +9,13 @@
 import { Router, type IRouter, type Request, type Response } from "express";
 import { db } from "@workspace/db";
 import { tenantsTable, tenantPagosTable, tenantCuentasTable } from "@workspace/db";
-import { eq, desc } from "drizzle-orm";
+import { eq, desc, and, gte, lte, sql } from "drizzle-orm";
 import path from "path";
 import { fileURLToPath } from "url";
+import { google } from "googleapis";
 import { iniciarBot, detenerBot, reiniciarBot, getInstancia, getEstadoTodos } from "../bot/bot-manager.js";
 import { recargarTenant } from "../bot/tenant-manager.js";
+import { getEventosTenant } from "../bot/bot-events.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ADMIN_HTML = path.resolve(__dirname, "..", "..", "public", "admin", "index.html");
@@ -36,6 +38,13 @@ function verificarAdmin(req: Request, res: Response): boolean {
     return false;
   }
   return true;
+}
+
+function getRedirectUri(req: Request): string {
+  const replitDomain = process.env["REPLIT_DEV_DOMAIN"] ?? process.env["REPLIT_DOMAINS"];
+  return replitDomain
+    ? `https://${replitDomain}/api/gmail/callback`
+    : `${req.headers["x-forwarded-proto"] ?? "https"}://${req.headers["x-forwarded-host"] ?? req.headers["host"]}/api/gmail/callback`;
 }
 
 // ── Login con usuario y contraseña ──────────────────────────────────────────
@@ -100,6 +109,139 @@ router.get("/admin/tenants", async (req, res) => {
 });
 
 // ═══════════════════════════════════════════════════════════════════════
+// OBTENER TENANT INDIVIDUAL (con config completa)
+// ═══════════════════════════════════════════════════════════════════════
+router.get("/admin/tenants/:id", async (req, res) => {
+  if (!verificarAdmin(req, res)) return;
+  try {
+    const [tenant] = await db
+      .select()
+      .from(tenantsTable)
+      .where(eq(tenantsTable.id, req.params.id as string))
+      .limit(1);
+
+    if (!tenant) {
+      res.status(404).json({ ok: false, mensaje: "Tenant no encontrado" });
+      return;
+    }
+
+    const estadosBots = getEstadoTodos() as Array<{ tenantId: string; conectado: boolean; estado: string }>;
+    const bot = estadosBots.find((b) => b.tenantId === tenant.id);
+
+    res.json({
+      ok: true,
+      tenant: {
+        ...tenant,
+        tieneSheets: !!tenant.spreadsheetId,
+        tieneCRM: !!tenant.crmUsername,
+        tieneGmail: !!tenant.gmailClientId && !!tenant.gmailRefreshToken,
+        bot: bot
+          ? { conectado: bot.conectado, estado: bot.estado }
+          : { conectado: false, estado: "no_iniciado" },
+      },
+    });
+  } catch (err) {
+    res.status(500).json({ ok: false, mensaje: String(err) });
+  }
+});
+
+// ═══════════════════════════════════════════════════════════════════════
+// ESTADÍSTICAS DEL TENANT
+// ═══════════════════════════════════════════════════════════════════════
+router.get("/admin/tenants/:id/stats", async (req, res) => {
+  if (!verificarAdmin(req, res)) return;
+  try {
+    const tenantId = req.params.id as string;
+    const now = new Date();
+    const primerDiaMes = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
+
+    const [pagosTotales, pagosMes, cuentasActivas, cuentasTotal, ultimoPago] = await Promise.all([
+      db.select({ count: sql<number>`count(*)` })
+        .from(tenantPagosTable)
+        .where(eq(tenantPagosTable.tenantId, tenantId)),
+      db.select({ count: sql<number>`count(*)`, suma: sql<number>`coalesce(sum(monto), 0)` })
+        .from(tenantPagosTable)
+        .where(and(
+          eq(tenantPagosTable.tenantId, tenantId),
+          gte(tenantPagosTable.sincronizadoEn, new Date(primerDiaMes)),
+        )),
+      db.select({ count: sql<number>`count(*)` })
+        .from(tenantCuentasTable)
+        .where(and(eq(tenantCuentasTable.tenantId, tenantId), eq(tenantCuentasTable.estado, "ACTIVA"))),
+      db.select({ count: sql<number>`count(*)` })
+        .from(tenantCuentasTable)
+        .where(eq(tenantCuentasTable.tenantId, tenantId)),
+      db.select({ fecha: tenantPagosTable.fecha, nombre: tenantPagosTable.nombre, monto: tenantPagosTable.monto, sincronizadoEn: tenantPagosTable.sincronizadoEn })
+        .from(tenantPagosTable)
+        .where(eq(tenantPagosTable.tenantId, tenantId))
+        .orderBy(desc(tenantPagosTable.sincronizadoEn))
+        .limit(1),
+    ]);
+
+    res.json({
+      ok: true,
+      stats: {
+        pagosTotales: Number(pagosTotales[0]?.count ?? 0),
+        pagosMes: Number(pagosMes[0]?.count ?? 0),
+        ingresosMes: Number(pagosMes[0]?.suma ?? 0),
+        cuentasActivas: Number(cuentasActivas[0]?.count ?? 0),
+        cuentasTotal: Number(cuentasTotal[0]?.count ?? 0),
+        ultimoPago: ultimoPago[0] ?? null,
+      },
+    });
+  } catch (err) {
+    res.status(500).json({ ok: false, mensaje: String(err) });
+  }
+});
+
+// ═══════════════════════════════════════════════════════════════════════
+// LOGS / EVENTOS DEL BOT
+// ═══════════════════════════════════════════════════════════════════════
+router.get("/admin/tenants/:id/logs", (req, res) => {
+  if (!verificarAdmin(req, res)) return;
+  const limit = Math.min(parseInt(String(req.query["limit"] ?? "50")), 100);
+  const eventos = getEventosTenant(req.params.id as string, limit);
+  res.json({ ok: true, eventos });
+});
+
+// ═══════════════════════════════════════════════════════════════════════
+// GMAIL OAUTH PER-TENANT
+// ═══════════════════════════════════════════════════════════════════════
+router.get("/admin/tenants/:id/gmail/autorizar", async (req, res) => {
+  if (!verificarAdmin(req, res)) return;
+  try {
+    const tenantId = req.params.id as string;
+    const [tenant] = await db.select({
+      gmailClientId: tenantsTable.gmailClientId,
+      gmailClientSecret: tenantsTable.gmailClientSecret,
+    }).from(tenantsTable).where(eq(tenantsTable.id, tenantId)).limit(1);
+
+    if (!tenant) {
+      res.status(404).json({ ok: false, mensaje: "Tenant no encontrado" });
+      return;
+    }
+    if (!tenant.gmailClientId || !tenant.gmailClientSecret) {
+      res.status(400).json({ ok: false, mensaje: "El tenant no tiene Gmail Client ID / Secret configurados. Guárdalos primero." });
+      return;
+    }
+
+    const redirectUri = getRedirectUri(req);
+    const oAuth2Client = new google.auth.OAuth2(tenant.gmailClientId, tenant.gmailClientSecret, redirectUri);
+
+    const url = oAuth2Client.generateAuthUrl({
+      access_type: "offline",
+      prompt: "consent",
+      scope: ["https://www.googleapis.com/auth/gmail.modify"],
+      state: tenantId,
+    });
+
+    res.json({ ok: true, urlAutorizacion: url, redirectUri });
+  } catch (err) {
+    res.status(500).json({ ok: false, mensaje: String(err) });
+  }
+});
+
+// ═══════════════════════════════════════════════════════════════════════
 // CREAR TENANT
 // ═══════════════════════════════════════════════════════════════════════
 router.post("/admin/tenants", async (req, res) => {
@@ -138,7 +280,6 @@ router.post("/admin/tenants", async (req, res) => {
       activo: true,
     });
 
-    // Iniciar el bot del nuevo tenant
     const tenant = await recargarTenant(id);
     if (tenant) await iniciarBot(tenant);
 
@@ -178,10 +319,24 @@ router.put("/admin/tenants/:id", async (req, res) => {
 
     await db.update(tenantsTable).set(updates).where(eq(tenantsTable.id, id as string));
 
-    // Reiniciar el bot con la nueva config
     await reiniciarBot(id as string);
 
     res.json({ ok: true, mensaje: `Tenant ${id} actualizado y bot reiniciado` });
+  } catch (err) {
+    res.status(500).json({ ok: false, mensaje: String(err) });
+  }
+});
+
+// ═══════════════════════════════════════════════════════════════════════
+// ELIMINAR TENANT
+// ═══════════════════════════════════════════════════════════════════════
+router.delete("/admin/tenants/:id", async (req, res) => {
+  if (!verificarAdmin(req, res)) return;
+  try {
+    const { id } = req.params;
+    await detenerBot(id as string);
+    await db.delete(tenantsTable).where(eq(tenantsTable.id, id as string));
+    res.json({ ok: true, mensaje: `Tenant ${id} eliminado` });
   } catch (err) {
     res.status(500).json({ ok: false, mensaje: String(err) });
   }
@@ -281,11 +436,14 @@ router.post("/admin/tenants/:id/bot/sesion/borrar", (req, res) => {
 router.get("/admin/pagos", async (req, res) => {
   if (!verificarAdmin(req, res)) return;
   try {
-    const pagos = await db
-      .select()
-      .from(tenantPagosTable)
-      .orderBy(desc(tenantPagosTable.sincronizadoEn))
-      .limit(500);
+    const { desde, hasta, estado } = req.query;
+    let query = db.select().from(tenantPagosTable).$dynamic();
+    const conditions = [];
+    if (desde) conditions.push(gte(tenantPagosTable.sincronizadoEn, new Date(String(desde))));
+    if (hasta) conditions.push(lte(tenantPagosTable.sincronizadoEn, new Date(String(hasta))));
+    if (estado) conditions.push(eq(tenantPagosTable.estado, String(estado)));
+    if (conditions.length) query = query.where(and(...conditions));
+    const pagos = await query.orderBy(desc(tenantPagosTable.sincronizadoEn)).limit(500);
     res.json({ ok: true, pagos });
   } catch (err) {
     res.status(500).json({ ok: false, mensaje: String(err) });
@@ -295,10 +453,15 @@ router.get("/admin/pagos", async (req, res) => {
 router.get("/admin/pagos/:tenantId", async (req, res) => {
   if (!verificarAdmin(req, res)) return;
   try {
+    const { desde, hasta, estado } = req.query;
+    const conditions = [eq(tenantPagosTable.tenantId, req.params.tenantId as string)];
+    if (desde) conditions.push(gte(tenantPagosTable.sincronizadoEn, new Date(String(desde))));
+    if (hasta) conditions.push(lte(tenantPagosTable.sincronizadoEn, new Date(String(hasta))));
+    if (estado) conditions.push(eq(tenantPagosTable.estado, String(estado)));
     const pagos = await db
       .select()
       .from(tenantPagosTable)
-      .where(eq(tenantPagosTable.tenantId, req.params.tenantId as string))
+      .where(and(...conditions))
       .orderBy(desc(tenantPagosTable.sincronizadoEn))
       .limit(200);
     res.json({ ok: true, pagos });
@@ -313,11 +476,10 @@ router.get("/admin/pagos/:tenantId", async (req, res) => {
 router.get("/admin/cuentas", async (req, res) => {
   if (!verificarAdmin(req, res)) return;
   try {
-    const cuentas = await db
-      .select()
-      .from(tenantCuentasTable)
-      .orderBy(desc(tenantCuentasTable.sincronizadoEn))
-      .limit(1000);
+    const { estado } = req.query;
+    let query = db.select().from(tenantCuentasTable).$dynamic();
+    if (estado) query = query.where(eq(tenantCuentasTable.estado, String(estado)));
+    const cuentas = await query.orderBy(desc(tenantCuentasTable.sincronizadoEn)).limit(1000);
     res.json({ ok: true, cuentas });
   } catch (err) {
     res.status(500).json({ ok: false, mensaje: String(err) });
@@ -327,10 +489,13 @@ router.get("/admin/cuentas", async (req, res) => {
 router.get("/admin/cuentas/:tenantId", async (req, res) => {
   if (!verificarAdmin(req, res)) return;
   try {
+    const { estado } = req.query;
+    const conditions = [eq(tenantCuentasTable.tenantId, req.params.tenantId as string)];
+    if (estado) conditions.push(eq(tenantCuentasTable.estado, String(estado)));
     const cuentas = await db
       .select()
       .from(tenantCuentasTable)
-      .where(eq(tenantCuentasTable.tenantId, req.params.tenantId as string))
+      .where(and(...conditions))
       .orderBy(desc(tenantCuentasTable.sincronizadoEn))
       .limit(500);
     res.json({ ok: true, cuentas });

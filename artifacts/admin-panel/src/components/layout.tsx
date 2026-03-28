@@ -47,7 +47,9 @@ export function Layout({ children }: { children: ReactNode }) {
 
         <nav className="flex-1 px-4 py-6 space-y-2">
           {navItems.map((item) => {
-            const isActive = location === item.href;
+            const isActive = item.href === "/"
+              ? location === "/" || location.startsWith("/tenant/")
+              : location === item.href || location.startsWith(item.href + "/");
             return (
               <Link key={item.href} href={item.href} className="block">
                 <div className={cn(
