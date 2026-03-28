@@ -11,14 +11,34 @@ import { db } from "@workspace/db";
 import { tenantsTable, tenantPagosTable, tenantCuentasTable } from "@workspace/db";
 import { eq, desc, and, gte, lte, sql } from "drizzle-orm";
 import path from "path";
+import fs from "fs";
 import { fileURLToPath } from "url";
 import { google } from "googleapis";
+import multer from "multer";
 import { iniciarBot, detenerBot, reiniciarBot, getInstancia, getEstadoTodos } from "../bot/bot-manager.js";
 import { recargarTenant } from "../bot/tenant-manager.js";
 import { getEventosTenant } from "../bot/bot-events.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ADMIN_HTML = path.resolve(__dirname, "..", "..", "public", "admin", "index.html");
+const QR_PAGOS_DIR = path.resolve(__dirname, "..", "..", "public", "qr-pagos");
+fs.mkdirSync(QR_PAGOS_DIR, { recursive: true });
+
+const qrStorage = multer.diskStorage({
+  destination: (_req, _file, cb) => cb(null, QR_PAGOS_DIR),
+  filename: (req, _file, cb) => {
+    const tenantId = (req.params as { id: string }).id;
+    cb(null, `${tenantId}.jpeg`);
+  },
+});
+const uploadQr = multer({
+  storage: qrStorage,
+  limits: { fileSize: 5 * 1024 * 1024 },
+  fileFilter: (_req, file, cb) => {
+    if (file.mimetype.startsWith("image/")) cb(null, true);
+    else cb(new Error("Solo se permiten imágenes"));
+  },
+});
 
 const router: IRouter = Router();
 
@@ -144,6 +164,46 @@ router.get("/admin/tenants/:id", async (req, res) => {
     res.status(500).json({ ok: false, mensaje: String(err) });
   }
 });
+
+// ═══════════════════════════════════════════════════════════════════════
+// SUBIR QR DE PAGO (archivo local por tenant)
+// ═══════════════════════════════════════════════════════════════════════
+router.post(
+  "/admin/tenants/:id/qr-pago",
+  (req: Request, res: Response, next) => {
+    if (!verificarAdmin(req, res)) return;
+    next();
+  },
+  uploadQr.single("qr"),
+  async (req: Request, res: Response) => {
+    try {
+      if (!req.file) {
+        res.status(400).json({ ok: false, mensaje: "No se recibió archivo" });
+        return;
+      }
+      const tenantId = req.params.id as string;
+
+      // Construir URL pública del archivo subido
+      const replitDomain = process.env["REPLIT_DEV_DOMAIN"] ?? process.env["REPLIT_DOMAINS"];
+      const baseUrl = replitDomain
+        ? `https://${replitDomain}`
+        : `http://localhost:${process.env["PORT"] ?? 8080}`;
+      const publicUrl = `${baseUrl}/public/qr-pagos/${tenantId}.jpeg`;
+
+      // Guardar URL en DB
+      await db
+        .update(tenantsTable)
+        .set({ qrPagoUrl: publicUrl })
+        .where(eq(tenantsTable.id, tenantId));
+
+      await recargarTenant(tenantId);
+
+      res.json({ ok: true, url: publicUrl, mensaje: "QR de pago actualizado" });
+    } catch (err) {
+      res.status(500).json({ ok: false, mensaje: String(err) });
+    }
+  }
+);
 
 // ═══════════════════════════════════════════════════════════════════════
 // ESTADÍSTICAS DEL TENANT

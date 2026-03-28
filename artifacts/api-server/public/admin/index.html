@@ -516,7 +516,18 @@
       <div class="form-grid">
         <div><label>Pushover User Key</label><input type="text" name="pushoverUserKey" id="edit-pushoverUserKey" /></div>
         <div><label>Pushover API Token</label><input type="text" name="pushoverApiToken" id="edit-pushoverApiToken" /></div>
-        <div class="form-full"><label>URL Imagen QR de Pago <span style="color:var(--muted);font-weight:400;text-transform:none;letter-spacing:0">— el bot la envía al cliente al elegir un plan</span></label><input type="text" name="qrPagoUrl" id="edit-qrPagoUrl" placeholder="https://i.imgur.com/tu-qr.jpg" /></div>
+        <div class="form-full">
+          <label>QR de Pago <span style="color:var(--muted);font-weight:400;text-transform:none;letter-spacing:0">— el bot lo envía al cliente al elegir un plan</span></label>
+          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+            <input type="text" name="qrPagoUrl" id="edit-qrPagoUrl" placeholder="https://i.imgur.com/tu-qr.jpg" style="flex:1;min-width:200px;" />
+            <label class="btn btn-ghost" style="cursor:pointer;margin:0;padding:6px 12px;font-size:13px;white-space:nowrap;" title="Subir imagen desde tu computadora">
+              📁 Subir archivo
+              <input type="file" id="edit-qr-file" accept="image/*" style="display:none;" onchange="subirQrArchivo(this)" />
+            </label>
+            <img id="edit-qr-preview" src="" alt="Vista previa QR" style="display:none;width:56px;height:56px;object-fit:contain;border:1px solid var(--border);border-radius:6px;background:#fff;" />
+          </div>
+          <span id="edit-qr-status" style="font-size:12px;color:var(--muted);display:none;margin-top:4px;"></span>
+        </div>
       </div>
       <p style="font-size:12px;color:var(--muted);margin:16px 0 12px;padding-top:12px;border-top:1px solid var(--border)">Precios por plan — ajusta el precio de cada plan</p>
       <div id="edit-planes-list"></div>
@@ -1128,6 +1139,55 @@ function loadSuscripcionVence(ctx, isoDate) {
   }
 }
 
+// ═══════════════════════ QR DE PAGO ═══════════════════════
+function actualizarQrPreview(url) {
+  const img = document.getElementById('edit-qr-preview');
+  if (url) {
+    img.src = url + '?t=' + Date.now();
+    img.style.display = 'block';
+    img.onerror = () => { img.style.display = 'none'; };
+  } else {
+    img.style.display = 'none';
+  }
+}
+
+async function subirQrArchivo(input) {
+  const tenantId = document.getElementById('edit-id').value;
+  if (!tenantId) { toast('Guarda el tenant primero antes de subir el QR', 'err'); return; }
+  const file = input.files[0];
+  if (!file) return;
+
+  const statusEl = document.getElementById('edit-qr-status');
+  statusEl.textContent = 'Subiendo...';
+  statusEl.style.display = 'block';
+  statusEl.style.color = 'var(--muted)';
+
+  try {
+    const form = new FormData();
+    form.append('qr', file);
+    const r = await fetch(`/api/admin/tenants/${tenantId}/qr-pago`, {
+      method: 'POST',
+      headers: { 'x-admin-token': localStorage.getItem('admin_token') || ADMIN_TOKEN },
+      body: form,
+    });
+    const data = await r.json();
+    if (data.ok) {
+      document.getElementById('edit-qrPagoUrl').value = data.url;
+      actualizarQrPreview(data.url);
+      statusEl.textContent = '✓ Imagen guardada';
+      statusEl.style.color = 'var(--ok)';
+    } else {
+      statusEl.textContent = '✗ ' + (data.mensaje || 'Error al subir');
+      statusEl.style.color = 'var(--err)';
+    }
+  } catch (err) {
+    statusEl.textContent = '✗ Error de red';
+    statusEl.style.color = 'var(--err)';
+  }
+  input.value = '';
+  setTimeout(() => { statusEl.style.display = 'none'; }, 4000);
+}
+
 // ═══════════════════════ MODAL EDITAR ═══════════════════════
 async function abrirEditar(t) {
   // Cargamos detalles completos desde el servidor (el listado solo trae datos básicos)
@@ -1147,7 +1207,9 @@ async function abrirEditar(t) {
   document.getElementById('edit-googleServiceAccountJson').value = full.googleServiceAccountJson || '';
   document.getElementById('edit-pushoverUserKey').value = full.pushoverUserKey || '';
   document.getElementById('edit-pushoverApiToken').value = full.pushoverApiToken || '';
-  document.getElementById('edit-qrPagoUrl').value = full.qrPagoUrl || '';
+  const qrUrl = full.qrPagoUrl || '';
+  document.getElementById('edit-qrPagoUrl').value = qrUrl;
+  actualizarQrPreview(qrUrl);
   loadSuscripcionVence('edit', full.suscripcionVence || null);
   cargarPlanesEnEditor('edit', full.planesJson || null);
   document.getElementById('modal-editar').classList.add('open');
