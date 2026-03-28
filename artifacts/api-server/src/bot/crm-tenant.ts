@@ -139,75 +139,128 @@ export class CrmService {
       return { ok: false, mensaje: `Plan desconocido: ${planClave}` };
     }
 
-    try {
-      const cookie = await this.getSession();
-      const https = (await import("https")).default;
-      const agent = new https.Agent({ rejectUnauthorized: false });
+    for (let intento = 1; intento <= 2; intento++) {
+      try {
+        const cookie = await this.getSession();
+        const https = (await import("https")).default;
+        const agent = new https.Agent({ rejectUnauthorized: false });
 
-      const createPage = await axios.get(`${this.baseUrl}/lines/create-with-package`, {
-        headers: { ...BASE_HEADERS, Cookie: cookie },
-        httpsAgent: agent,
-        validateStatus: (s) => s < 400,
-      });
-
-      const csrf = extractCsrf(createPage.data);
-      const isDemo = planClave === "DEMO_1H" || planClave === "DEMO_3H";
-      const username = isDemo
-        ? telefono.replace(/\D/g, "")
-        : await this.obtenerSiguienteUsername(usernamesEnUso);
-      const password = `${this.prefix}${telefono.replace(/\D/g, "").slice(-6)}`;
-
-      const isDemoHora = planClave === "DEMO_1H";
-      const isDemoTres = planClave === "DEMO_3H";
-      const duracionMinutos = isDemoHora ? 60 : isDemoTres ? 180 : undefined;
-
-      const payload: Record<string, string> = {
-        _token: csrf ?? "",
-        username,
-        password,
-        package_id: String(planInfo.id),
-        max_connections: String(planInfo.maxConexiones),
-        bouquet: TODOS_LOS_BOUQUETS.join(","),
-        is_trial: isDemoHora || isDemoTres ? "1" : "0",
-      };
-
-      if (duracionMinutos) {
-        payload["trial_duration"] = String(duracionMinutos);
-      }
-
-      const storeRes = await axios.post(
-        `${this.baseUrl}/lines/store-with-package`,
-        new URLSearchParams(payload),
-        {
-          headers: {
-            ...BASE_HEADERS,
-            "Content-Type": "application/x-www-form-urlencoded",
-            Cookie: cookie,
-            Referer: `${this.baseUrl}/lines/create-with-package`,
-          },
+        const createPage = await axios.get(`${this.baseUrl}/lines/create-with-package`, {
+          headers: { ...BASE_HEADERS, Cookie: cookie },
           httpsAgent: agent,
-          maxRedirects: 5,
-          validateStatus: (s) => s < 500,
-        },
-      );
+          validateStatus: (s) => s < 400,
+        });
 
-      if (storeRes.status >= 400) {
-        return { ok: false, mensaje: `Error CRM al crear: HTTP ${storeRes.status}` };
+        const csrf = extractCsrf(createPage.data);
+        if (!csrf) {
+          console.warn(`[CRM][${this.username}] Sin CSRF en create-with-package (intento ${intento}), reconectando...`);
+          this.cachedSession = null;
+          if (intento < 2) { await new Promise(r => setTimeout(r, 2000)); continue; }
+          return { ok: false, mensaje: "No se pudo obtener CSRF del CRM" };
+        }
+
+        const isDemo = planClave === "DEMO_1H" || planClave === "DEMO_3H";
+        const username = isDemo
+          ? telefono.replace(/\D/g, "")
+          : await this.obtenerSiguienteUsername(usernamesEnUso);
+
+        const isDemoHora = planClave === "DEMO_1H";
+        const isDemoTres = planClave === "DEMO_3H";
+        const duracionMinutos = isDemoHora ? 60 : isDemoTres ? 180 : undefined;
+
+        const bodyParams = new URLSearchParams();
+        bodyParams.append("_token", csrf);
+        bodyParams.append("username", username);
+        bodyParams.append("package_id", String(planInfo.id));
+        bodyParams.append("max_connections", String(planInfo.maxConexiones));
+        bodyParams.append("is_trial", isDemoHora || isDemoTres ? "1" : "0");
+        if (duracionMinutos) bodyParams.append("trial_duration", String(duracionMinutos));
+        for (const bid of TODOS_LOS_BOUQUETS) {
+          bodyParams.append("bouquet_ids[]", bid);
+        }
+
+        console.log(`📝 [CRM][${this.username}] Creando cuenta plan=${planClave} username=${username} intento=${intento}`);
+
+        const storeRes = await axios.post(
+          `${this.baseUrl}/lines/store-with-package`,
+          bodyParams,
+          {
+            headers: {
+              ...BASE_HEADERS,
+              "Content-Type": "application/x-www-form-urlencoded",
+              Cookie: cookie,
+              Referer: `${this.baseUrl}/lines/create-with-package`,
+            },
+            httpsAgent: agent,
+            maxRedirects: 0,
+            validateStatus: () => true,
+          },
+        );
+
+        console.log(`   [CRM][${this.username}] store-with-package → HTTP ${storeRes.status}`);
+
+        if (storeRes.status !== 302 && storeRes.status !== 200) {
+          if (intento < 2) { this.cachedSession = null; await new Promise(r => setTimeout(r, 2000)); continue; }
+          return { ok: false, mensaje: `Error CRM al crear: HTTP ${storeRes.status}` };
+        }
+
+        // Leer cookie actualizada tras el POST
+        const setCookiePost = storeRes.headers["set-cookie"];
+        const cookiePost = Array.isArray(setCookiePost)
+          ? setCookiePost.map((c: string) => c.split(";")[0]).join("; ")
+          : cookie;
+        this.cachedSession = { cookie: cookiePost || cookie, expiresAt: Date.now() + this.SESSION_TTL_MS };
+
+        // Buscar la línea recién creada en el CRM
+        const listRes = await axios.get(`${this.baseUrl}/api/line/list`, {
+          headers: { ...BASE_HEADERS, Cookie: cookiePost || cookie, Accept: "application/json", "X-Requested-With": "XMLHttpRequest" },
+          httpsAgent: agent,
+          validateStatus: () => true,
+        });
+
+        const rawData = listRes.data;
+        const lineas: Array<{ username: string; password: string; server_url?: string }> =
+          Array.isArray(rawData) ? rawData : Array.isArray(rawData?.data) ? rawData.data : [];
+
+        console.log(`   [CRM][${this.username}] line/list → ${lineas.length} líneas`);
+
+        const linea = lineas.find((l) => l.username?.toLowerCase() === username.toLowerCase());
+
+        if (linea) {
+          console.log(`✅ [CRM][${this.username}] Línea encontrada: ${linea.username} pass=${linea.password}`);
+          return {
+            ok: true,
+            usuario: linea.username,
+            contrasena: linea.password,
+            mensaje: "Cuenta creada exitosamente",
+            plan: planInfo.nombre,
+            servidor: (linea.server_url as string) ?? `http://mtv.bo:80`,
+          };
+        }
+
+        // Fallback: usar la línea más reciente si no hay match exacto
+        console.warn(`⚠️ [CRM][${this.username}] Username ${username} no encontrado exacto, usando primera línea`);
+        const primera = lineas[0];
+        if (primera?.username) {
+          return {
+            ok: true,
+            usuario: primera.username,
+            contrasena: primera.password,
+            mensaje: "Cuenta creada exitosamente",
+            plan: planInfo.nombre,
+            servidor: (primera.server_url as string) ?? `http://mtv.bo:80`,
+          };
+        }
+
+        return { ok: false, mensaje: "Cuenta creada en CRM pero no se pudo recuperar las credenciales" };
+
+      } catch (err) {
+        console.error(`[CRM][${this.username}] Error creando cuenta (intento ${intento}):`, err);
+        if (intento < 2) { this.cachedSession = null; await new Promise(r => setTimeout(r, 2000)); continue; }
+        return { ok: false, mensaje: err instanceof Error ? err.message : "Error desconocido en CRM" };
       }
-
-      const lineaInfo = await this.buscarLinea(username, cookie, agent);
-      return {
-        ok: true,
-        usuario: username,
-        contrasena: lineaInfo?.password ?? password,
-        mensaje: "Cuenta creada exitosamente",
-        plan: planInfo.nombre,
-        servidor: lineaInfo?.servidor ?? `http://mtv.bo:80`,
-      };
-    } catch (err) {
-      console.error(`[CRM][${this.username}] Error creando cuenta:`, err);
-      return { ok: false, mensaje: err instanceof Error ? err.message : "Error desconocido en CRM" };
     }
+    return { ok: false, mensaje: "No se pudo crear la cuenta después de 2 intentos" };
   }
 
   async renovarCuenta(usuarioCRM: string, planClave: string): Promise<ResultadoCRM> {
