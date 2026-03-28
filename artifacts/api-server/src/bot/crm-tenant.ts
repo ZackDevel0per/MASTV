@@ -32,8 +32,18 @@ const BASE_HEADERS = {
 };
 
 function extractCsrf(html: string): string | null {
-  const match = html.match(/<meta name="csrf-token" content="([^"]+)"/);
-  return match?.[1] ?? null;
+  return (
+    html.match(/name="_token"\s+value="([^"]+)"/)?.[1] ??
+    html.match(/<meta name="csrf-token" content="([^"]+)"/)?.[1] ??
+    null
+  );
+}
+
+function cookieFromHeaders(headers: Record<string, unknown>): string {
+  const sc = headers["set-cookie"];
+  if (!sc) return "";
+  const arr = Array.isArray(sc) ? sc : [sc as string];
+  return arr.map((c) => (c as string).split(";")[0]).join("; ");
 }
 
 /**
@@ -193,17 +203,12 @@ export class CrmService {
           ? telefono.replace(/\D/g, "")
           : await this.obtenerSiguienteUsername(usernamesEnUso);
 
-        const isDemoHora = planClave === "DEMO_1H";
-        const isDemoTres = planClave === "DEMO_3H";
-        const duracionMinutos = isDemoHora ? 60 : isDemoTres ? 180 : undefined;
-
+        // Mismo formato exacto que el legacy que funciona
         const bodyParams = new URLSearchParams();
+        bodyParams.append("_method", "POST");
         bodyParams.append("_token", csrf);
+        bodyParams.append("package", String(planInfo.id));
         bodyParams.append("username", username);
-        bodyParams.append("package_id", String(planInfo.id));
-        bodyParams.append("max_connections", String(planInfo.maxConexiones));
-        bodyParams.append("is_trial", isDemoHora || isDemoTres ? "1" : "0");
-        if (duracionMinutos) bodyParams.append("trial_duration", String(duracionMinutos));
         for (const bid of TODOS_LOS_BOUQUETS) {
           bodyParams.append("bouquet_ids[]", bid);
         }
@@ -213,13 +218,14 @@ export class CrmService {
         // 3. Crear la cuenta
         const storeRes = await axios.post(
           `${this.baseUrl}/lines/store-with-package`,
-          bodyParams,
+          bodyParams.toString(),
           {
             headers: {
               ...BASE_HEADERS,
               "Content-Type": "application/x-www-form-urlencoded",
-              Cookie: cookie,
+              Origin: this.baseUrl,
               Referer: `${this.baseUrl}/lines/create-with-package`,
+              Cookie: cookie,
             },
             httpsAgent: agent,
             maxRedirects: 0,
@@ -227,18 +233,29 @@ export class CrmService {
           },
         );
 
-        console.log(`   [CRM][${this.username}] store-with-package → HTTP ${storeRes.status}`);
+        // Actualizar cookie con la del POST (igual que en legacy)
+        const cookiePost = cookieFromHeaders(storeRes.headers as Record<string, unknown>) || cookie;
+        this.cachedSession = { cookie: cookiePost, expiresAt: Date.now() + this.SESSION_TTL_MS };
+
+        console.log(`   [CRM][${this.username}] store-with-package → HTTP ${storeRes.status} location=${storeRes.headers["location"] ?? "—"}`);
 
         if (storeRes.status !== 302 && storeRes.status !== 200) {
           if (intento < 2) { this.cachedSession = null; await new Promise(r => setTimeout(r, 2000)); continue; }
           return { ok: false, mensaje: `Error CRM al crear: HTTP ${storeRes.status}` };
         }
 
-        // 4. Esperar brevemente y obtener lista DESPUÉS
+        // Si redirige de vuelta a create-with-package = falló la creación (validación CRM)
+        const location = storeRes.headers["location"] as string ?? "";
+        if (location.includes("create-with-package")) {
+          console.error(`❌ [CRM][${this.username}] CRM rechazó la creación (redirigió a formulario)`);
+          return { ok: false, mensaje: "El CRM rechazó la creación de la cuenta" };
+        }
+
+        // 4. Esperar brevemente y obtener lista DESPUÉS (usando cookie actualizada)
         await new Promise(r => setTimeout(r, 1500));
 
         const listDespues = await axios.get(`${this.baseUrl}/api/line/list`, {
-          headers: { ...BASE_HEADERS, Cookie: cookie, Accept: "application/json", "X-Requested-With": "XMLHttpRequest" },
+          headers: { ...BASE_HEADERS, Cookie: cookiePost, Accept: "application/json", "X-Requested-With": "XMLHttpRequest" },
           httpsAgent: agent,
           validateStatus: () => true,
         });
