@@ -37,6 +37,9 @@ export const tenantsTable = pgTable("tenants", {
   // Personalización de respuestas y planes (JSON)
   planesJson: text("planes_json"),
 
+  // QR de pago (imagen que el bot envía al cliente para que pague)
+  qrPagoUrl: text("qr_pago_url"),
+
   // Pushover (notificaciones al admin)
   pushoverUserKey: text("pushover_user_key"),
   pushoverApiToken: text("pushover_api_token"),

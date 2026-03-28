@@ -32,6 +32,9 @@ export interface TenantConfig {
   // Planes personalizados (sobreescribe los defaults)
   planes: TenantPlan[] | null;
 
+  // QR de pago (URL de imagen que se envía al cliente al elegir un plan)
+  qrPagoUrl: string | null;
+
   // Pushover (notificaciones al admin del tenant)
   pushoverUserKey: string | null;
   pushoverApiToken: string | null;
@@ -68,6 +71,7 @@ export function tenantFromDb(row: {
   gmailRefreshToken: string | null;
   gmailRemitenteFiltro: string | null;
   planesJson: string | null;
+  qrPagoUrl: string | null;
   pushoverUserKey: string | null;
   pushoverApiToken: string | null;
 }): TenantConfig {
@@ -96,6 +100,7 @@ export function tenantFromDb(row: {
     gmailRefreshToken: row.gmailRefreshToken,
     gmailRemitenteFiltro: row.gmailRemitenteFiltro,
     planes,
+    qrPagoUrl: row.qrPagoUrl,
     pushoverUserKey: row.pushoverUserKey,
     pushoverApiToken: row.pushoverApiToken,
   };

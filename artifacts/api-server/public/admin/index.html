@@ -424,6 +424,7 @@
           <div><label>Gmail Client Secret</label><input type="password" name="gmailClientSecret" placeholder="GOCSPX-..." /></div>
           <div><label>Pushover User Key</label><input type="text" name="pushoverUserKey" placeholder="u..." /></div>
           <div><label>Pushover API Token</label><input type="text" name="pushoverApiToken" placeholder="a..." /></div>
+          <div class="form-full"><label>URL Imagen QR de Pago <span style="color:var(--muted);font-weight:400;text-transform:none;letter-spacing:0">— el bot la envía al cliente al elegir un plan</span></label><input type="text" name="qrPagoUrl" placeholder="https://i.imgur.com/tu-qr.jpg" /></div>
           <div>
             <label>Suscripción vence</label>
             <div id="nuevo-sus-widget">
@@ -515,6 +516,7 @@
       <div class="form-grid">
         <div><label>Pushover User Key</label><input type="text" name="pushoverUserKey" id="edit-pushoverUserKey" /></div>
         <div><label>Pushover API Token</label><input type="text" name="pushoverApiToken" id="edit-pushoverApiToken" /></div>
+        <div class="form-full"><label>URL Imagen QR de Pago <span style="color:var(--muted);font-weight:400;text-transform:none;letter-spacing:0">— el bot la envía al cliente al elegir un plan</span></label><input type="text" name="qrPagoUrl" id="edit-qrPagoUrl" placeholder="https://i.imgur.com/tu-qr.jpg" /></div>
       </div>
       <p style="font-size:12px;color:var(--muted);margin:16px 0 12px;padding-top:12px;border-top:1px solid var(--border)">Precios por plan — ajusta el precio de cada plan</p>
       <div id="edit-planes-list"></div>
@@ -1127,22 +1129,27 @@ function loadSuscripcionVence(ctx, isoDate) {
 }
 
 // ═══════════════════════ MODAL EDITAR ═══════════════════════
-function abrirEditar(t) {
-  document.getElementById('edit-id').value = t.id;
-  document.getElementById('edit-nombre').value = t.nombre || '';
-  document.getElementById('edit-nombreEmpresa').value = t.nombreEmpresa || '';
-  document.getElementById('edit-adminWhatsapp').value = t.adminWhatsapp || '';
-  document.getElementById('edit-crmUsername').value = t.crmUsername || '';
-  document.getElementById('edit-crmUsernamePrefix').value = t.crmUsernamePrefix || '';
-  document.getElementById('edit-spreadsheetId').value = t.spreadsheetId || '';
-  document.getElementById('edit-gmailClientId').value = t.gmailClientId || '';
+async function abrirEditar(t) {
+  // Cargamos detalles completos desde el servidor (el listado solo trae datos básicos)
+  const data = await apiFetch(`/admin/tenants/${t.id}`);
+  const full = (data.ok && data.tenant) ? data.tenant : t;
+
+  document.getElementById('edit-id').value = full.id;
+  document.getElementById('edit-nombre').value = full.nombre || '';
+  document.getElementById('edit-nombreEmpresa').value = full.nombreEmpresa || '';
+  document.getElementById('edit-adminWhatsapp').value = full.adminWhatsapp || '';
+  document.getElementById('edit-crmUsername').value = full.crmUsername || '';
+  document.getElementById('edit-crmUsernamePrefix').value = full.crmUsernamePrefix || '';
+  document.getElementById('edit-spreadsheetId').value = full.spreadsheetId || '';
+  document.getElementById('edit-gmailClientId').value = full.gmailClientId || '';
   document.getElementById('edit-gmailClientSecret').value = '';
-  document.getElementById('edit-gmailRemitenteFiltro').value = t.gmailRemitenteFiltro || '';
-  document.getElementById('edit-googleServiceAccountJson').value = t.googleServiceAccountJson || '';
-  document.getElementById('edit-pushoverUserKey').value = t.pushoverUserKey || '';
-  document.getElementById('edit-pushoverApiToken').value = t.pushoverApiToken || '';
-  loadSuscripcionVence('edit', t.suscripcionVence || null);
-  cargarPlanesEnEditor('edit', t.planesJson || null);
+  document.getElementById('edit-gmailRemitenteFiltro').value = full.gmailRemitenteFiltro || '';
+  document.getElementById('edit-googleServiceAccountJson').value = full.googleServiceAccountJson || '';
+  document.getElementById('edit-pushoverUserKey').value = full.pushoverUserKey || '';
+  document.getElementById('edit-pushoverApiToken').value = full.pushoverApiToken || '';
+  document.getElementById('edit-qrPagoUrl').value = full.qrPagoUrl || '';
+  loadSuscripcionVence('edit', full.suscripcionVence || null);
+  cargarPlanesEnEditor('edit', full.planesJson || null);
   document.getElementById('modal-editar').classList.add('open');
 }
 

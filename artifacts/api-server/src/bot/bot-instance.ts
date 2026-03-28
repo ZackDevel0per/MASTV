@@ -481,10 +481,16 @@ export class BotInstance {
         const PLANES_VALIDOS = new Set(Object.keys(PLAN_ID_MAP));
         const esPlanPagado = PLANES_VALIDOS.has(textoUpper) && !textoUpper.startsWith("DEMO");
         if (esPlanPagado) {
-          const qrPath = path.join(__dirname, "../../public/images/qr-pago.jpeg");
-          if (fs.existsSync(qrPath)) {
-            const qrBuffer = fs.readFileSync(qrPath);
-            await this.sock!.sendMessage(jid, { image: qrBuffer, caption: `📲 *Escanea este QR para pagar*\n\nUna vez realizado el pago, escribe *COMPROBAR*.` });
+          if (this.tenant.qrPagoUrl) {
+            // QR personalizado del tenant (URL)
+            await this.sock!.sendMessage(jid, { image: { url: this.tenant.qrPagoUrl }, caption: `📲 *Escanea este QR para pagar*\n\nUna vez realizado el pago, escribe *COMPROBAR*.` });
+          } else {
+            // Fallback: QR local global (si existe)
+            const qrPath = path.join(__dirname, "../../public/images/qr-pago.jpeg");
+            if (fs.existsSync(qrPath)) {
+              const qrBuffer = fs.readFileSync(qrPath);
+              await this.sock!.sendMessage(jid, { image: qrBuffer, caption: `📲 *Escanea este QR para pagar*\n\nUna vez realizado el pago, escribe *COMPROBAR*.` });
+            }
           }
           this.conversaciones[jid] = {
             ultimoComando: textoUpper, planSeleccionado: textoUpper,

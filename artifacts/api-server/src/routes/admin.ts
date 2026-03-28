@@ -253,7 +253,7 @@ router.post("/admin/tenants", async (req, res) => {
       crmBaseUrl, crmUsername, crmPassword, crmUsernamePrefix,
       gmailClientId, gmailClientSecret, gmailRefreshToken, gmailRemitenteFiltro,
       pushoverUserKey, pushoverApiToken,
-      planesJson, suscripcionVence,
+      planesJson, qrPagoUrl, suscripcionVence,
     } = req.body;
 
     if (!id || !nombre || !nombreEmpresa || !adminWhatsapp) {
@@ -276,6 +276,7 @@ router.post("/admin/tenants", async (req, res) => {
       pushoverUserKey: pushoverUserKey || null,
       pushoverApiToken: pushoverApiToken || null,
       planesJson: planesJson || null,
+      qrPagoUrl: qrPagoUrl || null,
       suscripcionVence: suscripcionVence ? new Date(suscripcionVence) : null,
       activo: true,
     });
@@ -304,7 +305,7 @@ router.put("/admin/tenants/:id", async (req, res) => {
       "spreadsheetId", "googleServiceAccountJson",
       "crmBaseUrl", "crmUsername", "crmPassword", "crmUsernamePrefix",
       "gmailClientId", "gmailClientSecret", "gmailRefreshToken", "gmailRemitenteFiltro",
-      "pushoverUserKey", "pushoverApiToken", "planesJson", "activo",
+      "pushoverUserKey", "pushoverApiToken", "planesJson", "qrPagoUrl", "activo",
     ] as const;
 
     for (const campo of campos) {
