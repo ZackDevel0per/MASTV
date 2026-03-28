@@ -112,14 +112,42 @@ export function NuevoTenant() {
         {/* Google */}
         <Section title="3. Google Workspace" icon={KeyRound}>
           <div className="space-y-6">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-              <div><label className="label-base">Spreadsheet ID</label><input name="spreadsheetId" className="input-base" /></div>
-              <div><label className="label-base">Filtro Remitente Gmail</label><input name="gmailRemitenteFiltro" placeholder="pagos@banco.com" className="input-base" /></div>
-            </div>
+
+            {/* Gmail OAuth2 — detección de pagos */}
             <div>
-              <label className="label-base">Service Account JSON</label>
-              <textarea name="googleServiceAccountJson" rows={4} className="input-base font-mono text-xs" placeholder='{"type": "service_account", ...}'></textarea>
+              <p className="text-sm font-semibold text-white mb-1">Gmail OAuth2 — Verificación de pagos</p>
+              <p className="text-xs text-muted-foreground mb-4">El bot leerá los correos del banco desde esta cuenta Gmail para detectar pagos automáticamente.</p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div><label className="label-base">Gmail Client ID</label><input name="gmailClientId" className="input-base font-mono text-xs" placeholder="xxxx.apps.googleusercontent.com" /></div>
+                <div><label className="label-base">Gmail Client Secret</label><input name="gmailClientSecret" className="input-base font-mono text-xs" placeholder="GOCSPX-..." /></div>
+                <div className="col-span-1 sm:col-span-2">
+                  <label className="label-base">Gmail Refresh Token</label>
+                  <input name="gmailRefreshToken" className="input-base font-mono text-xs" placeholder="1//0g..." />
+                  <p className="text-xs text-muted-foreground mt-1">Se obtiene una sola vez desde <span className="text-primary font-mono">/api/gmail/autorizar</span> después de crear el tenant.</p>
+                </div>
+                <div className="col-span-1 sm:col-span-2">
+                  <label className="label-base">Filtro remitente (email del banco)</label>
+                  <input name="gmailRemitenteFiltro" className="input-base" placeholder="notificaciones@bancounion.com.bo" />
+                </div>
+              </div>
             </div>
+
+            {/* Divisor */}
+            <div className="border-t border-white/5" />
+
+            {/* Google Sheets — historial de pagos */}
+            <div>
+              <p className="text-sm font-semibold text-white mb-1">Google Sheets — Historial de pagos</p>
+              <p className="text-xs text-muted-foreground mb-4">Los pagos verificados se registran en esta hoja de cálculo usando la Service Account.</p>
+              <div className="grid grid-cols-1 gap-4">
+                <div><label className="label-base">Spreadsheet ID</label><input name="spreadsheetId" className="input-base font-mono text-xs" placeholder="1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgVE2upms" /></div>
+                <div>
+                  <label className="label-base">Service Account JSON</label>
+                  <textarea name="googleServiceAccountJson" rows={4} className="input-base font-mono text-xs" placeholder='{"type": "service_account", "project_id": "...", "private_key": "...", ...}'></textarea>
+                </div>
+              </div>
+            </div>
+
           </div>
         </Section>
 
