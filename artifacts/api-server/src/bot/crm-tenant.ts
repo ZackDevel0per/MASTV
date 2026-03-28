@@ -153,7 +153,7 @@ export class CrmService {
       const csrf = extractCsrf(createPage.data);
       const isDemo = planClave === "DEMO_1H" || planClave === "DEMO_3H";
       const username = isDemo
-        ? `dem${telefono.replace(/\D/g, "")}`
+        ? telefono.replace(/\D/g, "")
         : await this.obtenerSiguienteUsername(usernamesEnUso);
       const password = `${this.prefix}${telefono.replace(/\D/g, "").slice(-6)}`;
 
@@ -305,8 +305,8 @@ export class CrmService {
         validateStatus: (s) => s < 400,
       });
       const lineas: Array<{ username: string }> = listRes.data?.data ?? listRes.data ?? [];
-      const usernameDemo = `dem${telefono.replace(/\D/g, "")}`;
-      return lineas.some((l) => l.username?.toLowerCase() === usernameDemo.toLowerCase());
+      const telLimpio = telefono.replace(/\D/g, "");
+      return lineas.some((l) => l.username?.toLowerCase() === telLimpio.toLowerCase());
     } catch {
       return false;
     }
