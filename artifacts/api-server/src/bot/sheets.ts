@@ -677,6 +677,101 @@ export async function buscarCuentasPorTelefono(telefono: string): Promise<Cuenta
   return cuentas;
 }
 
+export interface ResultadoSyncCRM {
+  total: number;
+  nuevas: number;
+  omitidas: number;
+  errores: number;
+}
+
+/**
+ * Importa líneas del CRM a la hoja "Cuentas".
+ * - Si el username ya existe en la hoja → lo omite (no duplica).
+ * - Si no existe → lo agrega como fila nueva.
+ * Retorna un resumen del resultado.
+ */
+export async function sincronizarLineasCRMEnSheets(
+  lineas: Array<{
+    username: string;
+    password: string;
+    planNombre: string;
+    fechaExpiracion: string;
+    estado: string;
+  }>,
+): Promise<ResultadoSyncCRM> {
+  const sheets = await getSheetsClient();
+
+  // Leer todos los usernames ya registrados en la hoja (columna B)
+  const existentes = await sheets.spreadsheets.values.get({
+    spreadsheetId: SPREADSHEET_ID,
+    range: `${SHEET_CUENTAS}!B:B`,
+  });
+  const usuariosExistentes = new Set<string>();
+  for (const row of existentes.data.values ?? []) {
+    const u = (row[0] ?? "").toString().toLowerCase().trim();
+    if (u) usuariosExistentes.add(u);
+  }
+
+  const filasNuevas: string[][] = [];
+  let omitidas = 0;
+
+  for (const l of lineas) {
+    if (usuariosExistentes.has(l.username.toLowerCase().trim())) {
+      omitidas++;
+      continue;
+    }
+    filasNuevas.push([
+      "",                          // A: Teléfono (desconocido, viene del CRM)
+      l.username,                  // B: Usuario
+      l.planNombre,                // C: Plan
+      "",                          // D: Fecha Creación (desconocida)
+      l.fechaExpiracion,           // E: Fecha Expiración
+      l.estado,                    // F: Estado
+    ]);
+  }
+
+  let errores = 0;
+  if (filasNuevas.length > 0) {
+    try {
+      await sheets.spreadsheets.values.append({
+        spreadsheetId: SPREADSHEET_ID,
+        range: `${SHEET_CUENTAS}!A:F`,
+        valueInputOption: "USER_ENTERED",
+        requestBody: { values: filasNuevas },
+      });
+      // Actualizar caché en memoria para los nuevos usuarios
+      for (const fila of filasNuevas) {
+        const cuenta: CuentaRegistrada = {
+          usuario: fila[1] ?? "",
+          plan: fila[2] ?? "",
+          fecha: fila[3] ?? "",
+          fechaExpiracion: fila[4] ?? "",
+          estado: fila[5] ?? "",
+        };
+        const lista = cacheSheets.get("") ?? [];
+        lista.push(cuenta);
+        cacheSheets.set("", lista);
+      }
+    } catch (err) {
+      console.error("[SHEETS] Error al importar líneas del CRM:", err);
+      errores = filasNuevas.length;
+    }
+  }
+
+  const resultado: ResultadoSyncCRM = {
+    total: lineas.length,
+    nuevas: filasNuevas.length - errores,
+    omitidas,
+    errores,
+  };
+
+  console.log(
+    `🔄 [SHEETS] Sync CRM→Sheets: ${resultado.nuevas} nuevas, ${resultado.omitidas} omitidas, ${resultado.errores} errores (total CRM: ${resultado.total})`,
+  );
+
+  return resultado;
+}
+
 /**
  * Encuentra el próximo username secuencial disponible con el prefijo "zk".
  * Formato: zk00001, zk00002, ... hasta zk99999.

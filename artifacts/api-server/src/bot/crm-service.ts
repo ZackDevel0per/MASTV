@@ -1006,3 +1006,85 @@ export async function verificarConexionCRM(): Promise<boolean> {
     return false;
   }
 }
+
+export interface LineaCRMCompleta {
+  username: string;
+  password: string;
+  planNombre: string;
+  fechaExpiracion: string;
+  estado: string;
+  maxConexiones: number;
+  esTrial: boolean;
+}
+
+/** Mapa inverso: package_id del CRM → nombre del plan */
+const PLAN_ID_A_NOMBRE: Record<number, string> = Object.fromEntries(
+  Object.entries(PLAN_ID_MAP).map(([_k, v]) => [v.id, v.nombre]),
+) as Record<number, string>;
+
+/**
+ * Obtiene todas las líneas registradas en el CRM y las convierte
+ * a un formato normalizado listo para escribir en Google Sheets.
+ */
+export async function obtenerTodasLasLineasCRM(): Promise<LineaCRMCompleta[]> {
+  const sessionCookie = await getSession();
+
+  const r = await axios.get(`${CRM_BASE_URL}/api/line/list`, {
+    headers: {
+      ...BASE_HEADERS,
+      Cookie: sessionCookie,
+      Accept: "application/json",
+      "X-Requested-With": "XMLHttpRequest",
+    },
+    validateStatus: () => true,
+    timeout: 30_000,
+  });
+
+  const rawData = r.data;
+  const lineasRaw: LineaCRM[] = Array.isArray(rawData)
+    ? rawData
+    : Array.isArray(rawData?.data)
+      ? rawData.data
+      : [];
+
+  console.log(`📋 [CRM] Total líneas obtenidas: ${lineasRaw.length}`);
+
+  return lineasRaw.map((l) => {
+    const pkgId = typeof l.package_id === "string"
+      ? parseInt(l.package_id, 10)
+      : (l.package_id ?? 0);
+
+    const planNombre = PLAN_ID_A_NOMBRE[pkgId] ?? `Plan ${pkgId}`;
+
+    // exp_date puede ser Unix timestamp (segundos) o cadena
+    let fechaExpiracion = "";
+    if (l.exp_date) {
+      const ts = Number(l.exp_date);
+      if (!isNaN(ts) && ts > 0) {
+        const d = new Date(ts * 1000);
+        fechaExpiracion = d.toLocaleString("es-BO", { timeZone: "America/La_Paz" });
+      } else if (typeof l.exp_date === "string") {
+        fechaExpiracion = l.exp_date;
+      }
+    }
+
+    let estado = "ACTIVA";
+    if (l.is_expired) {
+      estado = "EXPIRADA";
+    } else if (!l.enabled || l.enabled === 0) {
+      estado = "DESACTIVADA";
+    } else if (l.is_trial || l.is_trial === 1) {
+      estado = "DEMO";
+    }
+
+    return {
+      username: l.username,
+      password: l.password,
+      planNombre,
+      fechaExpiracion,
+      estado,
+      maxConexiones: l.max_connections ?? 1,
+      esTrial: !!(l.is_trial),
+    };
+  });
+}

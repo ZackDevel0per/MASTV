@@ -9,9 +9,9 @@ import {
   enviarMensaje,
 } from "../bot/whatsapp.js";
 import { confirmarPago, marcarEntregado, buscarPedidoPorMonto } from "../bot/payment-store.js";
-import { crearCuentaEnCRM, PLAN_ID_MAP, debugRenewPage, debugExtEndpoints, debugEditPage } from "../bot/crm-service.js";
+import { crearCuentaEnCRM, PLAN_ID_MAP, debugRenewPage, debugExtEndpoints, debugEditPage, obtenerTodasLasLineasCRM } from "../bot/crm-service.js";
 import { ACTIVACION_EXITOSA } from "../bot/responses.js";
-import { registrarPagoEnSheet } from "../bot/sheets.js";
+import { registrarPagoEnSheet, sincronizarLineasCRMEnSheets } from "../bot/sheets.js";
 import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
@@ -455,6 +455,31 @@ router.get("/debug-edit/:username", async (req: Request, res: Response) => {
     res.json(data);
   } catch (err) {
     res.status(500).json({ error: String(err) });
+  }
+});
+
+// ═════════════════════════════════════════════════════════
+// SYNC CRM → Google Sheets
+// Importa todas las líneas del CRM a la hoja "Cuentas".
+// Las líneas ya existentes (por username) se omiten.
+// ═════════════════════════════════════════════════════════
+router.post("/bot/sync-crm", async (req, res) => {
+  if (!verificarToken(req, res)) return;
+  try {
+    console.log("🔄 [SYNC] Iniciando sincronización CRM → Sheets...");
+    const lineas = await obtenerTodasLasLineasCRM();
+    const resultado = await sincronizarLineasCRMEnSheets(lineas);
+    res.json({
+      ok: true,
+      mensaje: `Sincronización completa: ${resultado.nuevas} líneas nuevas importadas, ${resultado.omitidas} ya existían, ${resultado.errores} errores.`,
+      ...resultado,
+    });
+  } catch (err) {
+    console.error("[SYNC] Error en sync CRM → Sheets:", err);
+    res.status(500).json({
+      ok: false,
+      mensaje: err instanceof Error ? err.message : "Error desconocido en la sincronización",
+    });
   }
 });
 
