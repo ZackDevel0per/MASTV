@@ -40,7 +40,7 @@ export function Layout({ children }: { children: ReactNode }) {
             <Zap size={24} />
           </div>
           <div>
-            <h1 className="font-display font-bold text-xl text-white">SaaS Panel</h1>
+            <h1 className="font-display font-bold text-xl text-white">ZK Panel</h1>
             <p className="text-xs text-muted-foreground uppercase tracking-widest">Superadmin</p>
           </div>
         </div>

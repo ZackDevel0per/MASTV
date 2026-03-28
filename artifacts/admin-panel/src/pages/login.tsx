@@ -54,7 +54,7 @@ export function Login() {
         </div>
         
         <div className="text-center mb-8">
-          <h1 className="text-3xl font-display font-bold text-white">SaaS Admin</h1>
+          <h1 className="text-3xl font-display font-bold text-white">ZK Panel</h1>
           <p className="text-muted-foreground mt-2">Inicia sesión para gestionar tenants</p>
         </div>
 
