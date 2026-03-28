@@ -24,8 +24,6 @@
     header { background: var(--surface); border-bottom: 1px solid var(--border); padding: 14px 24px; display: flex; align-items: center; gap: 16px; }
     header h1 { font-size: 18px; font-weight: 700; color: var(--accent); }
     header span { color: var(--muted); font-size: 13px; }
-    #token-bar { background: var(--surface2); border-bottom: 1px solid var(--border); padding: 10px 24px; display: flex; align-items: center; gap: 10px; }
-    #token-bar input { background: var(--bg); border: 1px solid var(--border); color: var(--text); border-radius: 6px; padding: 6px 10px; flex: 1; max-width: 280px; outline: none; }
     nav { background: var(--surface); border-bottom: 1px solid var(--border); display: flex; gap: 2px; padding: 0 16px; }
     nav button { background: none; border: none; color: var(--muted); padding: 12px 16px; cursor: pointer; font-size: 13px; font-weight: 600; border-bottom: 2px solid transparent; transition: all 0.15s; }
     nav button.active { color: var(--accent); border-bottom-color: var(--accent); }
@@ -36,7 +34,7 @@
 
     /* Cards */
     .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px; margin-bottom: 16px; }
-    .card-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
+    .card-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; flex-wrap: wrap; gap: 10px; }
     .card-header h2 { font-size: 15px; font-weight: 700; }
 
     /* Badges */
@@ -45,10 +43,12 @@
     .badge-red { background: rgba(230,57,70,.15); color: var(--red); }
     .badge-yellow { background: rgba(255,209,102,.15); color: var(--yellow); }
     .badge-purple { background: rgba(108,99,255,.15); color: var(--accent); }
+    .badge-blue { background: rgba(56,189,248,.15); color: #38bdf8; }
 
     /* Buttons */
     .btn { display: inline-flex; align-items: center; gap: 6px; padding: 7px 14px; border-radius: 7px; border: none; cursor: pointer; font-size: 13px; font-weight: 600; transition: opacity 0.15s; }
     .btn:hover { opacity: 0.85; }
+    .btn:disabled { opacity: 0.5; cursor: not-allowed; }
     .btn-primary { background: var(--accent); color: #fff; }
     .btn-success { background: var(--green); color: #000; }
     .btn-danger { background: var(--red); color: #fff; }
@@ -63,6 +63,7 @@
     td { padding: 11px 12px; border-bottom: 1px solid rgba(46,50,96,.5); vertical-align: middle; }
     tr:hover td { background: rgba(255,255,255,.02); }
     tr:last-child td { border-bottom: none; }
+    tr.clickable { cursor: pointer; }
 
     /* Form */
     .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
@@ -77,15 +78,16 @@
     /* Modal */
     .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.7); z-index: 100; align-items: center; justify-content: center; }
     .modal-overlay.open { display: flex; }
-    .modal { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 28px; width: 90%; max-width: 680px; max-height: 90vh; overflow-y: auto; }
+    .modal { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 28px; width: 90%; max-width: 700px; max-height: 90vh; overflow-y: auto; }
     .modal h3 { font-size: 16px; margin-bottom: 20px; }
     .modal-actions { margin-top: 20px; display: flex; gap: 10px; justify-content: flex-end; }
 
     /* Stats */
-    .stats-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 14px; margin-bottom: 20px; }
+    .stats-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 14px; margin-bottom: 20px; }
     .stat-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 18px; }
     .stat-card .val { font-size: 28px; font-weight: 800; }
     .stat-card .lbl { font-size: 11px; color: var(--muted); margin-top: 4px; }
+    .stat-card .sub { font-size: 11px; color: var(--muted); margin-top: 2px; }
 
     /* Toast */
     #toast { position: fixed; bottom: 24px; right: 24px; background: var(--surface2); border: 1px solid var(--border); padding: 12px 18px; border-radius: 8px; font-size: 13px; z-index: 999; display: none; box-shadow: 0 4px 20px rgba(0,0,0,.4); }
@@ -97,41 +99,103 @@
     .dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
     .dot-green { background: var(--green); box-shadow: 0 0 6px var(--green); }
     .dot-red { background: var(--red); }
-    .dot-yellow { background: var(--yellow); }
+    .dot-yellow { background: var(--yellow); animation: pulse 2s infinite; }
+    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
 
     .empty { text-align: center; color: var(--muted); padding: 32px; }
     code { background: var(--bg); padding: 2px 6px; border-radius: 4px; font-size: 11px; color: var(--accent); }
+
+    /* Alert banners */
+    .alert { border-radius: var(--radius); padding: 12px 16px; margin-bottom: 12px; display: flex; align-items: center; gap: 10px; font-size: 13px; cursor: pointer; }
+    .alert:hover { opacity: 0.9; }
+    .alert-red { background: rgba(230,57,70,.12); border: 1px solid rgba(230,57,70,.3); color: #f87171; }
+    .alert-yellow { background: rgba(255,209,102,.1); border: 1px solid rgba(255,209,102,.3); color: var(--yellow); }
+
+    /* Filter bar */
+    .filter-bar { display: flex; gap: 10px; flex-wrap: wrap; align-items: flex-end; margin-bottom: 16px; padding: 14px; background: var(--surface2); border-radius: var(--radius); border: 1px solid var(--border); }
+    .filter-bar label { margin-bottom: 4px; }
+    .filter-bar .f-group { display: flex; flex-direction: column; min-width: 140px; }
+    .filter-bar input[type=date], .filter-bar select { padding: 6px 10px; font-size: 12px; }
+
+    /* Tenant detail */
+    .detail-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; }
+    @media(max-width:1100px) { .detail-grid { grid-template-columns: 1fr 1fr; } }
+    @media(max-width:700px) { .detail-grid { grid-template-columns: 1fr; } }
+
+    .integration-row { display: flex; align-items: center; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid rgba(46,50,96,.4); }
+    .integration-row:last-child { border-bottom: none; }
+
+    .event-list { max-height: 220px; overflow-y: auto; }
+    .event-item { display: flex; align-items: flex-start; gap: 8px; padding: 8px 0; border-bottom: 1px solid rgba(46,50,96,.3); font-size: 12px; }
+    .event-item:last-child { border-bottom: none; }
+
+    .action-btn { display: flex; align-items: center; gap: 8px; padding: 8px 12px; border-radius: 7px; cursor: pointer; border: none; background: transparent; color: var(--muted); font-size: 13px; font-weight: 500; width: 100%; text-align: left; transition: all 0.15s; }
+    .action-btn:hover { background: rgba(255,255,255,.05); color: var(--text); }
+    .action-btn.danger:hover { background: rgba(230,57,70,.1); color: var(--red); }
+
+    /* Login */
+    #login-screen { position: fixed; inset: 0; background: var(--bg); z-index: 1000; display: flex; align-items: center; justify-content: center; }
+    .login-card { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 40px; width: 100%; max-width: 380px; text-align: center; }
+    .login-card h2 { font-size: 22px; font-weight: 800; color: var(--accent); margin-bottom: 6px; }
+    .login-card p { color: var(--muted); font-size: 13px; margin-bottom: 28px; }
+    .login-card .field { text-align: left; margin-bottom: 16px; }
+    .login-err { color: var(--red); font-size: 12px; margin-top: 10px; min-height: 16px; }
+
+    /* Bot monitor grid */
+    .monitor-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 14px; }
+    .monitor-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; }
+    .monitor-card.connected { border-color: rgba(0,217,126,.3); }
+    .monitor-card.pending { border-color: rgba(255,209,102,.3); }
+    .monitor-card.disconnected { border-color: rgba(230,57,70,.2); }
+    .monitor-card h4 { font-size: 13px; font-weight: 700; margin-bottom: 4px; }
+    .monitor-card .mc-actions { display: flex; gap: 6px; margin-top: 12px; }
   </style>
 </head>
 <body>
 
+<!-- ═══════════════════════ LOGIN SCREEN ═══════════════════════ -->
+<div id="login-screen">
+  <div class="login-card">
+    <h2>⚡ IPTV SaaS</h2>
+    <p>Panel de Superadmin</p>
+    <div class="field">
+      <label>Usuario</label>
+      <input type="text" id="login-user" placeholder="admin" autocomplete="username" />
+    </div>
+    <div class="field">
+      <label>Contraseña</label>
+      <input type="password" id="login-pass" placeholder="••••••••" autocomplete="current-password" onkeydown="if(event.key==='Enter') doLogin()" />
+    </div>
+    <button class="btn btn-primary" style="width:100%" onclick="doLogin()">Acceder al Panel</button>
+    <div class="login-err" id="login-err"></div>
+  </div>
+</div>
+
+<!-- ═══════════════════════ HEADER ═══════════════════════ -->
 <header>
   <h1>⚡ IPTV SaaS Admin</h1>
   <span>Panel de Superadmin — Control total de tenants</span>
   <div style="margin-left:auto; display:flex; align-items:center; gap:10px;">
     <span id="header-status" style="font-size:12px; color:var(--muted)">Cargando...</span>
     <button class="btn btn-ghost btn-sm" onclick="recargarTodo()">↻ Recargar</button>
+    <button class="btn btn-danger btn-sm" onclick="cerrarSesion()">Salir</button>
   </div>
 </header>
 
-<div id="token-bar">
-  <label style="margin:0; white-space:nowrap">Admin Token:</label>
-  <input type="password" id="admin-token" placeholder="superadmin_token_seguro_2024" value="superadmin_token_seguro_2024" />
-  <button class="btn btn-primary btn-sm" onclick="recargarTodo()">Conectar</button>
-</div>
-
 <nav>
-  <button class="active" onclick="switchTab('tenants')">🏢 Tenants</button>
-  <button onclick="switchTab('pagos')">💰 Pagos</button>
-  <button onclick="switchTab('cuentas')">📋 Cuentas</button>
-  <button onclick="switchTab('nuevo')">➕ Nuevo Tenant</button>
+  <button class="active" onclick="switchTab('tenants', this)">🏢 Tenants</button>
+  <button onclick="switchTab('monitor', this)">📡 Monitor Bots</button>
+  <button onclick="switchTab('pagos', this)">💰 Pagos</button>
+  <button onclick="switchTab('cuentas', this)">📋 Cuentas</button>
+  <button onclick="switchTab('nuevo', this)">➕ Nuevo Tenant</button>
 </nav>
 
 <main>
 
-  <!-- TENANTS -->
+  <!-- ══════════════════ TENANTS ══════════════════ -->
   <div class="section active" id="tab-tenants">
-    <div class="stats-grid" id="stats-grid">
+    <div id="alerts-container"></div>
+    <div class="stats-grid">
       <div class="stat-card"><div class="val" id="st-total">—</div><div class="lbl">Tenants totales</div></div>
       <div class="stat-card"><div class="val" id="st-activos">—</div><div class="lbl">Bots activos</div></div>
       <div class="stat-card"><div class="val" id="st-conectados">—</div><div class="lbl">Bots conectados</div></div>
@@ -145,9 +209,7 @@
       <div class="tbl-wrap">
         <table>
           <thead>
-            <tr>
-              <th>ID</th><th>Empresa</th><th>Admin WA</th><th>Integrac.</th><th>Bot</th><th>Suscripción</th><th>Acciones</th>
-            </tr>
+            <tr><th>ID</th><th>Empresa</th><th>Admin WA</th><th>Integrac.</th><th>Bot</th><th>Suscripción</th><th>Acciones</th></tr>
           </thead>
           <tbody id="tenants-tbody">
             <tr><td colspan="7" class="empty">Cargando...</td></tr>
@@ -157,16 +219,109 @@
     </div>
   </div>
 
-  <!-- PAGOS -->
+  <!-- ══════════════════ MONITOR BOTS ══════════════════ -->
+  <div class="section" id="tab-monitor">
+    <div class="card-header" style="margin-bottom:16px">
+      <h2 style="font-size:16px;font-weight:700">📡 Monitor de Bots en Tiempo Real</h2>
+      <button class="btn btn-ghost btn-sm" onclick="recargarTodo()">↻ Actualizar</button>
+    </div>
+    <div class="monitor-grid" id="monitor-grid">
+      <div class="empty" style="grid-column:1/-1">Cargando...</div>
+    </div>
+  </div>
+
+  <!-- ══════════════════ DETALLE TENANT ══════════════════ -->
+  <div class="section" id="tab-detalle">
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px">
+      <button class="btn btn-ghost btn-sm" onclick="switchTab('tenants', document.querySelector('nav button'))">← Volver</button>
+      <h2 id="detalle-titulo" style="font-size:18px;font-weight:800"></h2>
+      <span id="detalle-badge"></span>
+    </div>
+    <div id="detalle-alerts"></div>
+    <!-- Stats del tenant -->
+    <div class="stats-grid" id="detalle-stats-grid">
+      <div class="stat-card"><div class="val" id="d-pagos-mes">—</div><div class="lbl">Pagos este mes</div><div class="sub" id="d-ingresos">—</div></div>
+      <div class="stat-card"><div class="val" id="d-pagos-total">—</div><div class="lbl">Pagos totales</div></div>
+      <div class="stat-card"><div class="val" id="d-cuentas-activas">—</div><div class="lbl">Cuentas activas</div><div class="sub" id="d-cuentas-total">—</div></div>
+      <div class="stat-card"><div class="val" id="d-ultimo-pago">—</div><div class="lbl">Último pago</div><div class="sub" id="d-ultimo-monto">—</div></div>
+    </div>
+
+    <div class="detail-grid">
+      <!-- Col 1: Acciones del Bot -->
+      <div class="card">
+        <div class="card-header"><h2>🤖 Control del Bot</h2></div>
+        <div id="bot-status-row" style="display:flex;align-items:center;gap:8px;padding:10px;background:var(--bg);border-radius:8px;margin-bottom:14px;border:1px solid var(--border)">
+          <span class="dot" id="bot-dot"></span>
+          <div><div id="bot-estado" style="font-weight:600"></div><div id="bot-sub" style="font-size:11px;color:var(--muted)"></div></div>
+        </div>
+        <button class="action-btn" onclick="reiniciarBotDetalle()">🔄 Reiniciar Bot</button>
+        <button class="action-btn" onclick="abrirPareo()">📱 Vincular WhatsApp</button>
+        <button class="action-btn" onclick="abrirMensajeDetalle()">💬 Enviar Mensaje</button>
+        <button class="action-btn danger" onclick="borrarSesionDetalle()">🗑️ Borrar Sesión WhatsApp</button>
+        <div style="border-top:1px solid var(--border);margin:10px 0"></div>
+        <button class="action-btn" id="btn-suspender-activar" onclick="toggleSuspender()"></button>
+        <div style="border-top:1px solid var(--border);margin:10px 0"></div>
+        <button class="action-btn danger" onclick="abrirEliminarTenant()">⛔ Eliminar Tenant</button>
+      </div>
+
+      <!-- Col 2: Integraciones + Suscripción -->
+      <div style="display:flex;flex-direction:column;gap:16px">
+        <div class="card" id="suscripcion-card">
+          <div class="card-header"><h2>🔐 Suscripción</h2></div>
+          <div id="suscripcion-info"></div>
+        </div>
+        <div class="card">
+          <div class="card-header"><h2>🔌 Integraciones</h2></div>
+          <div id="integraciones-list"></div>
+        </div>
+      </div>
+
+      <!-- Col 3: Log de Eventos -->
+      <div class="card">
+        <div class="card-header">
+          <h2>📋 Eventos del Bot</h2>
+          <button class="btn btn-ghost btn-sm" onclick="cargarEventos()">↻</button>
+        </div>
+        <div class="event-list" id="eventos-list">
+          <div class="empty" style="padding:16px">Sin eventos aún</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════════════ PAGOS ══════════════════ -->
   <div class="section" id="tab-pagos">
     <div class="card">
       <div class="card-header">
-        <h2>Pagos consolidados (todos los tenants)</h2>
+        <h2>💰 Pagos registrados</h2>
         <div class="actions-bar">
-          <select id="filtro-pagos-tenant" onchange="cargarPagos()" style="width:180px">
-            <option value="">Todos los tenants</option>
+          <button class="btn btn-success btn-sm" onclick="exportarCSV('pagos')">⬇️ Exportar CSV</button>
+        </div>
+      </div>
+      <div class="filter-bar">
+        <div class="f-group">
+          <label>Tenant</label>
+          <select id="filtro-pagos-tenant" onchange="cargarPagos()">
+            <option value="">Todos</option>
           </select>
         </div>
+        <div class="f-group">
+          <label>Estado</label>
+          <select id="filtro-pagos-estado" onchange="cargarPagos()">
+            <option value="">Todos</option>
+            <option value="No usado">No usado</option>
+            <option value="Usado">Usado</option>
+          </select>
+        </div>
+        <div class="f-group">
+          <label>Desde</label>
+          <input type="date" id="filtro-pagos-desde" onchange="cargarPagos()" />
+        </div>
+        <div class="f-group">
+          <label>Hasta</label>
+          <input type="date" id="filtro-pagos-hasta" onchange="cargarPagos()" />
+        </div>
+        <button class="btn btn-ghost btn-sm" onclick="limpiarFiltrosPagos()" style="align-self:flex-end">✕ Limpiar</button>
       </div>
       <div class="tbl-wrap">
         <table>
@@ -174,23 +329,39 @@
             <tr><th>Tenant</th><th>Fecha</th><th>Nombre</th><th>Monto</th><th>Teléfono</th><th>Estado</th><th>Sincronizado</th></tr>
           </thead>
           <tbody id="pagos-tbody">
-            <tr><td colspan="7" class="empty">Selecciona un tenant o carga todos</td></tr>
+            <tr><td colspan="7" class="empty">Cargando...</td></tr>
           </tbody>
         </table>
       </div>
     </div>
   </div>
 
-  <!-- CUENTAS -->
+  <!-- ══════════════════ CUENTAS ══════════════════ -->
   <div class="section" id="tab-cuentas">
     <div class="card">
       <div class="card-header">
-        <h2>Cuentas IPTV consolidadas (todos los tenants)</h2>
+        <h2>📋 Cuentas IPTV</h2>
         <div class="actions-bar">
-          <select id="filtro-cuentas-tenant" onchange="cargarCuentas()" style="width:180px">
-            <option value="">Todos los tenants</option>
+          <button class="btn btn-success btn-sm" onclick="exportarCSV('cuentas')">⬇️ Exportar CSV</button>
+        </div>
+      </div>
+      <div class="filter-bar">
+        <div class="f-group">
+          <label>Tenant</label>
+          <select id="filtro-cuentas-tenant" onchange="cargarCuentas()">
+            <option value="">Todos</option>
           </select>
         </div>
+        <div class="f-group">
+          <label>Estado</label>
+          <select id="filtro-cuentas-estado" onchange="cargarCuentas()">
+            <option value="">Todos</option>
+            <option value="ACTIVA">ACTIVA</option>
+            <option value="EXPIRADA">EXPIRADA</option>
+            <option value="RENOVADA">RENOVADA</option>
+          </select>
+        </div>
+        <button class="btn btn-ghost btn-sm" onclick="limpiarFiltrosCuentas()" style="align-self:flex-end">✕ Limpiar</button>
       </div>
       <div class="tbl-wrap">
         <table>
@@ -198,35 +369,23 @@
             <tr><th>Tenant</th><th>Teléfono</th><th>Usuario</th><th>Plan</th><th>Creación</th><th>Expiración</th><th>Estado</th></tr>
           </thead>
           <tbody id="cuentas-tbody">
-            <tr><td colspan="7" class="empty">Cargando cuentas...</td></tr>
+            <tr><td colspan="7" class="empty">Cargando...</td></tr>
           </tbody>
         </table>
       </div>
     </div>
   </div>
 
-  <!-- NUEVO TENANT -->
+  <!-- ══════════════════ NUEVO TENANT ══════════════════ -->
   <div class="section" id="tab-nuevo">
     <div class="card">
       <h2 style="margin-bottom:20px">Crear nuevo tenant</h2>
       <form id="form-nuevo-tenant" onsubmit="crearTenant(event)">
         <div class="form-grid">
-          <div>
-            <label>ID único (slug)</label>
-            <input type="text" name="id" placeholder="ej: mi-empresa" required />
-          </div>
-          <div>
-            <label>Nombre corto</label>
-            <input type="text" name="nombre" placeholder="ej: Mi Empresa TV" required />
-          </div>
-          <div>
-            <label>Nombre empresa</label>
-            <input type="text" name="nombreEmpresa" placeholder="ej: Mi Empresa Bolivia" required />
-          </div>
-          <div>
-            <label>Admin WhatsApp (con código país)</label>
-            <input type="text" name="adminWhatsapp" placeholder="59169741630" required />
-          </div>
+          <div><label>ID único (slug)*</label><input type="text" name="id" placeholder="ej: mi-empresa" required /></div>
+          <div><label>Nombre corto*</label><input type="text" name="nombre" placeholder="ej: Mi Empresa TV" required /></div>
+          <div><label>Nombre empresa*</label><input type="text" name="nombreEmpresa" placeholder="ej: Mi Empresa Bolivia" required /></div>
+          <div><label>Admin WhatsApp*</label><input type="text" name="adminWhatsapp" placeholder="59169741630" required /></div>
 
           <div><label>CRM Base URL</label><input type="text" name="crmBaseUrl" value="https://resellermastv.com:8443" /></div>
           <div><label>CRM Username</label><input type="text" name="crmUsername" placeholder="Zack" /></div>
@@ -235,9 +394,10 @@
 
           <div><label>Google Spreadsheet ID</label><input type="text" name="spreadsheetId" placeholder="1IMij-hFL..." /></div>
           <div><label>Gmail — Remitente filtro</label><input type="text" name="gmailRemitenteFiltro" placeholder="PagosBcp@bcp.com.bo" /></div>
+          <div><label>Gmail Client ID</label><input type="text" name="gmailClientId" placeholder="xxx.apps.googleusercontent.com" /></div>
+          <div><label>Gmail Client Secret</label><input type="password" name="gmailClientSecret" placeholder="GOCSPX-..." /></div>
           <div><label>Pushover User Key</label><input type="text" name="pushoverUserKey" placeholder="u..." /></div>
           <div><label>Pushover API Token</label><input type="text" name="pushoverApiToken" placeholder="a..." /></div>
-
           <div><label>Suscripción vence</label><input type="date" name="suscripcionVence" /></div>
           <div style="display:flex; align-items:flex-end;">
             <label style="display:flex; align-items:center; gap:8px; margin:0; cursor:pointer; font-size:13px; text-transform:none; letter-spacing:0;">
@@ -245,15 +405,8 @@
               Activar bot inmediatamente
             </label>
           </div>
-
-          <div class="form-full">
-            <label>Google Service Account JSON</label>
-            <textarea name="googleServiceAccountJson" placeholder='{"type":"service_account","project_id":"..."}'></textarea>
-          </div>
-          <div class="form-full">
-            <label>Planes personalizados (JSON, dejar vacío para usar defaults)</label>
-            <textarea name="planesJson" placeholder='[{"nombre":"1 MES","precio":"35 Bs","id":"1month"}]'></textarea>
-          </div>
+          <div class="form-full"><label>Google Service Account JSON</label><textarea name="googleServiceAccountJson" placeholder='{"type":"service_account","project_id":"..."}'></textarea></div>
+          <div class="form-full"><label>Planes personalizados (JSON, dejar vacío para defaults)</label><textarea name="planesJson" placeholder='[{"nombre":"1 MES","precio":"35 Bs","id":"1month"}]'></textarea></div>
         </div>
         <div style="margin-top:20px; display:flex; gap:10px;">
           <button type="submit" class="btn btn-primary">Crear tenant y arrancar bot</button>
@@ -265,22 +418,39 @@
 
 </main>
 
+<!-- ══════════════════ MODALES ══════════════════ -->
+
 <!-- Modal editar tenant -->
 <div class="modal-overlay" id="modal-editar">
   <div class="modal">
-    <h3>Editar tenant</h3>
+    <h3>✏️ Editar tenant</h3>
     <form id="form-editar-tenant" onsubmit="guardarEdicion(event)">
       <input type="hidden" name="id" id="edit-id" />
+      <p style="font-size:12px;color:var(--muted);margin-bottom:16px;padding-bottom:12px;border-bottom:1px solid var(--border)">Identidad</p>
       <div class="form-grid">
         <div><label>Nombre</label><input type="text" name="nombre" id="edit-nombre" required /></div>
         <div><label>Nombre empresa</label><input type="text" name="nombreEmpresa" id="edit-nombreEmpresa" required /></div>
         <div><label>Admin WhatsApp</label><input type="text" name="adminWhatsapp" id="edit-adminWhatsapp" required /></div>
-        <div><label>CRM Username</label><input type="text" name="crmUsername" id="edit-crmUsername" /></div>
-        <div><label>CRM Password</label><input type="password" name="crmPassword" id="edit-crmPassword" /></div>
-        <div><label>CRM Prefijo</label><input type="text" name="crmUsernamePrefix" id="edit-crmUsernamePrefix" /></div>
-        <div><label>Spreadsheet ID</label><input type="text" name="spreadsheetId" id="edit-spreadsheetId" /></div>
         <div><label>Suscripción vence</label><input type="date" name="suscripcionVence" id="edit-suscripcionVence" /></div>
+      </div>
+      <p style="font-size:12px;color:var(--muted);margin:16px 0 12px;padding-top:12px;border-top:1px solid var(--border)">CRM Mastv</p>
+      <div class="form-grid">
+        <div><label>CRM Username</label><input type="text" name="crmUsername" id="edit-crmUsername" /></div>
+        <div><label>CRM Password</label><input type="password" name="crmPassword" id="edit-crmPassword" placeholder="Vacío = no cambiar" /></div>
+        <div><label>CRM Prefijo</label><input type="text" name="crmUsernamePrefix" id="edit-crmUsernamePrefix" /></div>
+      </div>
+      <p style="font-size:12px;color:var(--muted);margin:16px 0 12px;padding-top:12px;border-top:1px solid var(--border)">Google & Gmail</p>
+      <div class="form-grid">
+        <div class="form-full"><label>Spreadsheet ID</label><input type="text" name="spreadsheetId" id="edit-spreadsheetId" /></div>
+        <div><label>Gmail Client ID</label><input type="text" name="gmailClientId" id="edit-gmailClientId" style="font-size:11px;font-family:monospace" /></div>
+        <div><label>Gmail Client Secret</label><input type="password" name="gmailClientSecret" id="edit-gmailClientSecret" /></div>
+        <div class="form-full"><label>Filtro remitente Gmail</label><input type="text" name="gmailRemitenteFiltro" id="edit-gmailRemitenteFiltro" /></div>
         <div class="form-full"><label>Google Service Account JSON</label><textarea name="googleServiceAccountJson" id="edit-googleServiceAccountJson"></textarea></div>
+      </div>
+      <p style="font-size:12px;color:var(--muted);margin:16px 0 12px;padding-top:12px;border-top:1px solid var(--border)">Notificaciones</p>
+      <div class="form-grid">
+        <div><label>Pushover User Key</label><input type="text" name="pushoverUserKey" id="edit-pushoverUserKey" /></div>
+        <div><label>Pushover API Token</label><input type="text" name="pushoverApiToken" id="edit-pushoverApiToken" /></div>
       </div>
       <div class="modal-actions">
         <button type="button" class="btn btn-ghost" onclick="cerrarModal()">Cancelar</button>
@@ -293,7 +463,7 @@
 <!-- Modal enviar mensaje -->
 <div class="modal-overlay" id="modal-mensaje">
   <div class="modal" style="max-width:420px">
-    <h3>Enviar mensaje desde el bot</h3>
+    <h3>💬 Enviar mensaje desde el bot</h3>
     <input type="hidden" id="msg-tenant-id" />
     <div style="margin-bottom:14px">
       <label>Teléfono destino</label>
@@ -310,46 +480,125 @@
   </div>
 </div>
 
+<!-- Modal parear WhatsApp -->
+<div class="modal-overlay" id="modal-pareo">
+  <div class="modal" style="max-width:400px;text-align:center">
+    <h3>📱 Vincular WhatsApp</h3>
+    <p style="color:var(--muted);font-size:13px;margin-bottom:16px">Ingresa el número de teléfono del bot</p>
+    <input type="text" id="pareo-telefono" placeholder="591..." style="margin-bottom:14px" />
+    <div id="pareo-resultado" style="display:none">
+      <p style="color:var(--muted);font-size:13px;margin-bottom:10px">Código de vinculación:</p>
+      <div id="pareo-codigo" style="font-size:36px;font-weight:800;letter-spacing:0.2em;color:var(--accent);background:rgba(108,99,255,.1);border:1px solid rgba(108,99,255,.2);border-radius:10px;padding:20px;margin-bottom:12px"></div>
+      <p style="font-size:12px;color:var(--muted)">WhatsApp → Dispositivos vinculados → Vincular con número de teléfono</p>
+    </div>
+    <div id="pareo-form">
+      <div class="modal-actions">
+        <button class="btn btn-ghost" onclick="cerrarModal()">Cancelar</button>
+        <button class="btn btn-primary" onclick="obtenerCodigoPareo()">Obtener código</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal eliminar tenant -->
+<div class="modal-overlay" id="modal-eliminar">
+  <div class="modal" style="max-width:480px">
+    <h3>⛔ Eliminar Tenant</h3>
+    <div style="background:rgba(230,57,70,.1);border:1px solid rgba(230,57,70,.3);border-radius:8px;padding:14px;margin-bottom:20px">
+      <p style="color:#f87171;font-weight:700;margin-bottom:4px">⚠️ Esta acción es irreversible</p>
+      <p style="font-size:13px;color:var(--muted)">Se eliminará el tenant <strong id="eliminar-nombre" style="color:var(--text)"></strong>, todos sus pagos, cuentas e historial de la base de datos. El bot se detendrá inmediatamente.</p>
+    </div>
+    <label>Escribe el ID del tenant para confirmar: <code id="eliminar-id-label"></code></label>
+    <input type="text" id="eliminar-confirm-input" placeholder="" style="margin-top:8px;border-color:rgba(230,57,70,.4)" oninput="verificarEliminar()" />
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="cerrarModal()">Cancelar</button>
+      <button class="btn btn-danger" id="btn-confirmar-eliminar" onclick="confirmarEliminar()" disabled>Eliminar definitivamente</button>
+    </div>
+  </div>
+</div>
+
 <div id="toast"></div>
 
 <script>
+// ═══════════════════════ ESTADO GLOBAL ═══════════════════════
 const API = () => location.origin + '/api';
-const token = () => document.getElementById('admin-token').value;
-const headers = () => ({ 'Content-Type': 'application/json', 'x-admin-token': token() });
-
+let ADMIN_TOKEN = localStorage.getItem('admin_token') || '';
 let tenantsList = [];
+let pagosList = [];
+let cuentasList = [];
+let detalleId = null;
 
-function switchTab(tab) {
+const headers = () => ({ 'Content-Type': 'application/json', 'x-admin-token': ADMIN_TOKEN });
+
+// ═══════════════════════ LOGIN ═══════════════════════
+async function doLogin() {
+  const user = document.getElementById('login-user').value.trim();
+  const pass = document.getElementById('login-pass').value;
+  document.getElementById('login-err').textContent = '';
+  try {
+    const r = await fetch(API() + '/admin/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ usuario: user, password: pass })
+    });
+    const data = await r.json();
+    if (data.ok && data.token) {
+      ADMIN_TOKEN = data.token;
+      localStorage.setItem('admin_token', ADMIN_TOKEN);
+      document.getElementById('login-screen').style.display = 'none';
+      recargarTodo();
+    } else {
+      document.getElementById('login-err').textContent = data.mensaje || 'Credenciales incorrectas';
+    }
+  } catch {
+    document.getElementById('login-err').textContent = 'Error de conexión';
+  }
+}
+
+function cerrarSesion() {
+  ADMIN_TOKEN = '';
+  localStorage.removeItem('admin_token');
+  document.getElementById('login-screen').style.display = 'flex';
+}
+
+// Si ya hay token, ocultar login directamente
+if (ADMIN_TOKEN) document.getElementById('login-screen').style.display = 'none';
+
+// ═══════════════════════ NAVEGACIÓN ═══════════════════════
+function switchTab(tab, btn) {
   document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
   document.querySelectorAll('nav button').forEach(b => b.classList.remove('active'));
   document.getElementById(`tab-${tab}`).classList.add('active');
-  event.target.classList.add('active');
+  if (btn) btn.classList.add('active');
   if (tab === 'pagos') cargarPagos();
   if (tab === 'cuentas') cargarCuentas();
+  if (tab === 'monitor') renderMonitor();
 }
 
+// ═══════════════════════ TOAST ═══════════════════════
 function toast(msg, tipo = 'ok') {
   const el = document.getElementById('toast');
   el.textContent = (tipo === 'ok' ? '✅ ' : '❌ ') + msg;
   el.style.borderColor = tipo === 'ok' ? 'var(--green)' : 'var(--red)';
   el.classList.add('show');
-  setTimeout(() => el.classList.remove('show'), 3500);
+  setTimeout(() => el.classList.remove('show'), 4000);
 }
 
+// ═══════════════════════ API FETCH ═══════════════════════
 async function apiFetch(url, opts = {}) {
   const res = await fetch(API() + url, { ...opts, headers: { ...headers(), ...(opts.headers || {}) } });
   return res.json();
 }
 
+// ═══════════════════════ CARGA INICIAL ═══════════════════════
 async function recargarTodo() {
-  await cargarTenants();
-  await cargarEstado();
+  await Promise.all([cargarTenants(), cargarEstado()]);
 }
 
 async function cargarEstado() {
   try {
     const data = await apiFetch('/admin/estado');
-    const conectados = data.bots.filter(b => b.conectado).length;
+    const conectados = (data.bots || []).filter(b => b.conectado).length;
     document.getElementById('st-conectados').textContent = conectados;
     document.getElementById('header-status').textContent = `${conectados} bot(s) conectado(s)`;
   } catch {}
@@ -362,12 +611,40 @@ async function cargarTenants() {
     document.getElementById('st-total').textContent = tenantsList.length;
     document.getElementById('st-activos').textContent = tenantsList.filter(t => t.activo).length;
     renderTenants(tenantsList);
+    renderAlertas(tenantsList);
     popularFiltros(tenantsList);
+    renderMonitor();
   } catch (e) {
     toast('Error cargando tenants: ' + e.message, 'err');
   }
 }
 
+// ═══════════════════════ ALERTAS DE SUSCRIPCIÓN ═══════════════════════
+function diasRestantes(fechaStr) {
+  if (!fechaStr) return null;
+  return Math.ceil((new Date(fechaStr) - new Date()) / 86400000);
+}
+
+function renderAlertas(tenants) {
+  const container = document.getElementById('alerts-container');
+  const alerts = [];
+  tenants.forEach(t => {
+    const dias = diasRestantes(t.suscripcionVence);
+    if (dias === null) return;
+    if (dias < 0) {
+      alerts.push(`<div class="alert alert-red" onclick="abrirDetalle('${t.id}')">
+        ⛔ <strong>${t.nombreEmpresa}</strong> — Suscripción vencida hace ${Math.abs(dias)} día${Math.abs(dias) !== 1 ? 's' : ''} →
+      </div>`);
+    } else if (dias <= 7) {
+      alerts.push(`<div class="alert alert-yellow" onclick="abrirDetalle('${t.id}')">
+        ⚠️ <strong>${t.nombreEmpresa}</strong> — Suscripción vence en ${dias} día${dias !== 1 ? 's' : ''} →
+      </div>`);
+    }
+  });
+  container.innerHTML = alerts.join('');
+}
+
+// ═══════════════════════ RENDER TENANTS ═══════════════════════
 function popularFiltros(tenants) {
   ['filtro-pagos-tenant','filtro-cuentas-tenant'].forEach(id => {
     const sel = document.getElementById(id);
@@ -381,19 +658,22 @@ function popularFiltros(tenants) {
 function renderTenants(tenants) {
   const tbody = document.getElementById('tenants-tbody');
   if (!tenants.length) { tbody.innerHTML = '<tr><td colspan="7" class="empty">No hay tenants registrados</td></tr>'; return; }
-  tbody.innerHTML = tenants.map(t => `
-    <tr>
+  tbody.innerHTML = tenants.map(t => {
+    const dias = diasRestantes(t.suscripcionVence);
+    const venceHtml = t.suscripcionVence
+      ? `<div style="font-size:11px;color:${dias !== null && dias < 0 ? 'var(--red)' : dias !== null && dias <= 7 ? 'var(--yellow)' : 'var(--muted)'}">
+          ${dias !== null && dias < 0 ? '⛔ Vencida' : dias !== null && dias <= 7 ? `⚠️ ${dias}d restantes` : new Date(t.suscripcionVence).toLocaleDateString()}</div>`
+      : '';
+    return `
+    <tr class="clickable" onclick="abrirDetalle('${t.id}')">
       <td><code>${t.id}</code></td>
-      <td>
-        <div style="font-weight:600">${t.nombreEmpresa}</div>
-        <div style="font-size:11px;color:var(--muted)">${t.nombre}</div>
-      </td>
+      <td><div style="font-weight:600">${t.nombreEmpresa}</div><div style="font-size:11px;color:var(--muted)">${t.nombre}</div></td>
       <td style="font-family:monospace;font-size:12px">${t.adminWhatsapp}</td>
       <td>
         <div style="display:flex;gap:4px;flex-wrap:wrap">
-          ${t.tieneSheets ? '<span class="badge badge-green">📊 Sheets</span>' : '<span class="badge badge-red">Sin Sheets</span>'}
-          ${t.tieneCRM ? '<span class="badge badge-green">🎬 CRM</span>' : '<span class="badge badge-red">Sin CRM</span>'}
-          ${t.tieneGmail ? '<span class="badge badge-green">📧 Gmail</span>' : ''}
+          ${t.tieneSheets ? '<span class="badge badge-green">📊</span>' : '<span class="badge badge-red">Sin Sheets</span>'}
+          ${t.tieneCRM ? '<span class="badge badge-green">🎬</span>' : ''}
+          ${t.tieneGmail ? '<span class="badge badge-green">📧</span>' : ''}
         </div>
       </td>
       <td>
@@ -402,21 +682,252 @@ function renderTenants(tenants) {
           <span style="font-size:12px">${t.bot.estado}</span>
         </div>
       </td>
-      <td>${t.activo ? '<span class="badge badge-green">Activo</span>' : '<span class="badge badge-red">Suspendido</span>'} ${t.suscripcionVence ? `<div style="font-size:11px;color:var(--muted)">${new Date(t.suscripcionVence).toLocaleDateString()}</div>` : ''}</td>
-      <td>
+      <td>${t.activo ? '<span class="badge badge-green">Activo</span>' : '<span class="badge badge-red">Suspendido</span>'} ${venceHtml}</td>
+      <td onclick="event.stopPropagation()">
         <div class="actions-bar">
-          <button class="btn btn-ghost btn-sm" onclick='abrirEditar(${JSON.stringify(t)})'>✏️</button>
-          <button class="btn btn-ghost btn-sm" onclick="reiniciarBot('${t.id}')">🔄</button>
-          <button class="btn btn-ghost btn-sm" onclick="abrirMensaje('${t.id}')">💬</button>
+          <button class="btn btn-ghost btn-sm" title="Ver detalle" onclick="abrirDetalle('${t.id}')">🔍</button>
+          <button class="btn btn-ghost btn-sm" title="Editar" onclick='abrirEditar(${JSON.stringify(t)})'>✏️</button>
+          <button class="btn btn-ghost btn-sm" title="Reiniciar bot" onclick="reiniciarBot('${t.id}')">🔄</button>
+          <button class="btn btn-ghost btn-sm" title="Enviar mensaje" onclick="abrirMensaje('${t.id}')">💬</button>
           ${t.activo
             ? `<button class="btn btn-danger btn-sm" onclick="suspenderTenant('${t.id}')">Suspender</button>`
             : `<button class="btn btn-success btn-sm" onclick="activarTenant('${t.id}')">Activar</button>`}
         </div>
       </td>
-    </tr>
+    </tr>`;
+  }).join('');
+}
+
+// ═══════════════════════ MONITOR DE BOTS ═══════════════════════
+function renderMonitor() {
+  const grid = document.getElementById('monitor-grid');
+  if (!tenantsList.length) { grid.innerHTML = '<div class="empty" style="grid-column:1/-1">Sin tenants registrados</div>'; return; }
+  grid.innerHTML = tenantsList.map(t => {
+    const cls = t.bot.conectado ? 'connected' : ['esperando_qr','esperando_codigo','iniciando'].includes(t.bot.estado) ? 'pending' : 'disconnected';
+    const dotCls = t.bot.conectado ? 'dot-green' : cls === 'pending' ? 'dot-yellow' : 'dot-red';
+    return `<div class="monitor-card ${cls}">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
+        <span class="dot ${dotCls}"></span>
+        <h4>${t.nombreEmpresa}</h4>
+      </div>
+      <code style="font-size:10px">${t.id}</code>
+      <div style="font-size:12px;color:var(--muted);margin-top:6px">${t.bot.estado.replace('_',' ')}</div>
+      <div class="mc-actions">
+        <button class="btn btn-ghost btn-sm" onclick="reiniciarBot('${t.id}')">🔄</button>
+        <button class="btn btn-ghost btn-sm" onclick="abrirDetalle('${t.id}')">🔍 Detalle</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// ═══════════════════════ DETALLE TENANT ═══════════════════════
+async function abrirDetalle(id) {
+  detalleId = id;
+  switchTab('detalle', null);
+
+  // Mostrar mientras carga
+  const t = tenantsList.find(x => x.id === id) || {};
+  document.getElementById('detalle-titulo').textContent = t.nombreEmpresa || id;
+  document.getElementById('detalle-badge').innerHTML = t.activo
+    ? '<span class="badge badge-green">Activo</span>'
+    : '<span class="badge badge-red">Suspendido</span>';
+  document.getElementById('btn-suspender-activar').textContent = t.activo ? '⏸️ Suspender Tenant' : '▶️ Activar Tenant';
+
+  renderBotStatus(t.bot || {});
+  renderIntegraciones(t);
+  renderSuscripcion(t);
+
+  // Cargar stats y eventos en paralelo
+  cargarStatsDetalle(id);
+  cargarEventos();
+}
+
+function renderBotStatus(bot) {
+  const dot = document.getElementById('bot-dot');
+  const estado = document.getElementById('bot-estado');
+  const sub = document.getElementById('bot-sub');
+  dot.className = 'dot ' + (bot.conectado ? 'dot-green' : bot.estado === 'desconectado' ? 'dot-red' : 'dot-yellow');
+  estado.textContent = (bot.estado || 'desconocido').replace('_', ' ');
+  sub.textContent = bot.conectado ? 'WhatsApp conectado' : 'Sin conexión activa';
+}
+
+function renderIntegraciones(t) {
+  document.getElementById('integraciones-list').innerHTML = [
+    { label: '📊 Google Sheets', ok: t.tieneSheets },
+    { label: '🎬 CRM Mastv', ok: t.tieneCRM, sub: t.crmUsername ? '@' + t.crmUsername : null },
+    { label: '📧 Gmail OAuth2', ok: t.tieneGmail, action: `<button class="btn btn-ghost btn-sm" onclick="autorizarGmail('${t.id}','${t.tieneGmail ? 'Re-autorizar' : 'Autorizar'}')">🔑 ${t.tieneGmail ? 'Re-autorizar' : 'Autorizar'}</button>` },
+    { label: '🔔 Pushover', ok: !!t.pushoverUserKey },
+  ].map(i => `
+    <div class="integration-row">
+      <div>
+        <span style="font-weight:600">${i.label}</span>
+        ${i.sub ? `<div style="font-size:11px;color:var(--muted)">${i.sub}</div>` : ''}
+      </div>
+      ${i.action || `<span class="badge ${i.ok ? 'badge-green' : 'badge-red'}">${i.ok ? '✓' : '✗'}</span>`}
+    </div>
   `).join('');
 }
 
+function renderSuscripcion(t) {
+  const card = document.getElementById('suscripcion-card');
+  const info = document.getElementById('suscripcion-info');
+  if (!t.suscripcionVence) {
+    card.style.borderColor = '';
+    info.innerHTML = '<p style="color:var(--muted);font-size:13px">Sin fecha de vencimiento</p>';
+    return;
+  }
+  const dias = diasRestantes(t.suscripcionVence);
+  const fecha = new Date(t.suscripcionVence).toLocaleDateString('es', { day:'2-digit', month:'2-digit', year:'numeric' });
+  let color = 'var(--green)';
+  let estadoText = `✅ ${dias} días restantes`;
+  let borderColor = '';
+  if (dias < 0) { color = 'var(--red)'; estadoText = `⛔ Vencida hace ${Math.abs(dias)} días`; borderColor = 'rgba(230,57,70,.4)'; }
+  else if (dias <= 7) { color = 'var(--yellow)'; estadoText = `⚠️ Vence en ${dias} días`; borderColor = 'rgba(255,209,102,.4)'; }
+  card.style.borderColor = borderColor;
+  info.innerHTML = `
+    <div style="display:flex;justify-content:space-between;margin-bottom:8px">
+      <span style="color:var(--muted);font-size:13px">Fecha</span>
+      <span style="font-weight:700">${fecha}</span>
+    </div>
+    <div style="display:flex;justify-content:space-between">
+      <span style="color:var(--muted);font-size:13px">Estado</span>
+      <span style="font-weight:700;color:${color}">${estadoText}</span>
+    </div>
+  `;
+}
+
+async function cargarStatsDetalle(id) {
+  try {
+    const data = await apiFetch(`/admin/tenants/${id}/stats`);
+    const s = data.stats || {};
+    document.getElementById('d-pagos-mes').textContent = s.pagosMes ?? '0';
+    document.getElementById('d-ingresos').textContent = s.ingresosMes ? `Bs ${s.ingresosMes.toFixed(0)}` : '';
+    document.getElementById('d-pagos-total').textContent = s.pagosTotales ?? '0';
+    document.getElementById('d-cuentas-activas').textContent = s.cuentasActivas ?? '0';
+    document.getElementById('d-cuentas-total').textContent = s.cuentasTotal ? `de ${s.cuentasTotal} totales` : '';
+    document.getElementById('d-ultimo-pago').textContent = s.ultimoPago?.nombre || '—';
+    document.getElementById('d-ultimo-monto').textContent = s.ultimoPago ? `Bs ${s.ultimoPago.monto}` : '';
+  } catch {}
+}
+
+async function cargarEventos() {
+  if (!detalleId) return;
+  try {
+    const data = await apiFetch(`/admin/tenants/${detalleId}/logs`);
+    const eventos = data.eventos || [];
+    const el = document.getElementById('eventos-list');
+    if (!eventos.length) { el.innerHTML = '<div class="empty" style="padding:16px">Sin eventos registrados aún</div>'; return; }
+    const iconos = { pago:'💰', cuenta:'📋', error:'❌', mensaje:'💬', conexion:'📶', info:'ℹ️', gmail:'📧', crm:'🔧' };
+    const colores = { pago:'var(--green)', cuenta:'#38bdf8', error:'var(--red)', gmail:'#f97316', crm:'#06b6d4' };
+    el.innerHTML = eventos.map(ev => `
+      <div class="event-item">
+        <span>${iconos[ev.tipo] || '•'}</span>
+        <div>
+          <div style="color:${colores[ev.tipo] || 'var(--text)'};font-weight:600">${ev.texto}</div>
+          <div style="color:var(--muted);font-size:10px">${new Date(ev.ts).toLocaleString()}</div>
+        </div>
+      </div>
+    `).join('');
+  } catch {}
+}
+
+// ═══════════════════════ ACCIONES DEL DETALLE ═══════════════════════
+async function reiniciarBotDetalle() {
+  if (!detalleId) return;
+  const r = await apiFetch(`/admin/tenants/${detalleId}/bot/reiniciar`, { method: 'POST' });
+  toast(r.mensaje, r.ok ? 'ok' : 'err');
+  setTimeout(() => { recargarTodo(); cargarStatsDetalle(detalleId); }, 2000);
+}
+
+async function borrarSesionDetalle() {
+  if (!detalleId || !confirm('¿Borrar la sesión de WhatsApp?')) return;
+  const r = await apiFetch(`/admin/tenants/${detalleId}/bot/sesion/borrar`, { method: 'POST' });
+  toast(r.mensaje, r.ok ? 'ok' : 'err');
+}
+
+async function toggleSuspender() {
+  if (!detalleId) return;
+  const t = tenantsList.find(x => x.id === detalleId);
+  if (!t) return;
+  const url = t.activo ? `/admin/tenants/${detalleId}/suspender` : `/admin/tenants/${detalleId}/activar`;
+  if (!confirm(t.activo ? '¿Suspender este tenant?' : '¿Activar este tenant?')) return;
+  const r = await apiFetch(url, { method: 'POST' });
+  toast(r.mensaje, r.ok ? 'ok' : 'err');
+  setTimeout(() => { recargarTodo(); abrirDetalle(detalleId); }, 1500);
+}
+
+function abrirMensajeDetalle() {
+  if (detalleId) abrirMensaje(detalleId);
+}
+
+function abrirPareo() {
+  document.getElementById('pareo-telefono').value = '';
+  document.getElementById('pareo-resultado').style.display = 'none';
+  document.getElementById('pareo-form').style.display = '';
+  document.getElementById('modal-pareo').classList.add('open');
+}
+
+async function obtenerCodigoPareo() {
+  const tel = document.getElementById('pareo-telefono').value.trim();
+  if (!tel || !detalleId) return;
+  const r = await apiFetch(`/admin/tenants/${detalleId}/bot/codigo-pareo`, { method: 'POST', body: JSON.stringify({ telefono: tel }) });
+  if (r.ok && r.codigo) {
+    document.getElementById('pareo-codigo').textContent = r.codigo;
+    document.getElementById('pareo-resultado').style.display = 'block';
+    document.getElementById('pareo-form').style.display = 'none';
+  } else {
+    toast(r.mensaje || 'Error obteniendo código', 'err');
+  }
+}
+
+async function autorizarGmail(tenantId, label) {
+  try {
+    const r = await apiFetch(`/admin/tenants/${tenantId}/gmail/autorizar`);
+    if (r.ok && r.urlAutorizacion) {
+      window.open(r.urlAutorizacion, '_blank', 'width=600,height=700');
+      toast('Ventana de autorización abierta. Completa el proceso en Google.', 'ok');
+    } else {
+      toast(r.mensaje || 'Primero guarda Gmail Client ID y Secret en el tenant', 'err');
+    }
+  } catch {
+    toast('Error al obtener URL de Gmail', 'err');
+  }
+}
+
+// ═══════════════════════ ELIMINAR TENANT ═══════════════════════
+let eliminarId = null;
+
+function abrirEliminarTenant() {
+  const t = tenantsList.find(x => x.id === detalleId);
+  if (!t) return;
+  eliminarId = t.id;
+  document.getElementById('eliminar-nombre').textContent = t.nombreEmpresa;
+  document.getElementById('eliminar-id-label').textContent = t.id;
+  document.getElementById('eliminar-confirm-input').value = '';
+  document.getElementById('btn-confirmar-eliminar').disabled = true;
+  document.getElementById('modal-eliminar').classList.add('open');
+}
+
+function verificarEliminar() {
+  const input = document.getElementById('eliminar-confirm-input').value;
+  document.getElementById('btn-confirmar-eliminar').disabled = input !== eliminarId;
+}
+
+async function confirmarEliminar() {
+  if (!eliminarId) return;
+  const r = await apiFetch(`/admin/tenants/${eliminarId}`, { method: 'DELETE' });
+  cerrarModal();
+  if (r.ok) {
+    toast('Tenant eliminado correctamente');
+    switchTab('tenants', document.querySelector('nav button'));
+    setTimeout(recargarTodo, 1500);
+  } else {
+    toast(r.mensaje || 'Error al eliminar', 'err');
+  }
+  eliminarId = null;
+}
+
+// ═══════════════════════ ACCIONES GENERALES ═══════════════════════
 async function reiniciarBot(id) {
   if (!confirm(`¿Reiniciar el bot de "${id}"?`)) return;
   const r = await apiFetch(`/admin/tenants/${id}/bot/reiniciar`, { method: 'POST' });
@@ -437,6 +948,7 @@ async function activarTenant(id) {
   setTimeout(cargarTenants, 1500);
 }
 
+// ═══════════════════════ MODAL EDITAR ═══════════════════════
 function abrirEditar(t) {
   document.getElementById('edit-id').value = t.id;
   document.getElementById('edit-nombre').value = t.nombre || '';
@@ -445,7 +957,14 @@ function abrirEditar(t) {
   document.getElementById('edit-crmUsername').value = t.crmUsername || '';
   document.getElementById('edit-crmUsernamePrefix').value = t.crmUsernamePrefix || '';
   document.getElementById('edit-spreadsheetId').value = t.spreadsheetId || '';
-  if (t.suscripcionVence) document.getElementById('edit-suscripcionVence').value = t.suscripcionVence.substring(0,10);
+  document.getElementById('edit-gmailClientId').value = t.gmailClientId || '';
+  document.getElementById('edit-gmailClientSecret').value = '';
+  document.getElementById('edit-gmailRemitenteFiltro').value = t.gmailRemitenteFiltro || '';
+  document.getElementById('edit-googleServiceAccountJson').value = t.googleServiceAccountJson || '';
+  document.getElementById('edit-pushoverUserKey').value = t.pushoverUserKey || '';
+  document.getElementById('edit-pushoverApiToken').value = t.pushoverApiToken || '';
+  if (t.suscripcionVence) document.getElementById('edit-suscripcionVence').value = t.suscripcionVence.substring(0, 10);
+  else document.getElementById('edit-suscripcionVence').value = '';
   document.getElementById('modal-editar').classList.add('open');
 }
 
@@ -454,13 +973,17 @@ async function guardarEdicion(e) {
   const form = e.target;
   const id = form.querySelector('[name=id]').value;
   const body = {};
-  new FormData(form).forEach((v, k) => { if (k !== 'id' && v) body[k] = v; });
+  new FormData(form).forEach((v, k) => { if (k !== 'id' && v !== '') body[k] = v; });
   const r = await apiFetch(`/admin/tenants/${id}`, { method: 'PUT', body: JSON.stringify(body) });
   toast(r.mensaje, r.ok ? 'ok' : 'err');
   cerrarModal();
-  setTimeout(cargarTenants, 2000);
+  setTimeout(() => {
+    recargarTodo();
+    if (detalleId === id) abrirDetalle(id);
+  }, 2000);
 }
 
+// ═══════════════════════ MODAL MENSAJE ═══════════════════════
 function abrirMensaje(tenantId) {
   document.getElementById('msg-tenant-id').value = tenantId;
   document.getElementById('msg-telefono').value = '';
@@ -481,6 +1004,7 @@ function cerrarModal() {
   document.querySelectorAll('.modal-overlay').forEach(m => m.classList.remove('open'));
 }
 
+// ═══════════════════════ NUEVO TENANT ═══════════════════════
 async function crearTenant(e) {
   e.preventDefault();
   const form = e.target;
@@ -489,59 +1013,109 @@ async function crearTenant(e) {
   body.activo = form.querySelector('[name=activo]').checked;
   const r = await apiFetch('/admin/tenants', { method: 'POST', body: JSON.stringify(body) });
   toast(r.mensaje, r.ok ? 'ok' : 'err');
-  if (r.ok) { form.reset(); switchTab('tenants'); setTimeout(cargarTenants, 1500); }
+  if (r.ok) { form.reset(); switchTab('tenants', document.querySelector('nav button')); setTimeout(recargarTodo, 1500); }
 }
 
+// ═══════════════════════ PAGOS ═══════════════════════
 async function cargarPagos() {
-  const filtro = document.getElementById('filtro-pagos-tenant').value;
-  const url = filtro ? `/admin/pagos/${filtro}` : '/admin/pagos';
+  const tenant = document.getElementById('filtro-pagos-tenant').value;
+  const estado = document.getElementById('filtro-pagos-estado').value;
+  const desde = document.getElementById('filtro-pagos-desde').value;
+  const hasta = document.getElementById('filtro-pagos-hasta').value;
+  const qs = new URLSearchParams();
+  if (estado) qs.set('estado', estado);
+  if (desde) qs.set('desde', desde);
+  if (hasta) qs.set('hasta', hasta + 'T23:59:59');
+  const url = (tenant ? `/admin/pagos/${tenant}` : '/admin/pagos') + (qs.toString() ? '?' + qs.toString() : '');
   const data = await apiFetch(url);
+  pagosList = data.pagos || [];
+  document.getElementById('st-pagos').textContent = pagosList.length;
   const tbody = document.getElementById('pagos-tbody');
-  const pagos = data.pagos || [];
-  document.getElementById('st-pagos').textContent = pagos.length;
-  if (!pagos.length) { tbody.innerHTML = '<tr><td colspan="7" class="empty">Sin pagos registrados</td></tr>'; return; }
-  tbody.innerHTML = pagos.map(p => `
+  if (!pagosList.length) { tbody.innerHTML = '<tr><td colspan="7" class="empty">Sin pagos con los filtros actuales</td></tr>'; return; }
+  tbody.innerHTML = pagosList.map(p => `
     <tr>
       <td><code>${p.tenantId}</code></td>
-      <td>${p.fecha}</td>
+      <td>${p.fecha || '—'}</td>
       <td style="font-weight:600">${p.nombre}</td>
       <td style="color:var(--green);font-weight:700">Bs ${p.monto}</td>
       <td style="font-family:monospace">${p.telefono || '—'}</td>
       <td><span class="badge ${p.estado === 'Usado' ? 'badge-green' : 'badge-yellow'}">${p.estado}</span></td>
-      <td style="font-size:11px;color:var(--muted)">${new Date(p.sincronizadoEn).toLocaleString()}</td>
+      <td style="font-size:11px;color:var(--muted)">${p.sincronizadoEn ? new Date(p.sincronizadoEn).toLocaleString() : '—'}</td>
     </tr>
   `).join('');
 }
 
+function limpiarFiltrosPagos() {
+  document.getElementById('filtro-pagos-tenant').value = '';
+  document.getElementById('filtro-pagos-estado').value = '';
+  document.getElementById('filtro-pagos-desde').value = '';
+  document.getElementById('filtro-pagos-hasta').value = '';
+  cargarPagos();
+}
+
+// ═══════════════════════ CUENTAS ═══════════════════════
 async function cargarCuentas() {
-  const filtro = document.getElementById('filtro-cuentas-tenant').value;
-  const url = filtro ? `/admin/cuentas/${filtro}` : '/admin/cuentas';
+  const tenant = document.getElementById('filtro-cuentas-tenant').value;
+  const estado = document.getElementById('filtro-cuentas-estado').value;
+  const qs = new URLSearchParams();
+  if (estado) qs.set('estado', estado);
+  const url = (tenant ? `/admin/cuentas/${tenant}` : '/admin/cuentas') + (qs.toString() ? '?' + qs.toString() : '');
   const data = await apiFetch(url);
+  cuentasList = data.cuentas || [];
+  document.getElementById('st-cuentas').textContent = cuentasList.length;
   const tbody = document.getElementById('cuentas-tbody');
-  const cuentas = data.cuentas || [];
-  document.getElementById('st-cuentas').textContent = cuentas.length;
-  if (!cuentas.length) { tbody.innerHTML = '<tr><td colspan="7" class="empty">Sin cuentas registradas</td></tr>'; return; }
-  tbody.innerHTML = cuentas.map(c => `
+  if (!cuentasList.length) { tbody.innerHTML = '<tr><td colspan="7" class="empty">Sin cuentas con los filtros actuales</td></tr>'; return; }
+  tbody.innerHTML = cuentasList.map(c => `
     <tr>
       <td><code>${c.tenantId}</code></td>
       <td style="font-family:monospace">${c.telefono}</td>
-      <td style="font-family:monospace">${c.usuario}</td>
+      <td style="font-family:monospace;font-weight:600">${c.usuario}</td>
       <td><span class="badge badge-purple">${c.plan}</span></td>
       <td style="font-size:11px">${c.fechaCreacion || '—'}</td>
       <td style="font-size:11px">${c.fechaExpiracion || '—'}</td>
-      <td><span class="badge ${c.estado === 'ACTIVA' ? 'badge-green' : 'badge-red'}">${c.estado}</span></td>
+      <td><span class="badge ${c.estado === 'ACTIVA' ? 'badge-green' : c.estado === 'RENOVADA' ? 'badge-blue' : 'badge-red'}">${c.estado}</span></td>
     </tr>
   `).join('');
 }
 
-// Click fuera del modal para cerrar
+function limpiarFiltrosCuentas() {
+  document.getElementById('filtro-cuentas-tenant').value = '';
+  document.getElementById('filtro-cuentas-estado').value = '';
+  cargarCuentas();
+}
+
+// ═══════════════════════ CSV EXPORT ═══════════════════════
+function exportarCSV(tipo) {
+  let rows, headers, filename;
+  if (tipo === 'pagos') {
+    headers = ['ID','Tenant','Fecha','Nombre','Monto','Teléfono','Estado','Sincronizado'];
+    rows = pagosList.map(p => [p.id, p.tenantId, p.fecha||'', `"${(p.nombre||'').replace(/"/g,"'")}"`, p.monto, p.telefono||'', p.estado, p.sincronizadoEn ? new Date(p.sincronizadoEn).toLocaleString() : '']);
+    filename = `pagos_${new Date().toISOString().slice(0,10)}.csv`;
+  } else {
+    headers = ['ID','Tenant','Teléfono','Usuario','Plan','Creación','Expiración','Estado'];
+    rows = cuentasList.map(c => [c.id, c.tenantId, c.telefono, c.usuario, c.plan, c.fechaCreacion||'', c.fechaExpiracion||'', c.estado]);
+    filename = `cuentas_${new Date().toISOString().slice(0,10)}.csv`;
+  }
+  const csv = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = filename; a.click();
+  URL.revokeObjectURL(a.href);
+}
+
+// ═══════════════════════ MODALES: CERRAR AL CLICK FUERA ═══════════════════════
 document.querySelectorAll('.modal-overlay').forEach(m => {
   m.addEventListener('click', e => { if (e.target === m) cerrarModal(); });
 });
+document.addEventListener('keydown', e => { if (e.key === 'Escape') cerrarModal(); });
 
-// Carga inicial
-recargarTodo();
-setInterval(cargarEstado, 30000);
+// ═══════════════════════ CARGA INICIAL ═══════════════════════
+if (ADMIN_TOKEN) {
+  recargarTodo();
+  setInterval(cargarEstado, 30000);
+  setInterval(() => {
+    if (detalleId) cargarEventos();
+  }, 8000);
+}
 </script>
 </body>
 </html>

@@ -62,7 +62,7 @@ export function NuevoTenant() {
     }
 
     try {
-      await mut.mutateAsync({ data });
+      await mut.mutateAsync(data);
       setLocation("/");
     } catch {
       setError("Error creando tenant. Revisa los datos e intenta de nuevo.");
