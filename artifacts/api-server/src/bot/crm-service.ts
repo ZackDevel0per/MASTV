@@ -1056,15 +1056,27 @@ export async function obtenerTodasLasLineasCRM(): Promise<LineaCRMCompleta[]> {
 
     const planNombre = PLAN_ID_A_NOMBRE[pkgId] ?? `Plan ${pkgId}`;
 
-    // exp_date puede ser Unix timestamp (segundos) o cadena
+    // exp_date puede ser Unix timestamp (segundos) o cadena "YYYY-MM-DD HH:MM:SS"
+    // Se convierte siempre al mismo formato es-BO que usa el bot.
+    // Fechas inválidas (0000-00-00, null, 0) se guardan como cadena vacía.
     let fechaExpiracion = "";
     if (l.exp_date) {
-      const ts = Number(l.exp_date);
-      if (!isNaN(ts) && ts > 0) {
-        const d = new Date(ts * 1000);
-        fechaExpiracion = d.toLocaleString("es-BO", { timeZone: "America/La_Paz" });
-      } else if (typeof l.exp_date === "string") {
-        fechaExpiracion = l.exp_date;
+      const raw = String(l.exp_date).trim();
+      if (raw && !raw.startsWith("0000") && raw !== "0") {
+        const ts = Number(raw);
+        if (!isNaN(ts) && ts > 100_000_000) {
+          // Unix timestamp en segundos (valor razonable > año 1973)
+          const d = new Date(ts * 1000);
+          if (!isNaN(d.getTime())) {
+            fechaExpiracion = d.toLocaleString("es-BO", { timeZone: "America/La_Paz" });
+          }
+        } else {
+          // Cadena de fecha: "2026-06-17 20:17:00" → parsear y reformatear
+          const d = new Date(raw.replace(" ", "T"));
+          if (!isNaN(d.getTime()) && d.getFullYear() > 2000) {
+            fechaExpiracion = d.toLocaleString("es-BO", { timeZone: "America/La_Paz" });
+          }
+        }
       }
     }
 

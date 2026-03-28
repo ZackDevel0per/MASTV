@@ -736,7 +736,7 @@ export async function sincronizarLineasCRMEnSheets(
       await sheets.spreadsheets.values.append({
         spreadsheetId: SPREADSHEET_ID,
         range: `${SHEET_CUENTAS}!A:F`,
-        valueInputOption: "USER_ENTERED",
+        valueInputOption: "RAW",
         requestBody: { values: filasNuevas },
       });
       // Actualizar caché en memoria para los nuevos usuarios
