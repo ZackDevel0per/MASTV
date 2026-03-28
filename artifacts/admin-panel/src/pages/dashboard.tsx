@@ -16,7 +16,7 @@ import { Modal } from "@/components/modal";
 import { 
   Edit2, RefreshCw, MessageSquare, 
   QrCode, Trash2, Activity, PlayCircle, StopCircle, CheckCircle2, ShieldAlert,
-  ExternalLink, AlertTriangle, ArrowRight, Wifi, WifiOff, Monitor
+  ExternalLink, AlertTriangle, ArrowRight, Wifi, WifiOff, Monitor, Mail
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -66,6 +66,18 @@ export function Dashboard() {
       refetch();
     } catch {
       alert("Error en la operación");
+    }
+  };
+
+  const handleConnectGmail = async (tenantId: string) => {
+    try {
+      const base = import.meta.env.BASE_URL.replace(/\/$/, "");
+      const res = await fetch(`${base}/api/gmail/autorizar/${tenantId}`);
+      const data = await res.json();
+      if (!data.ok) { alert(`Error: ${data.mensaje}`); return; }
+      window.open(data.urlAutorizacion, "_blank", "width=600,height=700");
+    } catch {
+      alert("No se pudo conectar con el servidor");
     }
   };
 
@@ -185,6 +197,7 @@ export function Dashboard() {
                         <div className="flex items-center justify-end gap-1">
                           <ActionBtn icon={ExternalLink} title="Ver detalle" onClick={() => setLocation(`/tenant/${t.id}`)} className="text-primary hover:bg-primary/10" />
                           <ActionBtn icon={Edit2} title="Editar" onClick={() => { setSelectedTenant(t); setModalType("edit"); }} />
+                          <ActionBtn icon={Mail} title={t.tieneGmail ? "Gmail conectado — Reconectar" : "Conectar Gmail"} onClick={() => handleConnectGmail(t.id)} className={t.tieneGmail ? "text-emerald-400 hover:bg-emerald-500/20" : "text-amber-400 hover:bg-amber-500/20"} />
                           <ActionBtn icon={QrCode} title="Parear WA" onClick={() => { setSelectedTenant(t); setModalType("pair"); }} />
                           <ActionBtn icon={MessageSquare} title="Enviar MSJ" onClick={() => { setSelectedTenant(t); setModalType("msg"); }} />
                           <ActionBtn icon={RefreshCw} title="Reiniciar Bot" onClick={() => handleAction("restart", t.id)} />

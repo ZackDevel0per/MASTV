@@ -70,6 +70,42 @@ router.get("/gmail/autorizar", (req: Request, res: Response) => {
 });
 
 // ═════════════════════════════════════════════════════════
+// GENERAR URL DE AUTORIZACIÓN POR TENANT
+// ═════════════════════════════════════════════════════════
+router.get("/gmail/autorizar/:tenantId", async (req: Request, res: Response) => {
+  const { tenantId } = req.params as { tenantId: string };
+  try {
+    const [tenant] = await db
+      .select({ gmailClientId: tenantsTable.gmailClientId, gmailClientSecret: tenantsTable.gmailClientSecret })
+      .from(tenantsTable)
+      .where(eq(tenantsTable.id, tenantId))
+      .limit(1);
+
+    if (!tenant) {
+      res.status(404).json({ ok: false, mensaje: "Tenant no encontrado" });
+      return;
+    }
+    if (!tenant.gmailClientId || !tenant.gmailClientSecret) {
+      res.status(400).json({ ok: false, mensaje: "El tenant no tiene Client ID o Client Secret de Gmail configurados. Edita el tenant primero." });
+      return;
+    }
+
+    const redirectUri = getRedirectUri(req);
+    const oAuth2Client = new google.auth.OAuth2(tenant.gmailClientId, tenant.gmailClientSecret, redirectUri);
+    const url = oAuth2Client.generateAuthUrl({
+      access_type: "offline",
+      prompt: "consent",
+      scope: ["https://www.googleapis.com/auth/gmail.readonly"],
+      state: tenantId,
+    });
+
+    res.json({ ok: true, urlAutorizacion: url, redirectUri });
+  } catch (err) {
+    res.status(500).json({ ok: false, mensaje: err instanceof Error ? err.message : "Error generando URL" });
+  }
+});
+
+// ═════════════════════════════════════════════════════════
 // CALLBACK OAuth2 — Recibe el code y devuelve el refresh_token
 // Si state=tenantId, guarda automáticamente en la DB del tenant
 // ═════════════════════════════════════════════════════════
