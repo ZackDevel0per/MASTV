@@ -424,7 +424,17 @@
           <div><label>Gmail Client Secret</label><input type="password" name="gmailClientSecret" placeholder="GOCSPX-..." /></div>
           <div><label>Pushover User Key</label><input type="text" name="pushoverUserKey" placeholder="u..." /></div>
           <div><label>Pushover API Token</label><input type="text" name="pushoverApiToken" placeholder="a..." /></div>
-          <div class="form-full"><label>URL Imagen QR de Pago <span style="color:var(--muted);font-weight:400;text-transform:none;letter-spacing:0">— el bot la envía al cliente al elegir un plan</span></label><input type="text" name="qrPagoUrl" placeholder="https://i.imgur.com/tu-qr.jpg" /></div>
+          <div class="form-full">
+            <label>QR de Pago <span style="color:var(--muted);font-weight:400;text-transform:none;letter-spacing:0">— el bot lo envía al cliente al elegir un plan</span></label>
+            <div style="display:flex;gap:8px;align-items:center;">
+              <input type="text" name="qrPagoUrl" id="nuevo-qrPagoUrl" placeholder="https://i.imgur.com/tu-qr.jpg" style="flex:1;" />
+              <label class="btn btn-ghost" style="cursor:pointer;margin:0;padding:6px 12px;font-size:13px;white-space:nowrap;flex-shrink:0;">
+                📁 Subir archivo
+                <input type="file" id="nuevo-qr-file" accept="image/*" style="display:none;" onchange="previsualizarNuevoQr(this)" />
+              </label>
+              <img id="nuevo-qr-preview" src="" alt="Vista previa" style="display:none;width:44px;height:44px;object-fit:contain;border:1px solid var(--border);border-radius:6px;background:#fff;flex-shrink:0;" />
+            </div>
+          </div>
           <div>
             <label>Suscripción vence</label>
             <div id="nuevo-sus-widget">
@@ -1140,6 +1150,15 @@ function loadSuscripcionVence(ctx, isoDate) {
 }
 
 // ═══════════════════════ QR DE PAGO ═══════════════════════
+function previsualizarNuevoQr(input) {
+  const file = input.files[0];
+  const img = document.getElementById('nuevo-qr-preview');
+  if (!file) { img.style.display = 'none'; return; }
+  const reader = new FileReader();
+  reader.onload = e => { img.src = e.target.result; img.style.display = 'block'; };
+  reader.readAsDataURL(file);
+}
+
 function actualizarQrPreview(url) {
   const img = document.getElementById('edit-qr-preview');
   if (url) {
@@ -1261,11 +1280,32 @@ async function crearTenant(e) {
   e.preventDefault();
   const form = e.target;
   const body = {};
-  new FormData(form).forEach((v, k) => { if (v) body[k] = v; });
+  new FormData(form).forEach((v, k) => {
+    if (k === 'qr') return; // el archivo se maneja aparte
+    if (v) body[k] = v;
+  });
   body.activo = form.querySelector('[name=activo]').checked;
   const r = await apiFetch('/admin/tenants', { method: 'POST', body: JSON.stringify(body) });
   toast(r.mensaje, r.ok ? 'ok' : 'err');
-  if (r.ok) { form.reset(); switchTab('tenants', document.querySelector('nav button')); setTimeout(recargarTodo, 1500); }
+  if (r.ok) {
+    // Si hay archivo QR seleccionado, subirlo al tenant recién creado
+    const fileInput = document.getElementById('nuevo-qr-file');
+    if (fileInput && fileInput.files[0] && r.tenant?.id) {
+      const fd = new FormData();
+      fd.append('qr', fileInput.files[0]);
+      try {
+        await fetch(`/api/admin/tenants/${r.tenant.id}/qr-pago`, {
+          method: 'POST',
+          headers: { 'x-admin-token': localStorage.getItem('admin_token') || ADMIN_TOKEN },
+          body: fd,
+        });
+      } catch (_) { /* silent – el tenant ya se creó */ }
+    }
+    form.reset();
+    document.getElementById('nuevo-qr-preview').style.display = 'none';
+    switchTab('tenants', document.querySelector('nav button'));
+    setTimeout(recargarTodo, 1500);
+  }
 }
 
 // ═══════════════════════ PAGOS ═══════════════════════

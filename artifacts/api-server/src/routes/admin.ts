@@ -344,7 +344,7 @@ router.post("/admin/tenants", async (req, res) => {
     const tenant = await recargarTenant(id);
     if (tenant) await iniciarBot(tenant);
 
-    res.json({ ok: true, mensaje: `Tenant ${id} creado y bot iniciado` });
+    res.json({ ok: true, tenant: { id }, mensaje: `Tenant ${id} creado y bot iniciado` });
   } catch (err) {
     res.status(500).json({ ok: false, mensaje: String(err) });
   }
