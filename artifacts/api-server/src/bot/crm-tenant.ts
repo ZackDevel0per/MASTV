@@ -161,6 +161,19 @@ export class CrmService {
         const https = (await import("https")).default;
         const agent = new https.Agent({ rejectUnauthorized: false });
 
+        // 1. Obtener lista ANTES de crear (para comparar después y encontrar la nueva)
+        const listAntes = await axios.get(`${this.baseUrl}/api/line/list`, {
+          headers: { ...BASE_HEADERS, Cookie: cookie, Accept: "application/json", "X-Requested-With": "XMLHttpRequest" },
+          httpsAgent: agent,
+          validateStatus: () => true,
+        });
+        const rawAntes = listAntes.data;
+        const lineasAntes: Array<{ username: string; password: string; server_url?: string }> =
+          Array.isArray(rawAntes) ? rawAntes : Array.isArray(rawAntes?.data) ? rawAntes.data : [];
+        const usernamesAntes = new Set(lineasAntes.map((l) => l.username?.toLowerCase()));
+        console.log(`   [CRM][${this.username}] Antes: ${lineasAntes.length} líneas`);
+
+        // 2. Obtener CSRF de la página de creación
         const createPage = await axios.get(`${this.baseUrl}/lines/create-with-package`, {
           headers: { ...BASE_HEADERS, Cookie: cookie },
           httpsAgent: agent,
@@ -197,6 +210,7 @@ export class CrmService {
 
         console.log(`📝 [CRM][${this.username}] Creando cuenta plan=${planClave} username=${username} intento=${intento}`);
 
+        // 3. Crear la cuenta
         const storeRes = await axios.post(
           `${this.baseUrl}/lines/store-with-package`,
           bodyParams,
@@ -220,52 +234,50 @@ export class CrmService {
           return { ok: false, mensaje: `Error CRM al crear: HTTP ${storeRes.status}` };
         }
 
-        // Esperar brevemente para que el CRM registre la cuenta
+        // 4. Esperar brevemente y obtener lista DESPUÉS
         await new Promise(r => setTimeout(r, 1500));
 
-        // Usar la cookie de sesión original para consultar la lista
-        // (la del 302 puede no tener la sesión completa)
-        const listRes = await axios.get(`${this.baseUrl}/api/line/list`, {
+        const listDespues = await axios.get(`${this.baseUrl}/api/line/list`, {
           headers: { ...BASE_HEADERS, Cookie: cookie, Accept: "application/json", "X-Requested-With": "XMLHttpRequest" },
           httpsAgent: agent,
           validateStatus: () => true,
         });
+        const rawDespues = listDespues.data;
+        const lineasDespues: Array<{ username: string; password: string; server_url?: string }> =
+          Array.isArray(rawDespues) ? rawDespues : Array.isArray(rawDespues?.data) ? rawDespues.data : [];
+        console.log(`   [CRM][${this.username}] Después: ${lineasDespues.length} líneas`);
 
-        const rawData = listRes.data;
-        const lineas: Array<{ username: string; password: string; server_url?: string }> =
-          Array.isArray(rawData) ? rawData : Array.isArray(rawData?.data) ? rawData.data : [];
+        // 5. La cuenta nueva = la que aparece en DESPUÉS pero no en ANTES
+        const lineaNueva = lineasDespues.find((l) => !usernamesAntes.has(l.username?.toLowerCase()));
 
-        console.log(`   [CRM][${this.username}] line/list → ${lineas.length} líneas`);
-
-        const linea = lineas.find((l) => l.username?.toLowerCase() === username.toLowerCase());
-
-        if (linea) {
-          console.log(`✅ [CRM][${this.username}] Línea encontrada: ${linea.username} pass=${linea.password}`);
+        if (lineaNueva) {
+          console.log(`✅ [CRM][${this.username}] Cuenta nueva encontrada: ${lineaNueva.username}`);
           return {
             ok: true,
-            usuario: linea.username,
-            contrasena: linea.password,
+            usuario: lineaNueva.username,
+            contrasena: lineaNueva.password,
             mensaje: "Cuenta creada exitosamente",
             plan: planInfo.nombre,
-            servidor: (linea.server_url as string) ?? `http://mtv.bo:80`,
+            servidor: (lineaNueva.server_url as string) ?? `http://mtv.bo:80`,
           };
         }
 
-        // Fallback: usar la línea más reciente si no hay match exacto
-        console.warn(`⚠️ [CRM][${this.username}] Username ${username} no encontrado exacto, usando primera línea`);
-        const primera = lineas[0];
-        if (primera?.username) {
+        // Intentar también por username exacto (por si ya estaba en la lista)
+        const lineaExacta = lineasDespues.find((l) => l.username?.toLowerCase() === username.toLowerCase());
+        if (lineaExacta) {
+          console.log(`✅ [CRM][${this.username}] Cuenta encontrada por username: ${lineaExacta.username}`);
           return {
             ok: true,
-            usuario: primera.username,
-            contrasena: primera.password,
+            usuario: lineaExacta.username,
+            contrasena: lineaExacta.password,
             mensaje: "Cuenta creada exitosamente",
             plan: planInfo.nombre,
-            servidor: (primera.server_url as string) ?? `http://mtv.bo:80`,
+            servidor: (lineaExacta.server_url as string) ?? `http://mtv.bo:80`,
           };
         }
 
-        return { ok: false, mensaje: "Cuenta creada en CRM pero no se pudo recuperar las credenciales" };
+        console.error(`❌ [CRM][${this.username}] Cuenta no encontrada en lista después de crearla`);
+        return { ok: false, mensaje: "No se pudo recuperar las credenciales de la cuenta creada" };
 
       } catch (err) {
         console.error(`[CRM][${this.username}] Error creando cuenta (intento ${intento}):`, err);
