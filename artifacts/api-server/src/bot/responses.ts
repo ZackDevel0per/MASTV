@@ -66,7 +66,7 @@ export const RESPUESTAS_NUMEROS: Record<string, RespuestaMedia[]> = {
   "5": [
     {
       tipo: "text",
-      contenido: `🎁 *Prueba ZKTV GRATIS*
+      contenido: `🎁 *Prueba {{EMPRESA}} GRATIS*
 
 Puedes probar nuestro servicio sin costo. Elige la duración de tu demo:
 
@@ -419,7 +419,7 @@ _¡Contrata y obtén el mejor servicio de TV en Bolivia!_ 🏆
   "3": [
     {
       tipo: "text",
-      contenido: `🆘 *Centro de Soporte ZKTV*
+      contenido: `🆘 *Centro de Soporte {{EMPRESA}}*
 
 📞 Teléfono: *+591 69741630*
 💬 WhatsApp: *+591 69741630*
@@ -458,7 +458,7 @@ Cuando hayas pagado, escribe *COMPROBAR* y recibirás tus credenciales al instan
   "6": [
     {
       tipo: "text",
-      contenido: `📹 *Guías de Instalación ZKTV*
+      contenido: `📹 *Guías de Instalación {{EMPRESA}}*
 
 Selecciona tu dispositivo:
 
@@ -670,7 +670,7 @@ export const ACTIVACION_EXITOSA = (datos: {
 }) => `
 🎉 *¡Tu cuenta está ACTIVA!*
 
-🎬 *Bienvenido a ZKTV*
+🎬 *Bienvenido a {{EMPRESA}}*
 
 🔐 *Credenciales de acceso:*
 📛 Nombre: \`mastv\`

@@ -103,6 +103,13 @@ export class BotInstance {
     console.log(`🔄 [BOT] Config actualizada en caliente para tenant ${newTenant.id}`);
   }
 
+  /**
+   * Reemplaza el placeholder {{EMPRESA}} con el nombre de empresa del tenant.
+   */
+  private interpolar(texto: string): string {
+    return texto.replace(/\{\{EMPRESA\}\}/g, this.tenant.nombreEmpresa);
+  }
+
   // ── LID Map ────────────────────────────────────────────────────────────────
 
   private cargarLidMap(): void {
@@ -324,11 +331,11 @@ export class BotInstance {
         const resultado = await this.crm.crearCuenta(planClave, `Demo_${telefono}`, `${telefono}@bot.bo`, telefono, usernamesEnUso);
 
         if (resultado.ok && resultado.usuario) {
-          const mensajeActivacion = ACTIVACION_EXITOSA({
+          const mensajeActivacion = this.interpolar(ACTIVACION_EXITOSA({
             usuario: resultado.usuario, contrasena: resultado.contrasena ?? "",
             plan: `🎁 ${resultado.plan ?? planInfo?.nombre ?? planClave} (DEMO GRATUITO)`,
             servidor: resultado.servidor,
-          });
+          }));
           await this.enviarConDelay(jid, mensajeActivacion);
           await this.enviarConDelay(jid, `💡 *¿Te gustó la prueba?*\n\nEscribe *1* para ver nuestros planes completos. 🚀`);
           this.conversaciones[jid] = { ultimoComando: "DEMO_CREADA", hora: Date.now() };
@@ -432,10 +439,10 @@ export class BotInstance {
             if (resultado.ok && resultado.usuario) {
               const fechaUso = new Date().toLocaleString("es-BO", { timeZone: "America/La_Paz" });
               await this.sheets.marcarPagoComoUsado(rowNumber, telefono, fechaUso);
-              const mensajeActivacion = ACTIVACION_EXITOSA({
+              const mensajeActivacion = this.interpolar(ACTIVACION_EXITOSA({
                 usuario: resultado.usuario, contrasena: resultado.contrasena ?? "",
                 plan: resultado.plan ?? planInfo.nombre, servidor: resultado.servidor,
-              });
+              }));
               await this.enviarConDelay(jid, mensajeActivacion);
               this.sheets.registrarCuenta(telefono, resultado.usuario, resultado.plan ?? planInfo.nombre, planInfo.dias).catch(() => {});
               this.conversaciones[jid] = { ultimoComando: "CUENTA_CREADA", hora: Date.now() };
@@ -599,9 +606,9 @@ export class BotInstance {
       if (RESPUESTAS_NUMEROS[textoUpper]) {
         const respuestas = RESPUESTAS_NUMEROS[textoUpper];
         for (const resp of respuestas) {
-          if (resp.tipo === "text") await this.enviarConDelay(jid, resp.contenido);
-          else if (resp.tipo === "video") await this.enviarVideo(jid, resp.contenido, resp.caption);
-          else if (resp.tipo === "image") await this.sock!.sendMessage(jid, { image: { url: resp.contenido }, caption: resp.caption });
+          if (resp.tipo === "text") await this.enviarConDelay(jid, this.interpolar(resp.contenido));
+          else if (resp.tipo === "video") await this.enviarVideo(jid, resp.contenido, resp.caption ? this.interpolar(resp.caption) : undefined);
+          else if (resp.tipo === "image") await this.sock!.sendMessage(jid, { image: { url: resp.contenido }, caption: resp.caption ? this.interpolar(resp.caption) : undefined });
         }
 
         const PLANES_VALIDOS = new Set(Object.keys(PLAN_ID_MAP));
