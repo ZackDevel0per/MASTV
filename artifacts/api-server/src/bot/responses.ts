@@ -33,7 +33,8 @@ export interface RespuestaBot {
 // ═══════════════════════════════════════════════════════════
 // SALUDO INICIAL
 // ═══════════════════════════════════════════════════════════
-export const SALUDO_INICIAL = `👋 *¡Hola! Bienvenido a ZKTV*
+export function generarSaludoInicial(nombreEmpresa: string): string {
+  return `👋 *¡Hola! Bienvenido a ${nombreEmpresa}*
 
 Somos tu mejor opción en entretenimiento en línea.
 
@@ -50,6 +51,9 @@ Somos tu mejor opción en entretenimiento en línea.
 *VERIFICAR* → 🔍 Ver mis cuentas activas
 
 _Escribe el número que prefieres_ ⬇️`;
+}
+
+export const SALUDO_INICIAL = generarSaludoInicial("ZKTV");
 
 // ═══════════════════════════════════════════════════════════
 // RESPUESTAS POR NÚMERO/LETRA

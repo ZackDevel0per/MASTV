@@ -27,7 +27,7 @@ import { SheetsService } from "./sheets-tenant.js";
 import { CrmService, PLAN_ID_MAP } from "./crm-tenant.js";
 import { GmailService } from "./gmail-tenant.js";
 import {
-  SALUDO_INICIAL,
+  generarSaludoInicial,
   RESPUESTAS_NUMEROS,
   RESPUESTA_DESCONOCIDA,
   COMANDOS_ESPECIALES,
@@ -543,6 +543,12 @@ export class BotInstance {
         return;
       }
 
+      // ── Saludo y menú principal (dinámico por tenant) ─────────────
+      if (textoUpper === "HOLA" || textoUpper === "MENU") {
+        await this.enviarConDelay(jid, generarSaludoInicial(this.tenant.nombreEmpresa));
+        return;
+      }
+
       // ── Menús de planes por dispositivos (dinámico por tenant) ────
       if (textoUpper === "P" || textoUpper === "Q" || textoUpper === "R") {
         const menu = this.generarMenuPlanesPorLetra(textoUpper as "P" | "Q" | "R");
@@ -611,7 +617,7 @@ export class BotInstance {
       // ── Saludos ────────────────────────────────────────────────────
       const esUnSaludo = PALABRAS_SALUDO.some((p) => textoUpper.includes(p));
       if (esUnSaludo) {
-        await this.enviarConDelay(jid, SALUDO_INICIAL);
+        await this.enviarConDelay(jid, generarSaludoInicial(this.tenant.nombreEmpresa));
         return;
       }
 
