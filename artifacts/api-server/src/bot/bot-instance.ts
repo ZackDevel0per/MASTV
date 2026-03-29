@@ -79,6 +79,8 @@ export class BotInstance {
   private authFolder: string;
   private lidMapFile: string;
 
+  private qrPagoBuffer: Buffer | null = null;
+
   constructor(tenant: TenantConfig) {
     this.tenant = tenant;
     this.sheets = new SheetsService(tenant);
@@ -97,11 +99,31 @@ export class BotInstance {
    * planes, pushover, credenciales CRM/Gmail/Sheets, etc.
    */
   actualizarConfig(newTenant: TenantConfig): void {
+    const urlCambia = newTenant.qrPagoUrl !== this.tenant.qrPagoUrl;
     this.tenant = newTenant;
     this.sheets.actualizarConfig(newTenant);
     this.crm.actualizarConfig(newTenant);
     this.gmail.actualizarConfig(newTenant);
+    if (urlCambia) {
+      this.qrPagoBuffer = null;
+      this.precargarQR().catch(() => {});
+    }
     console.log(`🔄 [BOT] Config actualizada en caliente para tenant ${newTenant.id}`);
+  }
+
+  /**
+   * Descarga el QR de pago y lo guarda en memoria para este tenant.
+   * Se llama al iniciar el bot y cuando cambia la URL del QR.
+   */
+  private async precargarQR(): Promise<void> {
+    if (!this.tenant.qrPagoUrl) return;
+    try {
+      this.qrPagoBuffer = await this.resolverImagen(this.tenant.qrPagoUrl);
+      console.log(`🖼️ [BOT][${this.tenant.id}] QR de pago descargado (${this.qrPagoBuffer.length} bytes)`);
+    } catch (err) {
+      console.error(`❌ [BOT][${this.tenant.id}] No se pudo precargar QR:`, err);
+      this.qrPagoBuffer = null;
+    }
   }
 
   /**
@@ -156,15 +178,25 @@ export class BotInstance {
   private async resolverImagen(url: string): Promise<Buffer> {
     const candidatos: string[] = [];
 
-    // Imgur: imgur.com/HASH → probar múltiples extensiones en i.imgur.com
-    const imgurPage = /^https?:\/\/(?:www\.)?imgur\.com\/([a-zA-Z0-9]+)\/?$/.exec(url);
-    if (imgurPage) {
-      const hash = imgurPage[1];
+    // imgur.com/HASH o imgur.com/a/HASH → probar extensiones en i.imgur.com
+    const imgurHash = /^https?:\/\/(?:www\.)?imgur\.com\/(?:a\/)?([a-zA-Z0-9]+)\/?$/.exec(url);
+    // i.imgur.com/HASH (sin extensión) → añadir extensión
+    const imgurDirect = /^https?:\/\/i\.imgur\.com\/([a-zA-Z0-9]+)\/?$/.exec(url);
+
+    if (imgurHash) {
+      const hash = imgurHash[1];
       candidatos.push(
         `https://i.imgur.com/${hash}.jpg`,
         `https://i.imgur.com/${hash}.png`,
         `https://i.imgur.com/${hash}.jpeg`,
         `https://i.imgur.com/${hash}.gif`,
+      );
+    } else if (imgurDirect) {
+      const hash = imgurDirect[1];
+      candidatos.push(
+        `https://i.imgur.com/${hash}.jpg`,
+        `https://i.imgur.com/${hash}.png`,
+        `https://i.imgur.com/${hash}.jpeg`,
       );
     } else {
       candidatos.push(url);
@@ -198,6 +230,20 @@ export class BotInstance {
       }
     }
     throw lastError ?? new Error(`No se pudo descargar imagen desde: ${url}`);
+  }
+
+  private async enviarQRPago(jid: string): Promise<void> {
+    if (!this.sock) return;
+    const caption = `📲 *Escanea este QR para pagar*\n\nUna vez realizado el pago, escribe *COMPROBAR*.`;
+    if (this.qrPagoBuffer) {
+      await this.sock.sendMessage(jid, { image: this.qrPagoBuffer, caption });
+      return;
+    }
+    // Fallback: imagen local
+    const qrPath = path.join(__dirname, "../../public/images/qr-pago.jpeg");
+    if (fs.existsSync(qrPath)) {
+      await this.sock.sendMessage(jid, { image: fs.readFileSync(qrPath), caption });
+    }
   }
 
   private async enviarImagen(jid: string, url: string, caption?: string): Promise<void> {
@@ -646,15 +692,7 @@ export class BotInstance {
         const confirmacion = this.generarConfirmacionPlan(textoUpper);
         if (confirmacion) {
           await this.enviarConDelay(jid, confirmacion);
-          if (this.tenant.qrPagoUrl) {
-            await this.enviarImagen(jid, this.tenant.qrPagoUrl, `📲 *Escanea este QR para pagar*\n\nUna vez realizado el pago, escribe *COMPROBAR*.`);
-          } else {
-            const qrPath = path.join(__dirname, "../../public/images/qr-pago.jpeg");
-            if (fs.existsSync(qrPath)) {
-              const qrBuffer = fs.readFileSync(qrPath);
-              await this.sock!.sendMessage(jid, { image: qrBuffer, caption: `📲 *Escanea este QR para pagar*\n\nUna vez realizado el pago, escribe *COMPROBAR*.` });
-            }
-          }
+          await this.enviarQRPago(jid);
           this.conversaciones[jid] = {
             ultimoComando: textoUpper, planSeleccionado: textoUpper,
             flujo: estadoAnterior?.flujo, usuarioRenovar: estadoAnterior?.usuarioRenovar, hora: Date.now(),
@@ -679,15 +717,7 @@ export class BotInstance {
         const PLANES_VALIDOS = new Set(Object.keys(PLAN_ID_MAP));
         const esPlanPagado = PLANES_VALIDOS.has(textoUpper) && !textoUpper.startsWith("DEMO");
         if (esPlanPagado) {
-          if (this.tenant.qrPagoUrl) {
-            await this.enviarImagen(jid, this.tenant.qrPagoUrl, `📲 *Escanea este QR para pagar*\n\nUna vez realizado el pago, escribe *COMPROBAR*.`);
-          } else {
-            const qrPath = path.join(__dirname, "../../public/images/qr-pago.jpeg");
-            if (fs.existsSync(qrPath)) {
-              const qrBuffer = fs.readFileSync(qrPath);
-              await this.sock!.sendMessage(jid, { image: qrBuffer, caption: `📲 *Escanea este QR para pagar*\n\nUna vez realizado el pago, escribe *COMPROBAR*.` });
-            }
-          }
+          await this.enviarQRPago(jid);
           this.conversaciones[jid] = {
             ultimoComando: textoUpper, planSeleccionado: textoUpper,
             flujo: estadoAnterior?.flujo, usuarioRenovar: estadoAnterior?.usuarioRenovar, hora: Date.now(),
@@ -904,6 +934,9 @@ export class BotInstance {
     } catch (err) {
       console.error(`⚠️ [SHEETS][${this.tenant.id}] Error:`, err);
     }
+
+    // Precargar QR de pago en memoria para este tenant
+    await this.precargarQR();
 
     await this.conectar();
 
