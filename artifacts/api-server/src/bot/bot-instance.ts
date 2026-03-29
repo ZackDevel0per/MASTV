@@ -22,7 +22,7 @@ import fs from "fs";
 import https from "https";
 import querystring from "querystring";
 
-import type { TenantConfig } from "./tenant-config.js";
+import type { TenantConfig, TenantPlan } from "./tenant-config.js";
 import { SheetsService } from "./sheets-tenant.js";
 import { CrmService, PLAN_ID_MAP } from "./crm-tenant.js";
 import { GmailService } from "./gmail-tenant.js";
@@ -208,6 +208,77 @@ export class BotInstance {
     },
   };
 
+  // ── Planes dinámicos por tenant ───────────────────────────────────────────
+
+  private getPlanesPorDispositivos(dispositivos: number): TenantPlan[] {
+    if (this.tenant.planes && this.tenant.planes.length > 0) {
+      const filtrados = this.tenant.planes
+        .filter(p => p.dispositivos === dispositivos)
+        .sort((a, b) => a.monto - b.monto);
+      if (filtrados.length > 0) return filtrados;
+    }
+    const prefijos: Record<number, string> = { 1: "P", 2: "Q", 3: "R" };
+    const prefijo = prefijos[dispositivos];
+    if (!prefijo) return [];
+    const planes: TenantPlan[] = [];
+    for (let i = 1; i <= 4; i++) {
+      const key = `${prefijo}${i}`;
+      const p = PLAN_ID_MAP[key];
+      if (!p) continue;
+      planes.push({
+        codigo: key,
+        nombre: p.nombre,
+        monto: p.monto,
+        descripcion: `💰 Bs ${p.monto}`,
+        tolerancia: 1,
+        dispositivos,
+        duracion: `${p.dias} días`,
+        dias: p.dias,
+      });
+    }
+    return planes;
+  }
+
+  private getPlanPorComando(cmd: string): TenantPlan | null {
+    const match = cmd.match(/^([PQR])(\d)$/);
+    if (!match) return null;
+    const [, prefijo, indexStr] = match;
+    const dispositivos = prefijo === "P" ? 1 : prefijo === "Q" ? 2 : 3;
+    const index = parseInt(indexStr, 10) - 1;
+    return this.getPlanesPorDispositivos(dispositivos)[index] ?? null;
+  }
+
+  private generarMenuPlanesPorLetra(prefijo: "P" | "Q" | "R"): string {
+    const dispositivos = prefijo === "P" ? 1 : prefijo === "Q" ? 2 : 3;
+    const planes = this.getPlanesPorDispositivos(dispositivos);
+    if (planes.length === 0) return `❌ No hay planes configurados para ${dispositivos} dispositivo(s).`;
+    const titulo = `📺 *Planes - ${dispositivos} Dispositivo${dispositivos > 1 ? "s" : ""}*\n\n`;
+    const lista = planes.map(p => `💰 *${p.duracion.toUpperCase()}* → Bs ${p.monto}`).join("\n");
+    const acciones = planes.map((p, i) => `*${prefijo}${i + 1}* → Contratar (Bs ${p.monto})`).join("\n");
+    return `${titulo}${lista}\n\n${acciones}`;
+  }
+
+  private generarConfirmacionPlan(cmd: string): string | null {
+    const plan = this.getPlanPorComando(cmd);
+    if (!plan) return null;
+    return `✅ *Plan Seleccionado: ${plan.nombre}*\n💰 Bs ${plan.monto}\n\nPara completar tu activación:\n1️⃣ Realiza tu pago de *Bs ${plan.monto}* por Yape o QR\n2️⃣ Cuando termines, escribe *COMPROBAR*\n3️⃣ El bot te pedirá tu nombre y el monto exacto\n4️⃣ ¡Recibirás tus credenciales al instante!\n\n⚠️ _El nombre debe ser exactamente como aparece en tu comprobante_\n\n*COMPROBAR* → Confirmar mi pago\n*1* → Volver al menú`;
+  }
+
+  private generarMenuRenovar(): string {
+    const grupos: Array<{ prefijo: "P" | "Q" | "R"; label: string; disp: number }> = [
+      { prefijo: "P", label: "1 DISPOSITIVO", disp: 1 },
+      { prefijo: "Q", label: "2 DISPOSITIVOS", disp: 2 },
+      { prefijo: "R", label: "3 DISPOSITIVOS", disp: 3 },
+    ];
+    const secciones = grupos.map(({ prefijo, label, disp }) => {
+      const planes = this.getPlanesPorDispositivos(disp);
+      if (planes.length === 0) return null;
+      const lineas = planes.map((p, i) => `• *${prefijo}${i + 1}* — ${p.duracion} — Bs ${p.monto}`).join("\n");
+      return `*${label}:*\n${lineas}`;
+    }).filter(Boolean);
+    return `📋 Elige el plan para renovar:\n\n${secciones.join("\n\n")}`;
+  }
+
   // ── Manejador de mensajes ──────────────────────────────────────────────────
 
   private async manejarMensaje(jid: string, texto: string): Promise<void> {
@@ -291,13 +362,16 @@ export class BotInstance {
         const usuarioRenovar = estadoAnterior.usuarioRenovar;
 
         if (planSeleccionado && PLAN_ID_MAP[planSeleccionado]) {
-          const planInfo = PLAN_ID_MAP[planSeleccionado];
-          if (montoIngresado < planInfo.monto || montoIngresado > planInfo.monto + 1) {
+          const tenantPlan = this.getPlanPorComando(planSeleccionado);
+          const montoEsperado = tenantPlan?.monto ?? PLAN_ID_MAP[planSeleccionado]?.monto;
+          const tolerancia = tenantPlan?.tolerancia ?? 1;
+          const nombrePlan = tenantPlan?.nombre ?? PLAN_ID_MAP[planSeleccionado]?.nombre ?? planSeleccionado;
+          if (montoEsperado !== undefined && (montoIngresado < montoEsperado - tolerancia || montoIngresado > montoEsperado + tolerancia)) {
             this.conversaciones[jid] = {
               ultimoComando: "MONTO_INCORRECTO", planSeleccionado, flujo, usuarioRenovar,
               hora: Date.now(), esperandoVerificacion: "monto", nombreVerificacion: nombre,
             };
-            await this.enviarConDelay(jid, `❌ *El monto no corresponde al plan seleccionado*\n\n📋 Plan: ${planInfo.nombre}\n💰 Esperado: *Bs ${planInfo.monto}*\n💸 Indicaste: Bs ${montoIngresado}\n\nIngresa de nuevo el monto exacto:`);
+            await this.enviarConDelay(jid, `❌ *El monto no corresponde al plan seleccionado*\n\n📋 Plan: ${nombrePlan}\n💰 Esperado: *Bs ${montoEsperado}*\n💸 Indicaste: Bs ${montoIngresado}\n\nIngresa de nuevo el monto exacto:`);
             return;
           }
         }
@@ -397,7 +471,7 @@ export class BotInstance {
       if (estadoAnterior?.esperandoUsuarioRenovar) {
         const usuarioIngresado = texto.trim();
         this.conversaciones[jid] = { ultimoComando: "USUARIO_RENOVAR_CAPTURADO", flujo: "renovar", usuarioRenovar: usuarioIngresado, hora: Date.now() };
-        await this.enviarConDelay(jid, `👤 *Usuario:* _${usuarioIngresado}_\n\n📋 Elige el plan para renovar:\n\n*1 DISPOSITIVO:*\n• *P1* — 1 mes — Bs 29\n• *P2* — 3 meses — Bs 82\n• *P3* — 6 meses — Bs 155\n• *P4* — 12 meses — Bs 300\n\n*2 DISPOSITIVOS:*\n• *Q1* — 1 mes — Bs 35\n• *Q2* — 3 meses — Bs 100\n• *Q3* — 6 meses — Bs 190\n• *Q4* — 12 meses — Bs 380\n\n*3 DISPOSITIVOS:*\n• *R1* — 1 mes — Bs 40\n• *R2* — 3 meses — Bs 115\n• *R3* — 6 meses — Bs 225\n• *R4* — 12 meses — Bs 440`);
+        await this.enviarConDelay(jid, `👤 *Usuario:* _${usuarioIngresado}_\n\n${this.generarMenuRenovar()}`);
         return;
       }
 
@@ -469,6 +543,39 @@ export class BotInstance {
         return;
       }
 
+      // ── Menús de planes por dispositivos (dinámico por tenant) ────
+      if (textoUpper === "P" || textoUpper === "Q" || textoUpper === "R") {
+        const menu = this.generarMenuPlanesPorLetra(textoUpper as "P" | "Q" | "R");
+        await this.enviarConDelay(jid, menu);
+        return;
+      }
+
+      // ── Selección de plan específico (P1-P4, Q1-Q4, R1-R4) ────────
+      if (/^[PQR]\d$/.test(textoUpper) && PLAN_ID_MAP[textoUpper]) {
+        const confirmacion = this.generarConfirmacionPlan(textoUpper);
+        if (confirmacion) {
+          await this.enviarConDelay(jid, confirmacion);
+          if (this.tenant.qrPagoUrl) {
+            await this.sock!.sendMessage(jid, { image: { url: this.tenant.qrPagoUrl }, caption: `📲 *Escanea este QR para pagar*\n\nUna vez realizado el pago, escribe *COMPROBAR*.` });
+          } else {
+            const qrPath = path.join(__dirname, "../../public/images/qr-pago.jpeg");
+            if (fs.existsSync(qrPath)) {
+              const qrBuffer = fs.readFileSync(qrPath);
+              await this.sock!.sendMessage(jid, { image: qrBuffer, caption: `📲 *Escanea este QR para pagar*\n\nUna vez realizado el pago, escribe *COMPROBAR*.` });
+            }
+          }
+          this.conversaciones[jid] = {
+            ultimoComando: textoUpper, planSeleccionado: textoUpper,
+            flujo: estadoAnterior?.flujo, usuarioRenovar: estadoAnterior?.usuarioRenovar, hora: Date.now(),
+          };
+          const telefono = this.extraerTelefono(jid);
+          const tenantPlan = this.getPlanPorComando(textoUpper);
+          const montoRegistrar = tenantPlan?.monto ?? PLAN_ID_MAP[textoUpper]?.monto ?? 0;
+          registrarPedido(telefono, textoUpper, montoRegistrar);
+          return;
+        }
+      }
+
       // ── Respuestas por número/letra ────────────────────────────────
       if (RESPUESTAS_NUMEROS[textoUpper]) {
         const respuestas = RESPUESTAS_NUMEROS[textoUpper];
@@ -482,10 +589,8 @@ export class BotInstance {
         const esPlanPagado = PLANES_VALIDOS.has(textoUpper) && !textoUpper.startsWith("DEMO");
         if (esPlanPagado) {
           if (this.tenant.qrPagoUrl) {
-            // QR personalizado del tenant (URL)
             await this.sock!.sendMessage(jid, { image: { url: this.tenant.qrPagoUrl }, caption: `📲 *Escanea este QR para pagar*\n\nUna vez realizado el pago, escribe *COMPROBAR*.` });
           } else {
-            // Fallback: QR local global (si existe)
             const qrPath = path.join(__dirname, "../../public/images/qr-pago.jpeg");
             if (fs.existsSync(qrPath)) {
               const qrBuffer = fs.readFileSync(qrPath);
