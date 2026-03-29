@@ -556,9 +556,9 @@ export class BotInstance {
       // ── Comandos especiales ────────────────────────────────────────
       if (COMANDOS_ESPECIALES[textoUpper]) {
         for (const resp of COMANDOS_ESPECIALES[textoUpper]) {
-          if (resp.tipo === "text") await this.enviarConDelay(jid, resp.contenido);
-          else if (resp.tipo === "video") await this.enviarVideo(jid, resp.contenido, resp.caption);
-          else if (resp.tipo === "image") await this.sock!.sendMessage(jid, { image: { url: resp.contenido }, caption: resp.caption });
+          if (resp.tipo === "text") await this.enviarConDelay(jid, this.interpolar(resp.contenido));
+          else if (resp.tipo === "video") await this.enviarVideo(jid, resp.contenido, resp.caption ? this.interpolar(resp.caption) : undefined);
+          else if (resp.tipo === "image") await this.sock!.sendMessage(jid, { image: { url: resp.contenido }, caption: resp.caption ? this.interpolar(resp.caption) : undefined });
         }
         return;
       }
