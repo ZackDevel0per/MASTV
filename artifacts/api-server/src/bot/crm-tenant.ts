@@ -65,6 +65,14 @@ export class CrmService {
     this.prefix = tenant.crmUsernamePrefix;
   }
 
+  actualizarConfig(tenant: TenantConfig): void {
+    this.baseUrl = tenant.crmBaseUrl;
+    this.username = tenant.crmUsername ?? "";
+    this.password = tenant.crmPassword ?? "";
+    this.prefix = tenant.crmUsernamePrefix;
+    this.cachedSession = null;
+  }
+
   isConfigured(): boolean {
     return !!(this.username && this.password);
   }

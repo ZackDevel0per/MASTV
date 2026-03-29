@@ -81,6 +81,13 @@ export class SheetsService {
     this.tenantId = tenant.id;
   }
 
+  actualizarConfig(tenant: TenantConfig): void {
+    this.spreadsheetId = tenant.spreadsheetId ?? "";
+    this.serviceAccountJson = tenant.googleServiceAccountJson ?? "";
+    this.cacheSheets.clear();
+    this.cacheListaMs = 0;
+  }
+
   isConfigured(): boolean {
     return !!(this.spreadsheetId && this.serviceAccountJson);
   }

@@ -15,7 +15,7 @@ import fs from "fs";
 import { fileURLToPath } from "url";
 import { google } from "googleapis";
 import multer from "multer";
-import { iniciarBot, detenerBot, reiniciarBot, getInstancia, getEstadoTodos } from "../bot/bot-manager.js";
+import { iniciarBot, detenerBot, reiniciarBot, actualizarConfigBot, getInstancia, getEstadoTodos } from "../bot/bot-manager.js";
 import { recargarTenant } from "../bot/tenant-manager.js";
 import { getEventosTenant } from "../bot/bot-events.js";
 
@@ -380,9 +380,9 @@ router.put("/admin/tenants/:id", async (req, res) => {
 
     await db.update(tenantsTable).set(updates).where(eq(tenantsTable.id, id as string));
 
-    await reiniciarBot(id as string);
+    await actualizarConfigBot(id as string);
 
-    res.json({ ok: true, mensaje: `Tenant ${id} actualizado y bot reiniciado` });
+    res.json({ ok: true, mensaje: `Tenant ${id} actualizado` });
   } catch (err) {
     res.status(500).json({ ok: false, mensaje: String(err) });
   }

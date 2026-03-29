@@ -58,7 +58,7 @@ interface EstadoConversacion {
 type EstadoConexion = "desconectado" | "esperando_qr" | "esperando_codigo" | "conectado";
 
 export class BotInstance {
-  readonly tenant: TenantConfig;
+  tenant: TenantConfig;
   readonly sheets: SheetsService;
   readonly crm: CrmService;
   readonly gmail: GmailService;
@@ -88,6 +88,19 @@ export class BotInstance {
     this.lidMapFile = path.join(BASE_AUTH_DIR, `${tenant.id}_lid_map.json`);
 
     this.cargarLidMap();
+  }
+
+  /**
+   * Actualiza la configuración del tenant en la instancia activa
+   * sin desconectar WhatsApp. Útil para cambios como nombre de empresa,
+   * planes, pushover, credenciales CRM/Gmail/Sheets, etc.
+   */
+  actualizarConfig(newTenant: TenantConfig): void {
+    this.tenant = newTenant;
+    this.sheets.actualizarConfig(newTenant);
+    this.crm.actualizarConfig(newTenant);
+    this.gmail.actualizarConfig(newTenant);
+    console.log(`🔄 [BOT] Config actualizada en caliente para tenant ${newTenant.id}`);
   }
 
   // ── LID Map ────────────────────────────────────────────────────────────────

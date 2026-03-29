@@ -74,6 +74,31 @@ export async function reiniciarBot(tenantId: string): Promise<void> {
 }
 
 /**
+ * Actualiza la configuración del bot en caliente, sin desconectar WhatsApp.
+ * Úsalo en lugar de reiniciarBot para cambios que no afectan la sesión
+ * (nombre empresa, planes, pushover, CRM, Gmail, Sheets, etc.).
+ */
+export async function actualizarConfigBot(tenantId: string): Promise<void> {
+  const instancia = instancias.get(tenantId);
+  const tenant = await recargarTenant(tenantId);
+
+  if (!tenant) {
+    // Si el tenant quedó inactivo, detener el bot
+    await detenerBot(tenantId);
+    console.log(`⚠️ [BOT-MGR] Tenant ${tenantId} inactivo, bot detenido.`);
+    return;
+  }
+
+  if (instancia) {
+    instancia.actualizarConfig(tenant);
+    console.log(`✅ [BOT-MGR] Config de ${tenantId} actualizada en caliente.`);
+  } else {
+    // Si por algún motivo no hay instancia activa, iniciarla
+    await iniciarBot(tenant);
+  }
+}
+
+/**
  * Devuelve la instancia de bot de un tenant.
  */
 export function getInstancia(tenantId: string): BotInstance | undefined {

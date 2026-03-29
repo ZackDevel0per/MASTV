@@ -107,6 +107,13 @@ export class GmailService {
     this.sheetsService = sheetsService;
   }
 
+  actualizarConfig(tenant: TenantConfig): void {
+    this.clientId = tenant.gmailClientId;
+    this.clientSecret = tenant.gmailClientSecret;
+    this.refreshToken = tenant.gmailRefreshToken;
+    this.remitenteFiltro = tenant.gmailRemitenteFiltro;
+  }
+
   isConfigured(): boolean {
     return !!(this.clientId && this.clientSecret && this.refreshToken);
   }
