@@ -21,6 +21,7 @@ import { fileURLToPath } from "url";
 import fs from "fs";
 import https from "https";
 import querystring from "querystring";
+import axios from "axios";
 
 import type { TenantConfig, TenantPlan } from "./tenant-config.js";
 import { SheetsService } from "./sheets-tenant.js";
@@ -147,22 +148,56 @@ export class BotInstance {
   }
 
   /**
-   * Normaliza una URL de imagen (ej. convierte páginas de Imgur a URL directa)
-   * y descarga el contenido como Buffer. Así evitamos enviar HTML en vez de imagen.
+   * Descarga una imagen desde una URL y la retorna como Buffer.
+   * - Normaliza URLs de Imgur (página → URL directa con extensiones a probar)
+   * - Usa axios con headers de navegador para evitar bloqueos de hotlinking
+   * - Valida que la respuesta sea realmente una imagen
    */
   private async resolverImagen(url: string): Promise<Buffer> {
-    let directUrl = url;
+    const candidatos: string[] = [];
 
-    // Imgur: imgur.com/HASH → i.imgur.com/HASH.jpg
-    const imgurPage = /^https?:\/\/(?:www\.)?imgur\.com\/([a-zA-Z0-9]+)\/?(\?.*)?$/.exec(url);
+    // Imgur: imgur.com/HASH → probar múltiples extensiones en i.imgur.com
+    const imgurPage = /^https?:\/\/(?:www\.)?imgur\.com\/([a-zA-Z0-9]+)\/?$/.exec(url);
     if (imgurPage) {
-      directUrl = `https://i.imgur.com/${imgurPage[1]}.jpg`;
+      const hash = imgurPage[1];
+      candidatos.push(
+        `https://i.imgur.com/${hash}.jpg`,
+        `https://i.imgur.com/${hash}.png`,
+        `https://i.imgur.com/${hash}.jpeg`,
+        `https://i.imgur.com/${hash}.gif`,
+      );
+    } else {
+      candidatos.push(url);
     }
 
-    const res = await fetch(directUrl);
-    if (!res.ok) throw new Error(`Error descargando imagen: ${res.status} ${directUrl}`);
-    const arrayBuf = await res.arrayBuffer();
-    return Buffer.from(arrayBuf);
+    const headers = {
+      "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+      "Accept": "image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8",
+      "Referer": "https://www.google.com/",
+    };
+
+    let lastError: unknown;
+    for (const candidato of candidatos) {
+      try {
+        const res = await axios.get<ArrayBuffer>(candidato, {
+          responseType: "arraybuffer",
+          timeout: 15000,
+          headers,
+          maxRedirects: 5,
+        });
+        const contentType: string = res.headers["content-type"] ?? "";
+        if (!contentType.startsWith("image/")) {
+          console.warn(`⚠️ [BOT][${this.tenant.id}] URL devolvió ${contentType}, no es imagen: ${candidato}`);
+          lastError = new Error(`Respuesta no es imagen (${contentType})`);
+          continue;
+        }
+        return Buffer.from(res.data);
+      } catch (err) {
+        lastError = err;
+        console.warn(`⚠️ [BOT][${this.tenant.id}] Falló descarga de ${candidato}:`, err);
+      }
+    }
+    throw lastError ?? new Error(`No se pudo descargar imagen desde: ${url}`);
   }
 
   private async enviarImagen(jid: string, url: string, caption?: string): Promise<void> {
