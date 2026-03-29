@@ -659,7 +659,7 @@ async function manejarMensaje(jid: string, texto: string) {
             // ── Marcar pago como usado solo si el CRM tuvo éxito ────
             const fechaUso = new Date().toLocaleString("es-BO", { timeZone: "America/La_Paz" });
             await marcarPagoComoUsado(rowNumber, telefono, fechaUso);
-            await enviarConDelay(jid, `🎉 *¡Cuenta renovada exitosamente!*\n\n🔐 *Credenciales de acceso:*\n📛 Nombre: \`mastv\`\n👤 Usuario: \`${resultado.usuario}\`\n🔑 Contraseña: \`${resultado.contrasena}\`\n🌐 URL: \`${resultado.servidor || "http://mtv.bo:80"}\`\n\n📺 *Plan renovado:* ${resultado.plan}\n\n✅ Tu servicio ha sido extendido. ¡Disfruta ZKTV! 🚀`);
+            await enviarConDelay(jid, `🎉 *¡Cuenta renovada exitosamente!*\n\n🔐 *Credenciales de acceso:*\n📛 Nombre: \`mastv\`\n👤 Usuario: \`${resultado.usuario}\`\n🔑 Contraseña: \`${resultado.contrasena}\`\n🌐 URL: \`${resultado.servidor || "http://mtv.bo:80"}\`\n\n📺 *Plan renovado:* ${resultado.plan}\n\n✅ Tu servicio ha sido extendido. ¡Disfruta tu servicio! 🚀`);
             actualizarCuenta(telefono, resultado.usuario ?? usuarioRenovar, resultado.plan ?? planSeleccionado ?? "", planInfo.dias)
               .catch(err => console.error("[BOT] Error actualizando cuenta en Sheets:", err));
             conversaciones[jid] = { ultimoComando: "CUENTA_RENOVADA", planSeleccionado: undefined, hora: Date.now() };
@@ -726,7 +726,7 @@ async function manejarMensaje(jid: string, texto: string) {
       }
 
       // Construir mensaje de estado
-      let mensajeEstado = `📋 *Estado de tu cuenta ZKTV*\n\n`;
+      let mensajeEstado = `📋 *Estado de tu cuenta*\n\n`;
       mensajeEstado += `👤 *Usuario:* \`${estado.usuario}\`\n`;
 
       if (estado.plan) {
@@ -832,7 +832,7 @@ async function manejarMensaje(jid: string, texto: string) {
             `*3* → Soporte técnico`,
           );
         } else {
-          let mensaje = `✅ *Tus cuentas activas en ZKTV*\n\n`;
+          let mensaje = `✅ *Tus cuentas activas*\n\n`;
           mensaje += `📱 Número: *${telefono}*\n\n`;
 
           cuentas.forEach((c, i) => {

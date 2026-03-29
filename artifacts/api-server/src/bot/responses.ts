@@ -53,7 +53,7 @@ Somos tu mejor opción en entretenimiento en línea.
 _Escribe el número que prefieres_ ⬇️`;
 }
 
-export const SALUDO_INICIAL = generarSaludoInicial("ZKTV");
+export const SALUDO_INICIAL = generarSaludoInicial("{{EMPRESA}}");
 
 // ═══════════════════════════════════════════════════════════
 // RESPUESTAS POR NÚMERO/LETRA
