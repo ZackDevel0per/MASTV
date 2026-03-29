@@ -777,6 +777,7 @@ function renderTenants(tenants) {
         <div class="actions-bar">
           <button class="btn btn-ghost btn-sm" title="Ver detalle" onclick="abrirDetalle('${t.id}')">🔍</button>
           <button class="btn btn-ghost btn-sm" title="Editar" onclick='abrirEditar(${JSON.stringify(t)})'>✏️</button>
+          <button class="btn btn-ghost btn-sm" title="Autorizar Gmail (Refresh Token)" onclick="autorizarGmail('${t.id}')">📧🔑</button>
           <button class="btn btn-ghost btn-sm" title="Reiniciar bot" onclick="reiniciarBot('${t.id}')">🔄</button>
           <button class="btn btn-ghost btn-sm" title="Enviar mensaje" onclick="abrirMensaje('${t.id}')">💬</button>
           ${t.activo
@@ -1036,6 +1037,12 @@ async function activarTenant(id) {
   const r = await apiFetch(`/admin/tenants/${id}/activar`, { method: 'POST' });
   toast(r.mensaje, r.ok ? 'ok' : 'err');
   setTimeout(cargarTenants, 1500);
+}
+
+async function autorizarGmail(id) {
+  const r = await apiFetch(`/admin/tenants/${id}/gmail/autorizar`);
+  if (!r.ok) { toast(r.mensaje || 'Error al obtener link de Gmail', 'err'); return; }
+  window.open(r.urlAutorizacion, '_blank');
 }
 
 // ═══════════════════════ PLANES EDITOR ═══════════════════════
