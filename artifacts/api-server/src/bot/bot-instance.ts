@@ -99,27 +99,35 @@ export class BotInstance {
    * planes, pushover, credenciales CRM/Gmail/Sheets, etc.
    */
   actualizarConfig(newTenant: TenantConfig): void {
-    const urlCambia = newTenant.qrPagoUrl !== this.tenant.qrPagoUrl;
     this.tenant = newTenant;
     this.sheets.actualizarConfig(newTenant);
     this.crm.actualizarConfig(newTenant);
     this.gmail.actualizarConfig(newTenant);
-    if (urlCambia) {
-      this.qrPagoBuffer = null;
-      this.precargarQR().catch(() => {});
-    }
+    // Siempre recargar QR desde disco al actualizar config (puede haberse subido uno nuevo)
+    this.qrPagoBuffer = null;
+    this.precargarQR().catch(() => {});
     console.log(`🔄 [BOT] Config actualizada en caliente para tenant ${newTenant.id}`);
   }
 
   /**
-   * Descarga el QR de pago y lo guarda en memoria para este tenant.
-   * Se llama al iniciar el bot y cuando cambia la URL del QR.
+   * Carga el QR de pago para este tenant.
+   * Primero intenta leer desde disco local (más fiable que la URL que puede
+   * cambiar entre sesiones de desarrollo). Si no existe en disco, descarga
+   * desde la URL guardada en DB.
    */
   private async precargarQR(): Promise<void> {
+    // Siempre intentar archivo local primero
+    const localPath = path.resolve(__dirname, `../../public/qr-pagos/${this.tenant.id}.jpeg`);
+    if (fs.existsSync(localPath)) {
+      this.qrPagoBuffer = fs.readFileSync(localPath);
+      console.log(`🖼️ [BOT][${this.tenant.id}] QR de pago cargado desde disco (${this.qrPagoBuffer.length} bytes)`);
+      return;
+    }
+    // Fallback: descargar desde URL guardada en DB
     if (!this.tenant.qrPagoUrl) return;
     try {
       this.qrPagoBuffer = await this.resolverImagen(this.tenant.qrPagoUrl);
-      console.log(`🖼️ [BOT][${this.tenant.id}] QR de pago descargado (${this.qrPagoBuffer.length} bytes)`);
+      console.log(`🖼️ [BOT][${this.tenant.id}] QR de pago descargado desde URL (${this.qrPagoBuffer.length} bytes)`);
     } catch (err) {
       console.error(`❌ [BOT][${this.tenant.id}] No se pudo precargar QR:`, err);
       this.qrPagoBuffer = null;
