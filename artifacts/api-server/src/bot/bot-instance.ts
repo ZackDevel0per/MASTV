@@ -146,6 +146,36 @@ export class BotInstance {
     } catch { return null; }
   }
 
+  /**
+   * Normaliza una URL de imagen (ej. convierte páginas de Imgur a URL directa)
+   * y descarga el contenido como Buffer. Así evitamos enviar HTML en vez de imagen.
+   */
+  private async resolverImagen(url: string): Promise<Buffer> {
+    let directUrl = url;
+
+    // Imgur: imgur.com/HASH → i.imgur.com/HASH.jpg
+    const imgurPage = /^https?:\/\/(?:www\.)?imgur\.com\/([a-zA-Z0-9]+)\/?(\?.*)?$/.exec(url);
+    if (imgurPage) {
+      directUrl = `https://i.imgur.com/${imgurPage[1]}.jpg`;
+    }
+
+    const res = await fetch(directUrl);
+    if (!res.ok) throw new Error(`Error descargando imagen: ${res.status} ${directUrl}`);
+    const arrayBuf = await res.arrayBuffer();
+    return Buffer.from(arrayBuf);
+  }
+
+  private async enviarImagen(jid: string, url: string, caption?: string): Promise<void> {
+    if (!this.sock) return;
+    try {
+      const buffer = await this.resolverImagen(url);
+      await this.sock.sendMessage(jid, { image: buffer, caption });
+    } catch (err) {
+      console.error(`❌ [BOT][${this.tenant.id}] Error enviando imagen desde ${url}:`, err);
+      await this.enviarConDelay(jid, `⚠️ No se pudo cargar la imagen. Escribe *3* para soporte.`);
+    }
+  }
+
   private async enviarVideo(jid: string, contenido: string, caption?: string): Promise<void> {
     if (!this.sock) return;
     if (contenido.startsWith("http")) {
@@ -558,7 +588,7 @@ export class BotInstance {
         for (const resp of COMANDOS_ESPECIALES[textoUpper]) {
           if (resp.tipo === "text") await this.enviarConDelay(jid, this.interpolar(resp.contenido));
           else if (resp.tipo === "video") await this.enviarVideo(jid, resp.contenido, resp.caption ? this.interpolar(resp.caption) : undefined);
-          else if (resp.tipo === "image") await this.sock!.sendMessage(jid, { image: { url: resp.contenido }, caption: resp.caption ? this.interpolar(resp.caption) : undefined });
+          else if (resp.tipo === "image") await this.enviarImagen(jid, resp.contenido, resp.caption ? this.interpolar(resp.caption) : undefined);
         }
         return;
       }
@@ -582,7 +612,7 @@ export class BotInstance {
         if (confirmacion) {
           await this.enviarConDelay(jid, confirmacion);
           if (this.tenant.qrPagoUrl) {
-            await this.sock!.sendMessage(jid, { image: { url: this.tenant.qrPagoUrl }, caption: `📲 *Escanea este QR para pagar*\n\nUna vez realizado el pago, escribe *COMPROBAR*.` });
+            await this.enviarImagen(jid, this.tenant.qrPagoUrl, `📲 *Escanea este QR para pagar*\n\nUna vez realizado el pago, escribe *COMPROBAR*.`);
           } else {
             const qrPath = path.join(__dirname, "../../public/images/qr-pago.jpeg");
             if (fs.existsSync(qrPath)) {
@@ -608,14 +638,14 @@ export class BotInstance {
         for (const resp of respuestas) {
           if (resp.tipo === "text") await this.enviarConDelay(jid, this.interpolar(resp.contenido));
           else if (resp.tipo === "video") await this.enviarVideo(jid, resp.contenido, resp.caption ? this.interpolar(resp.caption) : undefined);
-          else if (resp.tipo === "image") await this.sock!.sendMessage(jid, { image: { url: resp.contenido }, caption: resp.caption ? this.interpolar(resp.caption) : undefined });
+          else if (resp.tipo === "image") await this.enviarImagen(jid, resp.contenido, resp.caption ? this.interpolar(resp.caption) : undefined);
         }
 
         const PLANES_VALIDOS = new Set(Object.keys(PLAN_ID_MAP));
         const esPlanPagado = PLANES_VALIDOS.has(textoUpper) && !textoUpper.startsWith("DEMO");
         if (esPlanPagado) {
           if (this.tenant.qrPagoUrl) {
-            await this.sock!.sendMessage(jid, { image: { url: this.tenant.qrPagoUrl }, caption: `📲 *Escanea este QR para pagar*\n\nUna vez realizado el pago, escribe *COMPROBAR*.` });
+            await this.enviarImagen(jid, this.tenant.qrPagoUrl, `📲 *Escanea este QR para pagar*\n\nUna vez realizado el pago, escribe *COMPROBAR*.`);
           } else {
             const qrPath = path.join(__dirname, "../../public/images/qr-pago.jpeg");
             if (fs.existsSync(qrPath)) {
