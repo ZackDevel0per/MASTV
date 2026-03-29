@@ -239,11 +239,8 @@ export class BotInstance {
       await this.sock.sendMessage(jid, { image: this.qrPagoBuffer, caption });
       return;
     }
-    // Fallback: imagen local
-    const qrPath = path.join(__dirname, "../../public/images/qr-pago.jpeg");
-    if (fs.existsSync(qrPath)) {
-      await this.sock.sendMessage(jid, { image: fs.readFileSync(qrPath), caption });
-    }
+    // Sin QR configurado para este tenant: enviar solo texto
+    await this.enviarConDelay(jid, `📲 *Realiza tu pago y escribe COMPROBAR una vez completado.*`);
   }
 
   private async enviarImagen(jid: string, url: string, caption?: string): Promise<void> {

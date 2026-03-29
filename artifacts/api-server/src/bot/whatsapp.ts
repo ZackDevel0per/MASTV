@@ -920,15 +920,8 @@ async function manejarMensaje(jid: string, texto: string) {
       // Si es un plan pagado (P1-R4), guardar como plan seleccionado y registrar pedido
       const esPlanPagado = PLANES_VALIDOS.has(textoUpper) && !textoUpper.startsWith("DEMO");
       if (esPlanPagado) {
-        // Enviar QR de pago
-        const qrPath = path.join(__dirname, "../../public/images/qr-pago.jpeg");
-        const qrBuffer = fs.existsSync(qrPath) ? fs.readFileSync(qrPath) : null;
-        if (qrBuffer) {
-          await sock!.sendMessage(jid, {
-            image: qrBuffer,
-            caption: `📲 *Escanea este QR para pagar*\n\nUna vez realizado el pago, escribe *COMPROBAR* y sigue las instrucciones.`,
-          });
-        }
+        // Enviar instrucción de pago (QR se configura por tenant en el panel admin)
+        await enviarConDelay(jid, `📲 *Realiza tu pago y escribe COMPROBAR una vez completado.*`);
 
         conversaciones[jid] = {
           ultimoComando: textoUpper,
