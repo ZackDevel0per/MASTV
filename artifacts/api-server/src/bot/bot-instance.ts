@@ -170,6 +170,24 @@ export class BotInstance {
     return num;
   }
 
+  /**
+   * Igual que extraerTelefono pero devuelve undefined cuando el JID es un LID
+   * que no se pudo resolver. Usado para el enlace wa.me de Pushover para evitar
+   * enviar el LID en lugar del número real.
+   */
+  private resolverTelefonoReal(jid: string): string | undefined {
+    if (jid.endsWith("@lid")) {
+      const jidReal = this.lidAlPhone.get(jid);
+      if (!jidReal) return undefined; // LID sin resolver → no hay número real
+      let num = jidReal.split("@")[0];
+      if (num.length >= 12 && num.startsWith("1")) num = num.substring(1);
+      return num;
+    }
+    let num = jid.split("@")[0];
+    if (num.length >= 12 && num.startsWith("1")) num = num.substring(1);
+    return num;
+  }
+
   private leerVideoLocal(nombre: string): Buffer | null {
     try {
       const filePath = path.join(VIDEOS_DIR, nombre.endsWith(".mp4") ? nombre : `${nombre}.mp4`);
@@ -618,9 +636,10 @@ export class BotInstance {
       }
 
       if (textoUpper === "8") {
-        const telefono = this.extraerTelefono(jid);
+        const telefonoMostrar = this.extraerTelefono(jid);
+        const telefonoEnlace = this.resolverTelefonoReal(jid);
         await this.enviarConDelay(jid, `💬 *Solicitud recibida*\n\nHemos notificado al administrador. En breve se comunicará contigo. 🙏`);
-        this.enviarNotificacionPushover({ titulo: "💬 Solicitud de atención", mensaje: `Cliente +${telefono} quiere hablar personalmente en ${this.tenant.nombreEmpresa}.`, telefono }).catch(() => {});
+        this.enviarNotificacionPushover({ titulo: "💬 Solicitud de atención", mensaje: `Cliente +${telefonoMostrar} quiere hablar personalmente en ${this.tenant.nombreEmpresa}.`, telefono: telefonoEnlace }).catch(() => {});
         this.conversaciones[jid] = { ultimoComando: "8", hora: Date.now() };
         return;
       }
