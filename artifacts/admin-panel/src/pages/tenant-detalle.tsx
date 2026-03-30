@@ -267,6 +267,7 @@ export function TenantDetalle() {
                   </button>
                 }
               />
+              <IntegrationRow label="VeriPagos QR" active={!!tenant.veripagosUsername} icon="💳" sub={tenant.veripagosUsername ?? undefined} />
               <IntegrationRow label="Pushover" active={!!tenant.pushoverUserKey} icon="🔔" />
             </div>
           </div>
@@ -423,6 +424,7 @@ function EditModal({ isOpen, onClose, tenant, updateMut, showToast }: any) {
     const data: Record<string, unknown> = Object.fromEntries(fd);
     if (!data.suscripcionVence) delete data.suscripcionVence;
     if (!data.crmPassword) delete data.crmPassword;
+    if (!data.veripagosPassword) delete data.veripagosPassword;
     try {
       await updateMut.mutateAsync({ id: tenant.id, data });
       showToast("Tenant actualizado y bot reiniciado");
@@ -467,6 +469,17 @@ function EditModal({ isOpen, onClose, tenant, updateMut, showToast }: any) {
             <div><label className="label-base">Gmail Client Secret</label><input name="gmailClientSecret" defaultValue={tenant.gmailClientSecret} className="input-base font-mono text-xs" /></div>
             <div><label className="label-base">Filtro remitente Gmail</label><input name="gmailRemitenteFiltro" defaultValue={tenant.gmailRemitenteFiltro} className="input-base" /></div>
             <div><label className="label-base">Service Account JSON</label><textarea name="googleServiceAccountJson" defaultValue={tenant.googleServiceAccountJson} rows={3} className="input-base font-mono text-xs"></textarea></div>
+          </div>
+        </Section>
+
+        {/* VeriPagos */}
+        <Section title="VeriPagos — Pagos QR" icon={QrCode}>
+          <p className="text-xs text-muted-foreground mb-3">
+            Con credenciales configuradas, el bot generará un QR único por pago y lo verificará automáticamente. Sin credenciales, usará el flujo manual.
+          </p>
+          <div className="grid grid-cols-2 gap-3">
+            <div><label className="label-base">Usuario (email)</label><input name="veripagosUsername" defaultValue={tenant.veripagosUsername} className="input-base" placeholder="correo@ejemplo.com" /></div>
+            <div><label className="label-base">Contraseña</label><input type="password" name="veripagosPassword" placeholder="Vacío = no cambiar" className="input-base" /></div>
           </div>
         </Section>
 

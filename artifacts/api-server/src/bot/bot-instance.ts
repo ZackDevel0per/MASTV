@@ -119,6 +119,196 @@ export class BotInstance {
     }
   }
 
+  // ── VeriPagos: generación de QR único + polling automático ─────────────────
+
+  private cancelarPollVeriPagos(jid: string): void {
+    const existing = this.pollingQR.get(jid);
+    if (existing) {
+      clearInterval(existing.intervalId);
+      this.pollingQR.delete(jid);
+    }
+  }
+
+  private cancelarTodosLosPolls(): void {
+    for (const [, data] of this.pollingQR) clearInterval(data.intervalId);
+    this.pollingQR.clear();
+  }
+
+  private async iniciarPagoVeriPagos(
+    jid: string,
+    planCmd: string,
+    flujo: "nuevo" | "renovar",
+    usuarioRenovar?: string,
+  ): Promise<void> {
+    if (!this.veripagos || !this.sock) return;
+
+    const tenantPlan = this.getPlanPorComando(planCmd);
+    const planInfo = PLAN_ID_MAP[planCmd];
+    const monto = tenantPlan?.monto ?? planInfo?.monto ?? 0;
+    const nombrePlan = tenantPlan?.nombre ?? planInfo?.nombre ?? planCmd;
+
+    try {
+      await this.enviarConDelay(jid, `⏳ _Generando tu QR de pago único..._`);
+
+      const { qrBase64, movimientoId, expiry } = await this.veripagos.generarQR(
+        monto,
+        `${nombrePlan} - ${this.tenant.nombreEmpresa}`,
+      );
+
+      const qrBuffer = Buffer.from(qrBase64, "base64");
+      const caption =
+        `📲 *Escanea este QR para pagar*\n\n` +
+        `📋 *Plan:* ${nombrePlan}\n` +
+        `💰 *Monto:* Bs ${monto}\n\n` +
+        `✅ El pago se verificará *automáticamente* cada 30 segundos.\n` +
+        `⚠️ QR válido hasta las 23:59 de mañana.\n\n` +
+        `_Si tienes algún problema, escribe *3* para soporte._`;
+
+      await this.sock.sendMessage(jid, { image: qrBuffer, caption });
+      await this.enviarConDelay(
+        jid,
+        `🔄 _Estamos monitoreando tu pago automáticamente. Recibirás tus credenciales al instante cuando se confirme._ ✨`,
+      );
+
+      this.conversaciones[jid] = {
+        ultimoComando: planCmd,
+        planSeleccionado: planCmd,
+        flujo,
+        usuarioRenovar,
+        hora: Date.now(),
+        qrMovimientoId: movimientoId,
+      };
+
+      this.cancelarPollVeriPagos(jid);
+
+      const intervalId = setInterval(() => {
+        this.verificarPollVeriPagos(jid, movimientoId, planCmd, flujo, usuarioRenovar, expiry).catch(
+          () => {},
+        );
+      }, 30_000);
+
+      this.pollingQR.set(jid, { intervalId, movimientoId, planCmd, expiry, flujo, usuarioRenovar });
+
+      console.log(
+        `💳 [VeriPagos][${this.tenant.id}] Polling iniciado para ${jid} — mov=${movimientoId}`,
+      );
+    } catch (err) {
+      console.error(`❌ [VeriPagos][${this.tenant.id}] Error generando QR:`, err);
+      await this.enviarConDelay(
+        jid,
+        `⚠️ No se pudo generar el QR de pago en este momento. Escribe *3* para soporte.`,
+      );
+    }
+  }
+
+  private async verificarPollVeriPagos(
+    jid: string,
+    movimientoId: string,
+    planCmd: string,
+    flujo: "nuevo" | "renovar",
+    usuarioRenovar: string | undefined,
+    expiry: Date,
+  ): Promise<void> {
+    if (!this.veripagos || !this.sock) {
+      this.cancelarPollVeriPagos(jid);
+      return;
+    }
+
+    if (new Date() > expiry) {
+      this.cancelarPollVeriPagos(jid);
+      await this.enviarConDelay(
+        jid,
+        `⏰ *Tu QR de pago expiró.*\n\nEscribe el código de tu plan (ej: *P1*, *Q2*) para generar un nuevo QR.`,
+      );
+      return;
+    }
+
+    try {
+      const estado = await this.veripagos.verificarQR(movimientoId);
+      if (estado === "pagado") {
+        this.cancelarPollVeriPagos(jid);
+        await this.procesarPagoConfirmadoVeriPagos(jid, planCmd, flujo, usuarioRenovar);
+      } else if (estado === "error") {
+        this.cancelarPollVeriPagos(jid);
+        await this.enviarConDelay(
+          jid,
+          `⚠️ El QR expiró o tuvo un error. Escribe el plan de nuevo para generar un QR nuevo.`,
+        );
+      }
+    } catch (err) {
+      console.error(`[VeriPagos][${this.tenant.id}] Error verificando poll:`, err);
+    }
+  }
+
+  private async procesarPagoConfirmadoVeriPagos(
+    jid: string,
+    planCmd: string,
+    flujo: "nuevo" | "renovar",
+    usuarioRenovar?: string,
+  ): Promise<void> {
+    const telefono = this.extraerTelefono(jid);
+    const tenantPlan = this.getPlanPorComando(planCmd);
+    const planInfo = PLAN_ID_MAP[planCmd];
+    const monto = tenantPlan?.monto ?? planInfo?.monto ?? 0;
+    const nombrePlan = tenantPlan?.nombre ?? planInfo?.nombre ?? planCmd;
+    const dias = tenantPlan?.dias ?? planInfo?.dias ?? 30;
+
+    console.log(`✅ [VeriPagos][${this.tenant.id}] Pago confirmado — jid=${jid} plan=${planCmd}`);
+
+    await this.enviarConDelay(
+      jid,
+      `✅ *¡Pago confirmado por VeriPagos!*\n\n📋 Plan: ${nombrePlan}\n💰 Monto: Bs ${monto}\n\n⏳ _${flujo === "renovar" ? "Renovando tu cuenta..." : "Creando tu cuenta..."}_`,
+    );
+
+    if (flujo === "renovar" && usuarioRenovar) {
+      const resultado = await this.crm.renovarCuenta(usuarioRenovar, planCmd);
+      if (resultado.ok) {
+        await this.enviarConDelay(
+          jid,
+          `🎉 *¡Cuenta renovada exitosamente!*\n\n🔐 *Credenciales:*\n📛 Plataforma: \`mastv\`\n👤 Usuario: \`${resultado.usuario}\`\n🔑 Contraseña: \`${resultado.contrasena}\`\n🌐 URL: \`${resultado.servidor || "http://mtv.bo:80"}\`\n\n📺 Plan renovado: ${resultado.plan}`,
+        );
+        this.sheets
+          .actualizarCuenta(telefono, resultado.usuario ?? usuarioRenovar, resultado.plan ?? planCmd, dias)
+          .catch(() => {});
+      } else {
+        await this.enviarConDelay(
+          jid,
+          `⚠️ *Pago confirmado pero hubo un error al renovar*\n\n${resultado.mensaje}\n\nEscribe *3* para soporte.`,
+        );
+      }
+    } else {
+      const usernamesEnUso = new Set<string>();
+      const resultado = await this.crm.crearCuenta(
+        planCmd,
+        `Cliente_${telefono}`,
+        `${telefono}@bot.bo`,
+        telefono,
+        usernamesEnUso,
+      );
+      if (resultado.ok && resultado.usuario) {
+        const mensajeActivacion = this.interpolar(
+          ACTIVACION_EXITOSA({
+            usuario: resultado.usuario,
+            contrasena: resultado.contrasena ?? "",
+            plan: resultado.plan ?? nombrePlan,
+            servidor: resultado.servidor,
+          }),
+        );
+        await this.enviarConDelay(jid, mensajeActivacion);
+        this.sheets
+          .registrarCuenta(telefono, resultado.usuario, resultado.plan ?? planCmd, dias)
+          .catch(() => {});
+      } else {
+        await this.enviarConDelay(
+          jid,
+          `⚠️ *Pago confirmado pero hubo un error al crear la cuenta*\n\n${resultado.mensaje}\n\nEscribe *3* para soporte.`,
+        );
+      }
+    }
+
+    this.conversaciones[jid] = { ultimoComando: "PAGO_COMPLETADO_VERIPAGOS", hora: Date.now() };
+  }
+
   /**
    * Actualiza la configuración del tenant en la instancia activa
    * sin desconectar WhatsApp. Útil para cambios como nombre de empresa,
@@ -129,6 +319,7 @@ export class BotInstance {
     this.sheets.actualizarConfig(newTenant);
     this.crm.actualizarConfig(newTenant);
     this.gmail.actualizarConfig(newTenant);
+    this.initVeriPagos(newTenant);
     // Siempre recargar QR desde disco al actualizar config (puede haberse subido uno nuevo)
     this.qrPagoBuffer = null;
     this.precargarQR().catch(() => {});
@@ -752,20 +943,35 @@ export class BotInstance {
 
       // ── Selección de plan específico (P1-P4, Q1-Q4, R1-R4) ────────
       if (/^[PQR]\d$/.test(textoUpper) && PLAN_ID_MAP[textoUpper]) {
-        const confirmacion = this.generarConfirmacionPlan(textoUpper);
-        if (confirmacion) {
+        const tenantPlan = this.getPlanPorComando(textoUpper);
+        const planInfo = PLAN_ID_MAP[textoUpper];
+        const nombrePlan = tenantPlan?.nombre ?? planInfo?.nombre ?? textoUpper;
+        const montoRegistrar = tenantPlan?.monto ?? planInfo?.monto ?? 0;
+        const flujo = estadoAnterior?.flujo ?? "nuevo";
+        const usuarioRenovar = estadoAnterior?.usuarioRenovar;
+
+        if (this.veripagos) {
+          const confirmacion =
+            `✅ *Plan Seleccionado: ${nombrePlan}*\n` +
+            `💰 Bs ${montoRegistrar}\n\n` +
+            `Generando tu QR de pago exclusivo... 🔄`;
           await this.enviarConDelay(jid, confirmacion);
-          await this.enviarQRPago(jid);
-          this.conversaciones[jid] = {
-            ultimoComando: textoUpper, planSeleccionado: textoUpper,
-            flujo: estadoAnterior?.flujo, usuarioRenovar: estadoAnterior?.usuarioRenovar, hora: Date.now(),
-          };
-          const telefono = this.extraerTelefono(jid);
-          const tenantPlan = this.getPlanPorComando(textoUpper);
-          const montoRegistrar = tenantPlan?.monto ?? PLAN_ID_MAP[textoUpper]?.monto ?? 0;
-          registrarPedido(telefono, textoUpper, montoRegistrar);
-          return;
+          this.cancelarPollVeriPagos(jid);
+          await this.iniciarPagoVeriPagos(jid, textoUpper, flujo, usuarioRenovar);
+        } else {
+          const confirmacion = this.generarConfirmacionPlan(textoUpper);
+          if (confirmacion) {
+            await this.enviarConDelay(jid, confirmacion);
+            await this.enviarQRPago(jid);
+            this.conversaciones[jid] = {
+              ultimoComando: textoUpper, planSeleccionado: textoUpper,
+              flujo, usuarioRenovar, hora: Date.now(),
+            };
+          }
         }
+        const telefono = this.extraerTelefono(jid);
+        registrarPedido(telefono, textoUpper, montoRegistrar);
+        return;
       }
 
       // ── Respuestas por número/letra ────────────────────────────────
@@ -780,11 +986,18 @@ export class BotInstance {
         const PLANES_VALIDOS = new Set(Object.keys(PLAN_ID_MAP));
         const esPlanPagado = PLANES_VALIDOS.has(textoUpper) && !textoUpper.startsWith("DEMO");
         if (esPlanPagado) {
-          await this.enviarQRPago(jid);
-          this.conversaciones[jid] = {
-            ultimoComando: textoUpper, planSeleccionado: textoUpper,
-            flujo: estadoAnterior?.flujo, usuarioRenovar: estadoAnterior?.usuarioRenovar, hora: Date.now(),
-          };
+          const flujo = estadoAnterior?.flujo ?? "nuevo";
+          const usuarioRenovar = estadoAnterior?.usuarioRenovar;
+          if (this.veripagos) {
+            this.cancelarPollVeriPagos(jid);
+            await this.iniciarPagoVeriPagos(jid, textoUpper, flujo, usuarioRenovar);
+          } else {
+            await this.enviarQRPago(jid);
+            this.conversaciones[jid] = {
+              ultimoComando: textoUpper, planSeleccionado: textoUpper,
+              flujo, usuarioRenovar, hora: Date.now(),
+            };
+          }
           const telefono = this.extraerTelefono(jid);
           const planInfo = PLAN_ID_MAP[textoUpper];
           if (planInfo) registrarPedido(telefono, textoUpper, planInfo.monto);
@@ -855,6 +1068,7 @@ export class BotInstance {
 
   detener(): void {
     this.detenido = true;
+    this.cancelarTodosLosPolls();
     this.sheets.detenerCache();
     this.gmail.detener();
     this.sock?.end(undefined);

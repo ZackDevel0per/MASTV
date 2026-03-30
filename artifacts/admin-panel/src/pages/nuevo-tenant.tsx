@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useCreateTenant } from "@/hooks/use-api";
 import { useLocation } from "wouter";
-import { PlusCircle, Building, KeyRound, Database, Bell, ListChecks } from "lucide-react";
+import { PlusCircle, Building, KeyRound, Database, Bell, ListChecks, QrCode } from "lucide-react";
 
 // Planes base del sistema — mismos para todos, solo varía el precio
 const PLANES_BASE = [
@@ -207,8 +207,25 @@ export function NuevoTenant() {
           )}
         </Section>
 
+        {/* VeriPagos */}
+        <Section title="5. VeriPagos — Pagos QR Automáticos" icon={QrCode}>
+          <p className="text-xs text-muted-foreground mb-4">
+            Cuando el tenant tiene credenciales de VeriPagos, el bot generará un <strong className="text-white">QR único</strong> por cada pago y lo verificará automáticamente cada 30 segundos. Si no se configuran, el bot usará el flujo manual.
+          </p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+            <div>
+              <label className="label-base">Usuario VeriPagos (email)</label>
+              <input name="veripagosUsername" className="input-base" placeholder="correo@ejemplo.com" />
+            </div>
+            <div>
+              <label className="label-base">Contraseña VeriPagos</label>
+              <input type="password" name="veripagosPassword" className="input-base" placeholder="••••••••" />
+            </div>
+          </div>
+        </Section>
+
         {/* Notificaciones */}
-        <Section title="5. Notificaciones" icon={Bell}>
+        <Section title="6. Notificaciones" icon={Bell}>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
             <div><label className="label-base">Pushover User Key</label><input name="pushoverUserKey" className="input-base" /></div>
             <div><label className="label-base">Pushover API Token</label><input name="pushoverApiToken" className="input-base" /></div>
