@@ -117,7 +117,12 @@ export class VeriPagosService {
     });
     this.mergeCookies(loginResp.headers);
 
-    if (loginResp.status === 200 && typeof loginResp.data === "string" && loginResp.data.includes("login")) {
+    // Detectar login fallido: la página de login sigue presente (contiene el formulario)
+    const htmlResp = typeof loginResp.data === "string" ? loginResp.data : "";
+    const stillOnLogin = htmlResp.includes('name="username"') || htmlResp.includes("id=\"password\"") || htmlResp.includes("Iniciar Sesión");
+    if (stillOnLogin) {
+      const snippet = htmlResp.slice(0, 300).replace(/\s+/g, " ");
+      console.error(`[VeriPagos] Respuesta login (primeros 300 chars): ${snippet}`);
       throw new Error("[VeriPagos] Login fallido — credenciales incorrectas o captcha");
     }
 
