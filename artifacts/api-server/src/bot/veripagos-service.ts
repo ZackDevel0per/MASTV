@@ -107,30 +107,44 @@ export class VeriPagosService {
     params.set("username", this.username);
     params.set("password", this.password);
 
+    // POST con maxRedirects:0 para capturar las cookies del 302 antes de seguirlo
     const loginResp = await this.http.post("/login", params.toString(), {
       headers: {
         "Content-Type": "application/x-www-form-urlencoded",
         Cookie: this.cookies,
         Referer: `${BASE_URL}/login`,
+        Origin: BASE_URL,
       },
-      maxRedirects: 5,
+      maxRedirects: 0,
     });
     this.mergeCookies(loginResp.headers);
 
-    // Detectar login fallido: la página de login sigue presente (contiene los campos del formulario)
-    // El dashboard también puede contener "Iniciar Sesión" en la navbar, así que solo
-    // comprobamos si siguen presentes los inputs del formulario de login.
-    const htmlResp = typeof loginResp.data === "string" ? loginResp.data : "";
-    const stillOnLogin = htmlResp.includes('name="username"') || htmlResp.includes('id="password"');
-    if (stillOnLogin) {
-      const snippet = htmlResp.slice(0, 400).replace(/\s+/g, " ");
-      console.error(`[VeriPagos] Login fallido — página de login aún presente: ${snippet}`);
-      throw new Error("[VeriPagos] Login fallido — credenciales incorrectas o captcha");
+    if (loginResp.status === 302 || loginResp.status === 301) {
+      // Seguimos el redirect manualmente con las cookies ya actualizadas
+      const location = (loginResp.headers["location"] as string) || "/dashboard";
+      const dashResp = await this.http.get(location, {
+        headers: { Cookie: this.cookies },
+        maxRedirects: 5,
+      });
+      this.mergeCookies(dashResp.headers);
+      const dashHtml = typeof dashResp.data === "string" ? dashResp.data : "";
+      if (dashHtml.includes('name="username"') || dashHtml.includes('id="password"')) {
+        throw new Error("[VeriPagos] Login fallido — credenciales incorrectas");
+      }
+    } else {
+      // Sin redirect: comprobamos si nos quedamos en la página de login
+      const htmlResp = typeof loginResp.data === "string" ? loginResp.data : "";
+      if (htmlResp.includes('name="username"') || htmlResp.includes('id="password"')) {
+        const snippet = htmlResp.slice(0, 300).replace(/\s+/g, " ");
+        console.error(`[VeriPagos] Login fallido (sin redirect): ${snippet}`);
+        throw new Error("[VeriPagos] Login fallido — credenciales incorrectas o captcha");
+      }
     }
 
-    // 3. GET /qr/generar — obtener CSRF fresco para las operaciones de QR
-    const qrPage = await this.http.get("/qr/generar", {
+    // 3. GET /generar-qr — obtener CSRF fresco para las operaciones de QR
+    const qrPage = await this.http.get("/generar-qr", {
       headers: { Cookie: this.cookies },
+      maxRedirects: 5,
     });
     this.mergeCookies(qrPage.headers);
     const freshCsrf = this.extractCsrf(qrPage.data as string);
@@ -148,16 +162,17 @@ export class VeriPagosService {
     const headers = {
       "Content-Type": "application/x-www-form-urlencoded",
       Cookie: this.cookies,
-      Referer: `${BASE_URL}/qr/generar`,
+      Referer: `${BASE_URL}/generar-qr`,
+      Origin: BASE_URL,
       "X-Requested-With": "XMLHttpRequest",
       Accept: "application/json, text/javascript, */*; q=0.01",
     };
 
-    let resp = await this.http.post(endpoint, params.toString(), { headers });
+    let resp = await this.http.post(endpoint, params.toString(), { headers, maxRedirects: 0 });
     this.mergeCookies(resp.headers);
 
     // Si la sesión expiró (redirigió a login o devolvió HTML en vez de JSON)
-    if (resp.status === 302 || resp.status === 401 ||
+    if (resp.status === 302 || resp.status === 401 || resp.status === 419 ||
         (typeof resp.data === "string" && (resp.data as string).includes("<!DOCTYPE"))) {
       console.log(`[VeriPagos] Sesión expirada, re-login...`);
       this.loggedIn = false;
@@ -165,6 +180,7 @@ export class VeriPagosService {
       params.set("_token", this.csrfToken);
       resp = await this.http.post(endpoint, params.toString(), {
         headers: { ...headers, Cookie: this.cookies },
+        maxRedirects: 0,
       });
       this.mergeCookies(resp.headers);
     }
@@ -193,7 +209,7 @@ export class VeriPagosService {
     params.set("_token", this.csrfToken);
     params.set("monto_qr", String(monto));
     params.set("detalle", detalle);
-    params.set("uso_unico", "on");
+    params.set("uso_unico", "0");  // 0 = uso único, 1 = uso múltiple
     params.set("vencimiento", vencimiento);
 
     const data = await this.postConReintento("/generar-qr", params);
