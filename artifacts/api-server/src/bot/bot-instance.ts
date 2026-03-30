@@ -641,17 +641,17 @@ export class BotInstance {
       }
 
       if (textoUpper === "8" || textoUpper === "SOPORTE") {
-        const telefonoMostrar = this.extraerTelefono(jid);
         if (this.qrPagoBuffer) {
           this.enviarQRPago(jid).catch(() => {});
         }
 
         await this.enviarConDelay(jid, `💬 *Solicitud recibida*\n\nHemos notificado al administrador. En breve se comunicará contigo. 🙏`);
 
-        // Verificar DESPUÉS del delay — puede que el LID ya esté resuelto
-        const telefonoEnlace = this.resolverTelefonoReal(jid);
-        console.log(`[PUSHOVER][${this.tenant.id}] JID=${jid} | telMostrar=${telefonoMostrar} | telEnlace=${telefonoEnlace ?? "sin resolver"}`);
-        this.enviarNotificacionPushover({ titulo: "💬 Solicitud de atención", mensaje: `Cliente +${telefonoMostrar} quiere hablar personalmente en ${this.tenant.nombreEmpresa}.`, telefono: telefonoEnlace }).catch(() => {});
+        // Extraer número directo del JID @s.whatsapp.net — sin LID, sin resolución
+        const numWaNet = jid.endsWith("@s.whatsapp.net") ? jid.split("@")[0] : undefined;
+        const telefonoMostrar = numWaNet ?? jid.split("@")[0];
+        console.log(`[PUSHOVER][${this.tenant.id}] JID=${jid} | numWaNet=${numWaNet ?? "no es @s.whatsapp.net"}`);
+        this.enviarNotificacionPushover({ titulo: "💬 Solicitud de atención", mensaje: `Cliente +${telefonoMostrar} quiere hablar personalmente en ${this.tenant.nombreEmpresa}.`, telefono: numWaNet }).catch(() => {});
         this.conversaciones[jid] = { ultimoComando: "8", hora: Date.now() };
         return;
       }
