@@ -637,7 +637,7 @@ export class BotInstance {
 
       if (textoUpper === "8") {
         const telefonoMostrar = this.extraerTelefono(jid);
-        const telefonoEnlace = this.resolverTelefonoReal(jid);
+        const telefonoEnlace = this.resolverTelefonoReal(jid) ?? telefonoMostrar;
         await this.enviarConDelay(jid, `💬 *Solicitud recibida*\n\nHemos notificado al administrador. En breve se comunicará contigo. 🙏`);
         this.enviarNotificacionPushover({ titulo: "💬 Solicitud de atención", mensaje: `Cliente +${telefonoMostrar} quiere hablar personalmente en ${this.tenant.nombreEmpresa}.`, telefono: telefonoEnlace }).catch(() => {});
         this.conversaciones[jid] = { ultimoComando: "8", hora: Date.now() };

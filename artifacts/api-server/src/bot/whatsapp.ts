@@ -122,6 +122,28 @@ function extraerTelefono(jid: string): string {
   return num;
 }
 
+/**
+ * Resuelve el número de teléfono real para construir un enlace wa.me.
+ * Si el JID es @lid y está en el mapa, devuelve el número real.
+ * Si el JID es @lid y NO está en el mapa, devuelve el número de display
+ * como fallback (extraerTelefono) para siempre generar un enlace.
+ */
+function resolverTelefonoParaEnlace(jid: string): string {
+  if (jid.endsWith("@lid")) {
+    const jidReal = lidAlPhone.get(jid);
+    if (jidReal) {
+      let num = jidReal.split("@")[0];
+      if (num.length >= 12 && num.startsWith("1")) num = num.substring(1);
+      return num;
+    }
+    // LID no resuelto: usar el número de display como fallback
+    return extraerTelefono(jid);
+  }
+  let num = jid.split("@")[0];
+  if (num.length >= 12 && num.startsWith("1")) num = num.substring(1);
+  return num;
+}
+
 // ═══════════════════════════════════════════════════════════════════════════
 // CÓDIGO ARCHIVADO – RESOLUCIÓN AUTOMÁTICA DE @lid (para retomar en el futuro)
 // ═══════════════════════════════════════════════════════════════════════════
@@ -797,15 +819,16 @@ async function manejarMensaje(jid: string, texto: string) {
 
     // ─── OPCIÓN 8: Solicitar hablar personalmente ──────────────────
     if (textoUpper === "8") {
-      const telefono = extraerTelefono(jid);
+      const telefonoMostrar = extraerTelefono(jid);
+      const telefonoEnlace = resolverTelefonoParaEnlace(jid);
       await enviarConDelay(
         jid,
         `💬 *Solicitud de atención personal recibida*\n\nHemos notificado al administrador. En breve se comunicará contigo.\n\n_Gracias por tu paciencia._ 🙏`,
       );
       enviarNotificacionPushover({
         titulo: "💬 Solicitud de atención personal",
-        mensaje: `El cliente con número +${telefono} quiere hablar personalmente. Toca para abrir su chat de WhatsApp.`,
-        telefono,
+        mensaje: `El cliente con número +${telefonoMostrar} quiere hablar personalmente. Toca para abrir su chat de WhatsApp.`,
+        telefono: telefonoEnlace,
       }).catch((err) =>
         console.error("[BOT] Error enviando notificación Pushover:", err),
       );
