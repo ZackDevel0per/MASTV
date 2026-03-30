@@ -424,6 +424,14 @@
           <div><label>Gmail Client Secret</label><input type="password" name="gmailClientSecret" placeholder="GOCSPX-..." /></div>
           <div><label>Pushover User Key</label><input type="text" name="pushoverUserKey" placeholder="u..." /></div>
           <div><label>Pushover API Token</label><input type="text" name="pushoverApiToken" placeholder="a..." /></div>
+
+          <div class="form-full" style="border-top:1px solid var(--border);padding-top:16px;margin-top:4px;">
+            <p style="font-size:12px;color:var(--muted);margin:0 0 12px;font-weight:600;text-transform:uppercase;letter-spacing:.06em">💳 VeriPagos — Pagos QR Automáticos</p>
+            <p style="font-size:12px;color:var(--muted);margin:0 0 12px">Con estas credenciales el bot generará un QR único por cada pago y lo verificará automáticamente. Sin credenciales usará el flujo manual.</p>
+          </div>
+          <div><label>VeriPagos Usuario (email)</label><input type="text" name="veripagosUsername" placeholder="correo@veripagos.com" /></div>
+          <div><label>VeriPagos Contraseña</label><input type="password" name="veripagosPassword" placeholder="••••••••" /></div>
+
           <div class="form-full">
             <label>QR de Pago <span style="color:var(--muted);font-weight:400;text-transform:none;letter-spacing:0">— el bot lo envía al cliente al elegir un plan</span></label>
             <div style="display:flex;gap:8px;align-items:center;">
@@ -521,6 +529,11 @@
         <div><label>Gmail Client Secret</label><input type="password" name="gmailClientSecret" id="edit-gmailClientSecret" /></div>
         <div class="form-full"><label>Filtro remitente Gmail</label><input type="text" name="gmailRemitenteFiltro" id="edit-gmailRemitenteFiltro" /></div>
         <div class="form-full"><label>Google Service Account JSON</label><textarea name="googleServiceAccountJson" id="edit-googleServiceAccountJson"></textarea></div>
+      </div>
+      <p style="font-size:12px;color:var(--muted);margin:16px 0 12px;padding-top:12px;border-top:1px solid var(--border)">💳 VeriPagos — Pagos QR Automáticos</p>
+      <div class="form-grid">
+        <div><label>VeriPagos Usuario (email)</label><input type="text" name="veripagosUsername" id="edit-veripagosUsername" placeholder="correo@veripagos.com" /></div>
+        <div><label>VeriPagos Contraseña</label><input type="password" name="veripagosPassword" id="edit-veripagosPassword" placeholder="Vacío = no cambiar" /></div>
       </div>
       <p style="font-size:12px;color:var(--muted);margin:16px 0 12px;padding-top:12px;border-top:1px solid var(--border)">Notificaciones</p>
       <div class="form-grid">
@@ -1231,6 +1244,8 @@ async function abrirEditar(t) {
   document.getElementById('edit-gmailClientSecret').value = '';
   document.getElementById('edit-gmailRemitenteFiltro').value = full.gmailRemitenteFiltro || '';
   document.getElementById('edit-googleServiceAccountJson').value = full.googleServiceAccountJson || '';
+  document.getElementById('edit-veripagosUsername').value = full.veripagosUsername || '';
+  document.getElementById('edit-veripagosPassword').value = '';
   document.getElementById('edit-pushoverUserKey').value = full.pushoverUserKey || '';
   document.getElementById('edit-pushoverApiToken').value = full.pushoverApiToken || '';
   const qrUrl = full.qrPagoUrl || '';
