@@ -1,0 +1,15 @@
+,OS: Windows 10 | Browser: Chrome 146 | Resolution: 1842x990 | Time: 29 Mar 2026 / 21:32:35  GMT-4
+
+"#","Step","Data","Exp Result","XPath","cssSelector"
+"1","Open website","https://veripagos.com/dashboard","","",""
+"2","Click on ""Generar Qr""","","","//span[normalize-space()='Generar Qr']","body > div:nth-child(2) > div:nth-child(1) > div:nth-child(1) > div:nth-child(2) > div:nth-child(1) > div:nth-child(1) > div:nth-child(3) > a:nth-child(1) > span:nth-child(2)"
+"3","Enter ""29"" into ""0""","29","","//input[@placeholder='0']","input[placeholder='0']"
+"4","Click on ""Uso único""","","","//input[@id='uso_unico']","#uso_unico"
+"5","Enter ""tv"" into ""Ingrese un detalle""","tv","","//input[@placeholder='Ingrese un detalle']","input[placeholder='Ingrese un detalle']"
+"6","Click on ""JanuaryFebruaryMarch""","","","//div[@class='flatpickr-current-month']//span[@class='arrowUp']","body > div:nth-child(25) > div:nth-child(1) > div:nth-child(2) > div:nth-child(1) > div:nth-child(2) > span:nth-child(2)"
+"7","Enter ""2027-03-01 23:59"" into ""Seleccione una fecha""","2027-03-01 23:59","","//input[@id='dateInput']","#dateInput"
+"8","Click on ""Generar Qr""","","","//button[contains(text(),'Generar')]",".btn.btn-primary.col-md-12.my-5"
+"9","Click on ""× El QR fue creado exitosamente.OKNoCancel""","","","//div[@class='swal2-container swal2-center swal2-backdrop-hide']",".swal2-container.swal2-center.swal2-backdrop-hide"
+"10","Click on ""Generar QR ""","","","//div[@id='kt_content']","#kt_content"
+"15","Click on ""Verificar Pago""","","","//a[normalize-space()='Verificar Pago']",".btn.btn-success.col-md-3.me-2"
+"16","Click on ""OK""","","","//button[normalize-space()='OK']","body > div:nth-child(26) > div:nth-child(1) > div:nth-child(15) > button:nth-child(2)"
