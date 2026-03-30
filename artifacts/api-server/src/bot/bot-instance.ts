@@ -647,11 +647,12 @@ export class BotInstance {
 
         await this.enviarConDelay(jid, `💬 *Solicitud recibida*\n\nHemos notificado al administrador. En breve se comunicará contigo. 🙏`);
 
-        // Extraer número directo del JID @s.whatsapp.net — sin LID, sin resolución
-        const numWaNet = jid.endsWith("@s.whatsapp.net") ? jid.split("@")[0] : undefined;
-        const telefonoMostrar = numWaNet ?? jid.split("@")[0];
-        console.log(`[PUSHOVER][${this.tenant.id}] JID=${jid} | numWaNet=${numWaNet ?? "no es @s.whatsapp.net"}`);
-        this.enviarNotificacionPushover({ titulo: "💬 Solicitud de atención", mensaje: `Cliente +${telefonoMostrar} quiere hablar personalmente en ${this.tenant.nombreEmpresa}.`, telefono: numWaNet }).catch(() => {});
+        // Obtener número real desde el mapa (populado con remoteJidAlt al recibir el mensaje)
+        // Si no está en el mapa, usar el número crudo del JID como último recurso
+        const jidResuelto = this.lidAlPhone.get(jid) ?? jid;
+        const telefonoParaLink = jidResuelto.split("@")[0];
+        console.log(`[PUSHOVER][${this.tenant.id}] JID=${jid} → resuelto=${jidResuelto} → tel=${telefonoParaLink}`);
+        this.enviarNotificacionPushover({ titulo: "💬 Solicitud de atención", mensaje: `Cliente +${telefonoParaLink} quiere hablar personalmente en ${this.tenant.nombreEmpresa}.`, telefono: telefonoParaLink }).catch(() => {});
         this.conversaciones[jid] = { ultimoComando: "8", hora: Date.now() };
         return;
       }
@@ -959,10 +960,10 @@ export class BotInstance {
         if (remitente.endsWith("@lid")) {
           const msgAny = msg as any;
           const candidatos: unknown[] = [
+            msgAny?.key?.remoteJidAlt,
+            msgAny?.key?.participantAlt,
             msgAny?.key?.participant,
             msgAny?.participant,
-            msgAny?.message?.messageContextInfo?.deviceListMetadata?.senderKeyHash,
-            msgAny?.message?.messageContextInfo?.messageSecret,
           ];
           let resuelto = false;
           for (const c of candidatos) {
