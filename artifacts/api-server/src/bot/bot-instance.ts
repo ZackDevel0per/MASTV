@@ -171,19 +171,24 @@ export class BotInstance {
   }
 
   /**
-   * Igual que extraerTelefono pero devuelve undefined cuando el JID es un LID
-   * que no se pudo resolver. Usado para el enlace wa.me de Pushover para evitar
-   * enviar el LID en lugar del número real.
+   * Extrae el número de teléfono SOLO desde JIDs @s.whatsapp.net para construir
+   * un enlace wa.me válido (ej: wa.me/59169741630).
+   * Si el JID es @lid, intenta resolverlo. Si no está en el mapa o el resultado
+   * no es @s.whatsapp.net, devuelve undefined — nunca se usa el número crudo
+   * del @lid porque genera números inválidos como 59167646040103.
    */
   private resolverTelefonoReal(jid: string): string | undefined {
+    let jidResuelto = jid;
+
     if (jid.endsWith("@lid")) {
-      const jidReal = this.lidAlPhone.get(jid);
-      if (!jidReal) return undefined; // LID sin resolver → no hay número real
-      let num = jidReal.split("@")[0];
-      if (num.length >= 12 && num.startsWith("1")) num = num.substring(1);
-      return num;
+      const mapped = this.lidAlPhone.get(jid);
+      if (!mapped || !mapped.endsWith("@s.whatsapp.net")) return undefined;
+      jidResuelto = mapped;
     }
-    let num = jid.split("@")[0];
+
+    if (!jidResuelto.endsWith("@s.whatsapp.net")) return undefined;
+
+    let num = jidResuelto.split("@")[0];
     if (num.length >= 12 && num.startsWith("1")) num = num.substring(1);
     return num;
   }
@@ -637,7 +642,7 @@ export class BotInstance {
 
       if (textoUpper === "8") {
         const telefonoMostrar = this.extraerTelefono(jid);
-        const telefonoEnlace = this.resolverTelefonoReal(jid) ?? telefonoMostrar;
+        const telefonoEnlace = this.resolverTelefonoReal(jid);
         await this.enviarConDelay(jid, `💬 *Solicitud recibida*\n\nHemos notificado al administrador. En breve se comunicará contigo. 🙏`);
         this.enviarNotificacionPushover({ titulo: "💬 Solicitud de atención", mensaje: `Cliente +${telefonoMostrar} quiere hablar personalmente en ${this.tenant.nombreEmpresa}.`, telefono: telefonoEnlace }).catch(() => {});
         this.conversaciones[jid] = { ultimoComando: "8", hora: Date.now() };

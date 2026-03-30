@@ -123,23 +123,23 @@ function extraerTelefono(jid: string): string {
 }
 
 /**
- * Resuelve el número de teléfono real para construir un enlace wa.me.
- * Si el JID es @lid y está en el mapa, devuelve el número real.
- * Si el JID es @lid y NO está en el mapa, devuelve el número de display
- * como fallback (extraerTelefono) para siempre generar un enlace.
+ * Extrae el número de teléfono SOLO desde JIDs @s.whatsapp.net para construir
+ * un enlace wa.me válido (ej: wa.me/59169741630).
+ * Si el JID es @lid, intenta resolverlo en el mapa. Si no está en el mapa,
+ * devuelve undefined — nunca se usa el número crudo del @lid porque es inválido.
  */
-function resolverTelefonoParaEnlace(jid: string): string {
+function resolverTelefonoParaEnlace(jid: string): string | undefined {
+  let jidResuelto = jid;
+
   if (jid.endsWith("@lid")) {
-    const jidReal = lidAlPhone.get(jid);
-    if (jidReal) {
-      let num = jidReal.split("@")[0];
-      if (num.length >= 12 && num.startsWith("1")) num = num.substring(1);
-      return num;
-    }
-    // LID no resuelto: usar el número de display como fallback
-    return extraerTelefono(jid);
+    const mapped = lidAlPhone.get(jid);
+    if (!mapped || !mapped.endsWith("@s.whatsapp.net")) return undefined;
+    jidResuelto = mapped;
   }
-  let num = jid.split("@")[0];
+
+  if (!jidResuelto.endsWith("@s.whatsapp.net")) return undefined;
+
+  let num = jidResuelto.split("@")[0];
   if (num.length >= 12 && num.startsWith("1")) num = num.substring(1);
   return num;
 }
