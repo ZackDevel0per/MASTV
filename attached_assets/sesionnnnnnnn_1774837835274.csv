@@ -1,0 +1,8 @@
+,OS: Windows 10 | Browser: Chrome 146 | Resolution: 1842x990 | Time: 29 Mar 2026 / 22:30:21  GMT-4
+
+"#","Step","Data","Exp Result","XPath","cssSelector"
+"1","Open website","https://veripagos.com/login","","",""
+"2","Enter ""comercialanthonella"" into ""username""","comercialanthonella","","//input[@name='username']","input[value='dsds']"
+"4","Double click on ""password""","******","","//input[@id='password']","#password"
+"5","Enter ""******"" into ""password""","******","","//input[@id='password']","#password"
+"6","Click on ""Iniciar Sesión""","","","//span[@class='indicator-label']",".indicator-label"

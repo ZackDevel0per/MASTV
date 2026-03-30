@@ -117,12 +117,14 @@ export class VeriPagosService {
     });
     this.mergeCookies(loginResp.headers);
 
-    // Detectar login fallido: la página de login sigue presente (contiene el formulario)
+    // Detectar login fallido: la página de login sigue presente (contiene los campos del formulario)
+    // El dashboard también puede contener "Iniciar Sesión" en la navbar, así que solo
+    // comprobamos si siguen presentes los inputs del formulario de login.
     const htmlResp = typeof loginResp.data === "string" ? loginResp.data : "";
-    const stillOnLogin = htmlResp.includes('name="username"') || htmlResp.includes("id=\"password\"") || htmlResp.includes("Iniciar Sesión");
+    const stillOnLogin = htmlResp.includes('name="username"') || htmlResp.includes('id="password"');
     if (stillOnLogin) {
-      const snippet = htmlResp.slice(0, 300).replace(/\s+/g, " ");
-      console.error(`[VeriPagos] Respuesta login (primeros 300 chars): ${snippet}`);
+      const snippet = htmlResp.slice(0, 400).replace(/\s+/g, " ");
+      console.error(`[VeriPagos] Login fallido — página de login aún presente: ${snippet}`);
       throw new Error("[VeriPagos] Login fallido — credenciales incorrectas o captcha");
     }
 
