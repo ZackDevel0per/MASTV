@@ -515,11 +515,13 @@ export async function conectarBot() {
         continue;
       }
 
-      // ── Si el JID es @lid, usarlo directamente como identificador ──
-      // El LID se usa como "teléfono" en Sheets y para rastrear la conversación.
-      // El propietario puede usar /num en el chat para obtener el LID y buscarlo manualmente.
+      // Si el JID es @lid y aún no está en el mapa, intentar resolverlo proactivamente.
+      // fetchStatus y profilePictureUrl disparan contacts.upsert en Baileys,
+      // que a su vez llena lidAlPhone con el número real @s.whatsapp.net.
       if (remitente.endsWith("@lid") && !lidAlPhone.has(remitente)) {
-        console.log(`📋 [LID] Contacto sin número resuelto: ${remitente}. Usando LID como identificador.`);
+        console.log(`📋 [LID] Contacto sin número resuelto: ${remitente}. Intentando resolución...`);
+        sock!.fetchStatus(remitente).catch(() => {});
+        sock!.profilePictureUrl(remitente, "image").catch(() => {});
       }
 
       console.log(`📩 Mensaje de ${remitente}: "${texto}"`);
@@ -820,11 +822,23 @@ async function manejarMensaje(jid: string, texto: string) {
     // ─── OPCIÓN 8: Solicitar hablar personalmente ──────────────────
     if (textoUpper === "8") {
       const telefonoMostrar = extraerTelefono(jid);
-      const telefonoEnlace = resolverTelefonoParaEnlace(jid);
+
+      // Si el JID es @lid y no está en el mapa, disparar resolución ahora.
+      // El delay de enviarConDelay (2-5s) da tiempo para que contacts.upsert llegue
+      // con el número real antes de intentar construir el enlace wa.me.
+      if (jid.endsWith("@lid") && !lidAlPhone.has(jid)) {
+        sock!.fetchStatus(jid).catch(() => {});
+        sock!.profilePictureUrl(jid, "image").catch(() => {});
+      }
+
       await enviarConDelay(
         jid,
         `💬 *Solicitud de atención personal recibida*\n\nHemos notificado al administrador. En breve se comunicará contigo.\n\n_Gracias por tu paciencia._ 🙏`,
       );
+
+      // Verificar mapa DESPUÉS del delay — puede que ya esté resuelto
+      const telefonoEnlace = resolverTelefonoParaEnlace(jid);
+      console.log(`[PUSHOVER] JID=${jid} | telMostrar=${telefonoMostrar} | telEnlace=${telefonoEnlace ?? "sin resolver"}`);
       enviarNotificacionPushover({
         titulo: "💬 Solicitud de atención personal",
         mensaje: `El cliente con número +${telefonoMostrar} quiere hablar personalmente. Toca para abrir su chat de WhatsApp.`,

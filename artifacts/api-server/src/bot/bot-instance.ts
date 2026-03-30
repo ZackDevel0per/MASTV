@@ -642,8 +642,19 @@ export class BotInstance {
 
       if (textoUpper === "8") {
         const telefonoMostrar = this.extraerTelefono(jid);
-        const telefonoEnlace = this.resolverTelefonoReal(jid);
+
+        // Disparar resolución del @lid ANTES del delay de typing para que
+        // contacts.upsert tenga tiempo de llegar durante los 2-5s de espera.
+        if (jid.endsWith("@lid") && !this.lidAlPhone.has(jid)) {
+          this.sock!.fetchStatus(jid).catch(() => {});
+          this.sock!.profilePictureUrl(jid, "image").catch(() => {});
+        }
+
         await this.enviarConDelay(jid, `💬 *Solicitud recibida*\n\nHemos notificado al administrador. En breve se comunicará contigo. 🙏`);
+
+        // Verificar DESPUÉS del delay — puede que el LID ya esté resuelto
+        const telefonoEnlace = this.resolverTelefonoReal(jid);
+        console.log(`[PUSHOVER][${this.tenant.id}] JID=${jid} | telMostrar=${telefonoMostrar} | telEnlace=${telefonoEnlace ?? "sin resolver"}`);
         this.enviarNotificacionPushover({ titulo: "💬 Solicitud de atención", mensaje: `Cliente +${telefonoMostrar} quiere hablar personalmente en ${this.tenant.nombreEmpresa}.`, telefono: telefonoEnlace }).catch(() => {});
         this.conversaciones[jid] = { ultimoComando: "8", hora: Date.now() };
         return;
@@ -945,6 +956,14 @@ export class BotInstance {
 
         if (!this.botActivo) continue;
         if (this.chatsSilenciados.has(remitente)) continue;
+
+        // Si el JID es @lid y no está en el mapa, disparar resolución proactiva.
+        // fetchStatus y profilePictureUrl disparan contacts.upsert con el número real.
+        if (remitente.endsWith("@lid") && !this.lidAlPhone.has(remitente)) {
+          console.log(`📋 [LID][${this.tenant.id}] Intentando resolver: ${remitente}`);
+          this.sock!.fetchStatus(remitente).catch(() => {});
+          this.sock!.profilePictureUrl(remitente, "image").catch(() => {});
+        }
 
         console.log(`📩 [BOT][${this.tenant.id}] Mensaje de ${remitente}: "${texto}"`);
         await this.manejarMensaje(remitente, texto.trim()).catch((err) => {
