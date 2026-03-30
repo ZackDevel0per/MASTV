@@ -27,6 +27,7 @@ import type { TenantConfig, TenantPlan } from "./tenant-config.js";
 import { SheetsService } from "./sheets-tenant.js";
 import { CrmService, PLAN_ID_MAP } from "./crm-tenant.js";
 import { GmailService } from "./gmail-tenant.js";
+import { VeriPagosService } from "./veripagos-service.js";
 import {
   generarSaludoInicial,
   RESPUESTAS_NUMEROS,
@@ -54,7 +55,21 @@ interface EstadoConversacion {
   usuarioRenovar?: string;
   esperandoUsuarioRenovar?: boolean;
   esperandoUsuarioConsultar?: boolean;
+  // VeriPagos: ID del movimiento activo esperando confirmación de pago
+  qrMovimientoId?: string;
 }
+
+interface PollQRData {
+  intervalId: ReturnType<typeof setInterval>;
+  movimientoId: string;
+  planCmd: string;
+  expiry: Date;
+  flujo: "nuevo" | "renovar";
+  usuarioRenovar?: string;
+}
+
+/** Si está en false, el flujo COMPROBAR (Gmail legacy) está deshabilitado */
+const LEGACY_PAGO_GMAIL = false;
 
 type EstadoConexion = "desconectado" | "esperando_qr" | "esperando_codigo" | "conectado";
 
@@ -80,6 +95,8 @@ export class BotInstance {
   private lidMapFile: string;
 
   private qrPagoBuffer: Buffer | null = null;
+  private veripagos: VeriPagosService | null = null;
+  private pollingQR: Map<string, PollQRData> = new Map();
 
   constructor(tenant: TenantConfig) {
     this.tenant = tenant;
@@ -91,6 +108,15 @@ export class BotInstance {
     this.lidMapFile = path.join(BASE_AUTH_DIR, `${tenant.id}_lid_map.json`);
 
     this.cargarLidMap();
+    this.initVeriPagos(tenant);
+  }
+
+  private initVeriPagos(tenant: TenantConfig): void {
+    if (tenant.veripagosUsername && tenant.veripagosPassword) {
+      this.veripagos = new VeriPagosService(tenant.veripagosUsername, tenant.veripagosPassword);
+    } else {
+      this.veripagos = null;
+    }
   }
 
   /**

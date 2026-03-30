@@ -28,11 +28,15 @@ export const tenantsTable = pgTable("tenants", {
   crmPassword: text("crm_password"),
   crmUsernamePrefix: text("crm_username_prefix").default("zk"),
 
-  // Gmail (para detección automática de pagos)
+  // Gmail (para detección automática de pagos) — LEGACY, mantenido para referencia futura
   gmailClientId: text("gmail_client_id"),
   gmailClientSecret: text("gmail_client_secret"),
   gmailRefreshToken: text("gmail_refresh_token"),
   gmailRemitenteFiltro: text("gmail_remitente_filtro"),
+
+  // VeriPagos.com — generación y verificación automática de QR de pago
+  veripagosUsername: text("veripagos_username"),
+  veripagosPassword: text("veripagos_password"),
 
   // Personalización de respuestas y planes (JSON)
   planesJson: text("planes_json"),

@@ -23,11 +23,15 @@ export interface TenantConfig {
   crmPassword: string | null;
   crmUsernamePrefix: string;
 
-  // Gmail (detección de pagos automática)
+  // Gmail (detección de pagos automática) — LEGACY, mantenido para referencia futura
   gmailClientId: string | null;
   gmailClientSecret: string | null;
   gmailRefreshToken: string | null;
   gmailRemitenteFiltro: string | null;
+
+  // VeriPagos.com — generación automática de QR por pago
+  veripagosUsername: string | null;
+  veripagosPassword: string | null;
 
   // Planes personalizados (sobreescribe los defaults)
   planes: TenantPlan[] | null;
@@ -70,6 +74,8 @@ export function tenantFromDb(row: {
   gmailClientSecret: string | null;
   gmailRefreshToken: string | null;
   gmailRemitenteFiltro: string | null;
+  veripagosUsername: string | null;
+  veripagosPassword: string | null;
   planesJson: string | null;
   qrPagoUrl: string | null;
   pushoverUserKey: string | null;
@@ -99,6 +105,8 @@ export function tenantFromDb(row: {
     gmailClientSecret: row.gmailClientSecret,
     gmailRefreshToken: row.gmailRefreshToken,
     gmailRemitenteFiltro: row.gmailRemitenteFiltro,
+    veripagosUsername: row.veripagosUsername,
+    veripagosPassword: row.veripagosPassword,
     planes,
     qrPagoUrl: row.qrPagoUrl,
     pushoverUserKey: row.pushoverUserKey,

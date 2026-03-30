@@ -312,6 +312,7 @@ router.post("/admin/tenants", async (req, res) => {
       spreadsheetId, googleServiceAccountJson,
       crmBaseUrl, crmUsername, crmPassword, crmUsernamePrefix,
       gmailClientId, gmailClientSecret, gmailRefreshToken, gmailRemitenteFiltro,
+      veripagosUsername, veripagosPassword,
       pushoverUserKey, pushoverApiToken,
       planesJson, qrPagoUrl, suscripcionVence,
     } = req.body;
@@ -333,6 +334,8 @@ router.post("/admin/tenants", async (req, res) => {
       gmailClientSecret: gmailClientSecret || null,
       gmailRefreshToken: gmailRefreshToken || null,
       gmailRemitenteFiltro: gmailRemitenteFiltro || null,
+      veripagosUsername: veripagosUsername || null,
+      veripagosPassword: veripagosPassword || null,
       pushoverUserKey: pushoverUserKey || null,
       pushoverApiToken: pushoverApiToken || null,
       planesJson: planesJson || null,
@@ -365,6 +368,7 @@ router.put("/admin/tenants/:id", async (req, res) => {
       "spreadsheetId", "googleServiceAccountJson",
       "crmBaseUrl", "crmUsername", "crmPassword", "crmUsernamePrefix",
       "gmailClientId", "gmailClientSecret", "gmailRefreshToken", "gmailRemitenteFiltro",
+      "veripagosUsername", "veripagosPassword",
       "pushoverUserKey", "pushoverApiToken", "planesJson", "qrPagoUrl", "activo",
     ] as const;
 
