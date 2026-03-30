@@ -640,7 +640,10 @@ export class BotInstance {
         return;
       }
 
-ureUrl(jid, "image").catch(() => {});
+      if (textoUpper === "8" || textoUpper === "SOPORTE") {
+        const telefonoMostrar = this.extraerTelefono(jid);
+        if (this.qrPagoBuffer) {
+          this.enviarQRPago(jid).catch(() => {});
         }
 
         await this.enviarConDelay(jid, `💬 *Solicitud recibida*\n\nHemos notificado al administrador. En breve se comunicará contigo. 🙏`);
