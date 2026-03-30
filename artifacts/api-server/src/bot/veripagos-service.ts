@@ -104,7 +104,7 @@ export class VeriPagosService {
     // 2. POST /login — enviar credenciales
     const params = new URLSearchParams();
     params.set("_token", this.csrfToken);
-    params.set("email", this.username);
+    params.set("username", this.username);
     params.set("password", this.password);
 
     const loginResp = await this.http.post("/login", params.toString(), {
