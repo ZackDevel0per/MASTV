@@ -640,14 +640,7 @@ export class BotInstance {
         return;
       }
 
-      if (textoUpper === "8") {
-        const telefonoMostrar = this.extraerTelefono(jid);
-
-        // Disparar resolución del @lid ANTES del delay de typing para que
-        // contacts.upsert tenga tiempo de llegar durante los 2-5s de espera.
-        if (jid.endsWith("@lid") && !this.lidAlPhone.has(jid)) {
-          this.sock!.fetchStatus(jid).catch(() => {});
-          this.sock!.profilePictureUrl(jid, "image").catch(() => {});
+ureUrl(jid, "image").catch(() => {});
         }
 
         await this.enviarConDelay(jid, `💬 *Solicitud recibida*\n\nHemos notificado al administrador. En breve se comunicará contigo. 🙏`);
@@ -957,12 +950,34 @@ export class BotInstance {
         if (!this.botActivo) continue;
         if (this.chatsSilenciados.has(remitente)) continue;
 
-        // Si el JID es @lid y no está en el mapa, disparar resolución proactiva.
-        // fetchStatus y profilePictureUrl disparan contacts.upsert con el número real.
-        if (remitente.endsWith("@lid") && !this.lidAlPhone.has(remitente)) {
-          console.log(`📋 [LID][${this.tenant.id}] Intentando resolver: ${remitente}`);
-          this.sock!.fetchStatus(remitente).catch(() => {});
-          this.sock!.profilePictureUrl(remitente, "image").catch(() => {});
+        // Si el JID es @lid, extraer el número real @s.whatsapp.net directo del mensaje.
+        // El objeto msg ya contiene el JID real — lo escaneamos y guardamos en el mapa
+        // para que resolverTelefonoReal lo encuentre al construir el enlace wa.me.
+        if (remitente.endsWith("@lid")) {
+          const msgAny = msg as any;
+          const candidatos: unknown[] = [
+            msgAny?.key?.participant,
+            msgAny?.participant,
+            msgAny?.message?.messageContextInfo?.deviceListMetadata?.senderKeyHash,
+            msgAny?.message?.messageContextInfo?.messageSecret,
+          ];
+          let resuelto = false;
+          for (const c of candidatos) {
+            if (typeof c === "string" && c.endsWith("@s.whatsapp.net")) {
+              if (!this.lidAlPhone.has(remitente)) {
+                this.lidAlPhone.set(remitente, c);
+                this.guardarLidMap();
+                const num = c.split("@")[0];
+                console.log(`📇 [LID][${this.tenant.id}] Resuelto desde mensaje: ${remitente} → ${c} (tel: ${num})`);
+              }
+              resuelto = true;
+              break;
+            }
+          }
+          if (!resuelto && !this.lidAlPhone.has(remitente)) {
+            // Debug: loguear claves del mensaje para identificar el campo correcto
+            console.log(`📋 [LID][${this.tenant.id}] Sin resolver: ${remitente} | campos msg.key=${JSON.stringify(Object.keys(msgAny?.key ?? {}))}`);
+          }
         }
 
         console.log(`📩 [BOT][${this.tenant.id}] Mensaje de ${remitente}: "${texto}"`);

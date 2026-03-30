@@ -515,13 +515,35 @@ export async function conectarBot() {
         continue;
       }
 
-      // Si el JID es @lid y aún no está en el mapa, intentar resolverlo proactivamente.
-      // fetchStatus y profilePictureUrl disparan contacts.upsert en Baileys,
-      // que a su vez llena lidAlPhone con el número real @s.whatsapp.net.
-      if (remitente.endsWith("@lid") && !lidAlPhone.has(remitente)) {
-        console.log(`📋 [LID] Contacto sin número resuelto: ${remitente}. Intentando resolución...`);
-        sock!.fetchStatus(remitente).catch(() => {});
-        sock!.profilePictureUrl(remitente, "image").catch(() => {});
+      // Si el JID es @lid, extraer el número real @s.whatsapp.net directamente del mensaje.
+      // El objeto msg contiene varios campos con el JID real — lo escaneamos y
+      // lo guardamos en el mapa para que resolverTelefonoParaEnlace lo encuentre.
+      if (remitente.endsWith("@lid")) {
+        const msgAny = msg as any;
+        const candidatos: unknown[] = [
+          msgAny?.key?.participant,
+          msgAny?.participant,
+          msgAny?.message?.messageContextInfo?.deviceListMetadata?.senderKeyHash,
+          msgAny?.message?.messageContextInfo?.messageSecret,
+        ];
+        let resuelto = false;
+        for (const c of candidatos) {
+          if (typeof c === "string" && c.endsWith("@s.whatsapp.net")) {
+            if (!lidAlPhone.has(remitente)) {
+              lidAlPhone.set(remitente, c);
+              guardarLidMap(lidAlPhone);
+              const num = c.split("@")[0];
+              console.log(`📇 [LID] Resuelto desde mensaje: ${remitente} → ${c} (tel: ${num})`);
+            }
+            resuelto = true;
+            break;
+          }
+        }
+        if (!resuelto && !lidAlPhone.has(remitente)) {
+          // Debug: loguear claves del mensaje para identificar el campo correcto
+          const msgAny2 = msg as any;
+          console.log(`📋 [LID] Sin resolver: ${remitente} | campos msg.key=${JSON.stringify(Object.keys(msgAny2?.key ?? {}))}`);
+        }
       }
 
       console.log(`📩 Mensaje de ${remitente}: "${texto}"`);
@@ -822,23 +844,16 @@ async function manejarMensaje(jid: string, texto: string) {
     // ─── OPCIÓN 8: Solicitar hablar personalmente ──────────────────
     if (textoUpper === "8") {
       const telefonoMostrar = extraerTelefono(jid);
-
-      // Si el JID es @lid y no está en el mapa, disparar resolución ahora.
-      // El delay de enviarConDelay (2-5s) da tiempo para que contacts.upsert llegue
-      // con el número real antes de intentar construir el enlace wa.me.
-      if (jid.endsWith("@lid") && !lidAlPhone.has(jid)) {
-        sock!.fetchStatus(jid).catch(() => {});
-        sock!.profilePictureUrl(jid, "image").catch(() => {});
-      }
+      // El número real ya fue extraído del mensaje cuando llegó (arriba en messages.upsert)
+      // y guardado en lidAlPhone — resolverTelefonoParaEnlace lo usa directamente.
+      const telefonoEnlace = resolverTelefonoParaEnlace(jid);
+      console.log(`[PUSHOVER] JID=${jid} | telMostrar=${telefonoMostrar} | telEnlace=${telefonoEnlace ?? "sin resolver"}`);
 
       await enviarConDelay(
         jid,
         `💬 *Solicitud de atención personal recibida*\n\nHemos notificado al administrador. En breve se comunicará contigo.\n\n_Gracias por tu paciencia._ 🙏`,
       );
 
-      // Verificar mapa DESPUÉS del delay — puede que ya esté resuelto
-      const telefonoEnlace = resolverTelefonoParaEnlace(jid);
-      console.log(`[PUSHOVER] JID=${jid} | telMostrar=${telefonoMostrar} | telEnlace=${telefonoEnlace ?? "sin resolver"}`);
       enviarNotificacionPushover({
         titulo: "💬 Solicitud de atención personal",
         mensaje: `El cliente con número +${telefonoMostrar} quiere hablar personalmente. Toca para abrir su chat de WhatsApp.`,
