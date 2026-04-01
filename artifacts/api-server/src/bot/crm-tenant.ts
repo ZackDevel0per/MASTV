@@ -546,24 +546,27 @@ export class CrmService {
     planNombre: string;
     fechaCreacion: string;
     fechaExpiracion: string;
+    expDateMs: number;
     estado: string;
   }>> {
     if (!this.isConfigured()) return [];
     const lineas = this.lineasCache.length > 0 ? this.lineasCache : await this.fetchLineas();
 
-    function parsearFecha(valor: string | number | undefined): string {
-      if (!valor) return "";
+    function parsearFecha(valor: string | number | undefined): { texto: string; ms: number } {
+      if (!valor) return { texto: "", ms: 0 };
       const raw = String(valor).trim();
-      if (!raw || raw.startsWith("0000") || raw === "0") return "";
+      if (!raw || raw.startsWith("0000") || raw === "0") return { texto: "", ms: 0 };
       const ts = Number(raw);
       if (!isNaN(ts) && ts > 100_000_000) {
         const d = new Date(ts * 1000);
-        return isNaN(d.getTime()) ? "" : d.toLocaleString("es-BO", { timeZone: "America/La_Paz" });
+        return isNaN(d.getTime())
+          ? { texto: "", ms: 0 }
+          : { texto: d.toLocaleString("es-BO", { timeZone: "America/La_Paz" }), ms: d.getTime() };
       }
       const d = new Date(raw.replace(" ", "T"));
       return (!isNaN(d.getTime()) && d.getFullYear() > 2000)
-        ? d.toLocaleString("es-BO", { timeZone: "America/La_Paz" })
-        : "";
+        ? { texto: d.toLocaleString("es-BO", { timeZone: "America/La_Paz" }), ms: d.getTime() }
+        : { texto: "", ms: 0 };
     }
 
     return lineas.map((l) => {
@@ -576,12 +579,16 @@ export class CrmService {
         estado = "DEMO";
       }
 
+      const creacion = parsearFecha(l.created_at);
+      const expiracion = parsearFecha(l.exp_date);
+
       return {
         username: l.username ?? "",
         password: l.password ?? "",
         planNombre: l.package_name ?? "",
-        fechaCreacion: parsearFecha(l.created_at),
-        fechaExpiracion: parsearFecha(l.exp_date),
+        fechaCreacion: creacion.texto,
+        fechaExpiracion: expiracion.texto,
+        expDateMs: expiracion.ms,
         estado,
       };
     });

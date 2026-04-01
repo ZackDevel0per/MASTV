@@ -429,72 +429,74 @@ export class SheetsService {
     planNombre: string;
     fechaCreacion: string;
     fechaExpiracion: string;
+    expDateMs?: number;
     estado: string;
   }>): Promise<{ total: number; nuevas: number; actualizadas: number; errores: number }> {
     if (!this.isConfigured()) return { total: lineas.length, nuevas: 0, actualizadas: 0, errores: 0 };
     const sheets = await this.getClient();
 
-    // Leer toda la hoja para conocer la posición exacta de cada username
+    // Leer toda la hoja actual para preservar teléfonos (col A) registrados por el bot
     const res = await sheets.spreadsheets.values.get({
       spreadsheetId: this.spreadsheetId,
       range: `${SHEET_CUENTAS}!A:F`,
     });
+    const filasActuales = res.data.values ?? [];
 
-    const filas = res.data.values ?? [];
-    const filasPorUsuario = new Map<string, number>();
-    for (let i = 1; i < filas.length; i++) {
-      const username = (filas[i]?.[1] ?? "").toString().toLowerCase().trim();
-      if (username) filasPorUsuario.set(username, i + 1);
+    // Mapa: username.toLowerCase() → teléfono guardado en col A
+    const telefonoPorUsuario = new Map<string, string>();
+    for (let i = 1; i < filasActuales.length; i++) {
+      const tel = (filasActuales[i]?.[0] ?? "").toString().trim();
+      const user = (filasActuales[i]?.[1] ?? "").toString().toLowerCase().trim();
+      if (user) telefonoPorUsuario.set(user, tel);
     }
 
-    const filasNuevas: string[][] = [];
-    const rangesActualizacion: { range: string; values: string[][] }[] = [];
+    const prevTotal = Math.max(filasActuales.length - 1, 0);
 
-    for (const l of lineas) {
-      const key = l.username.toLowerCase().trim();
-      const filaHoja = filasPorUsuario.get(key);
+    // Ordenar: fecha de expiración más próxima primero, sin fecha al final
+    const lineasOrdenadas = [...lineas].sort((a, b) => {
+      const msA = a.expDateMs ?? 0;
+      const msB = b.expDateMs ?? 0;
+      if (msA === 0 && msB === 0) return 0;
+      if (msA === 0) return 1;
+      if (msB === 0) return -1;
+      return msA - msB;
+    });
 
-      if (filaHoja !== undefined) {
-        rangesActualizacion.push({
-          range: `${SHEET_CUENTAS}!C${filaHoja}:F${filaHoja}`,
-          values: [[l.planNombre, l.fechaCreacion, l.fechaExpiracion, l.estado]],
-        });
-      } else {
-        filasNuevas.push(["", l.username, l.planNombre, l.fechaCreacion, l.fechaExpiracion, l.estado]);
-      }
-    }
+    // Construir filas completas con el teléfono preservado
+    const filasNuevas: string[][] = lineasOrdenadas.map((l) => {
+      const tel = telefonoPorUsuario.get(l.username.toLowerCase().trim()) ?? "";
+      return [tel, l.username, l.planNombre, l.fechaCreacion, l.fechaExpiracion, l.estado];
+    });
 
     let errores = 0;
-
-    if (rangesActualizacion.length > 0) {
-      try {
-        await sheets.spreadsheets.values.batchUpdate({
+    try {
+      // Limpiar todos los datos (desde fila 2 en adelante)
+      if (prevTotal > 0) {
+        await sheets.spreadsheets.values.clear({
           spreadsheetId: this.spreadsheetId,
-          requestBody: { valueInputOption: "RAW", data: rangesActualizacion },
+          range: `${SHEET_CUENTAS}!A2:F`,
         });
-        this.cacheListaMs = 0;
-      } catch (err) {
-        console.error(`[SHEETS][${this.tenantId}] Error actualizando líneas CRM:`, err);
-        errores += rangesActualizacion.length;
       }
-    }
 
-    if (filasNuevas.length > 0) {
-      try {
-        await sheets.spreadsheets.values.append({
+      // Escribir todas las filas ordenadas de una vez
+      if (filasNuevas.length > 0) {
+        await sheets.spreadsheets.values.update({
           spreadsheetId: this.spreadsheetId,
-          range: `${SHEET_CUENTAS}!A:F`,
+          range: `${SHEET_CUENTAS}!A2`,
           valueInputOption: "RAW",
           requestBody: { values: filasNuevas },
         });
-        this.cacheListaMs = 0;
-      } catch (err) {
-        console.error(`[SHEETS][${this.tenantId}] Error agregando líneas nuevas CRM:`, err);
-        errores += filasNuevas.length;
       }
+
+      this.cacheListaMs = 0;
+    } catch (err) {
+      console.error(`[SHEETS][${this.tenantId}] Error en sync CRM:`, err);
+      errores = lineasOrdenadas.length;
     }
 
-    const resultado = { total: lineas.length, nuevas: filasNuevas.length, actualizadas: rangesActualizacion.length, errores };
+    const nuevas = Math.max(lineasOrdenadas.length - prevTotal, 0);
+    const actualizadas = lineasOrdenadas.length - nuevas;
+    const resultado = { total: lineas.length, nuevas, actualizadas, errores };
     console.log(`🔄 [SHEETS][${this.tenantId}] Sync CRM→Sheets: ${resultado.nuevas} nuevas, ${resultado.actualizadas} actualizadas, ${resultado.errores} errores`);
     return resultado;
   }
