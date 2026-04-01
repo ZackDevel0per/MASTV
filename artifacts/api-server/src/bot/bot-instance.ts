@@ -97,6 +97,7 @@ export class BotInstance {
   private qrPagoBuffer: Buffer | null = null;
   private veripagos: VeriPagosService | null = null;
   private pollingQR: Map<string, PollQRData> = new Map();
+  private syncCRMInterval: ReturnType<typeof setInterval> | null = null;
 
   constructor(tenant: TenantConfig) {
     this.tenant = tenant;
@@ -1154,6 +1155,10 @@ export class BotInstance {
     this.sheets.detenerCache();
     this.gmail.detener();
     this.crm.detenerPolling();
+    if (this.syncCRMInterval) {
+      clearInterval(this.syncCRMInterval);
+      this.syncCRMInterval = null;
+    }
     this.sock?.end(undefined);
     this.sock = null;
     this.estadoConexion = "desconectado";
@@ -1323,6 +1328,28 @@ export class BotInstance {
     });
   }
 
+  private iniciarSyncCRM(): void {
+    if (this.syncCRMInterval) clearInterval(this.syncCRMInterval);
+    const SYNC_INTERVAL_MS = 30_000;
+
+    const ejecutarSync = async () => {
+      if (this.detenido) return;
+      if (!this.crm.isConfigured() || !this.sheets.isConfigured()) return;
+      try {
+        const lineas = await this.crm.obtenerTodasLasLineas();
+        if (lineas.length === 0) return;
+        const r = await this.sheets.sincronizarLineasCRM(lineas);
+        console.log(`📊 [SYNC][${this.tenant.id}] CRM→Sheets auto: ${r.nuevas} nuevas, ${r.actualizadas} act.`);
+      } catch (err) {
+        console.warn(`⚠️ [SYNC][${this.tenant.id}] Error en auto-sync:`, err instanceof Error ? err.message : err);
+      }
+    };
+
+    // Primer sync con pequeño delay (espera que la caché CRM cargue)
+    setTimeout(ejecutarSync, 15_000);
+    this.syncCRMInterval = setInterval(ejecutarSync, SYNC_INTERVAL_MS);
+  }
+
   async iniciar(): Promise<void> {
     console.log(`🚀 [BOT][${this.tenant.id}] Iniciando...`);
 
@@ -1332,6 +1359,8 @@ export class BotInstance {
     } catch (err) {
       console.error(`⚠️ [SHEETS][${this.tenant.id}] Error:`, err);
     }
+
+    this.iniciarSyncCRM();
 
     // Precargar QR de pago en memoria para este tenant
     await this.precargarQR();

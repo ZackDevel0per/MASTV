@@ -51,9 +51,11 @@ export interface LineaCRM {
   password: string;
   server_url?: string;
   package_name?: string;
-  created_at?: string;
-  exp_date?: number;
-  is_trial?: number;
+  created_at?: string | number;
+  exp_date?: string | number;
+  is_trial?: number | boolean;
+  is_expired?: number | boolean;
+  enabled?: number | boolean;
   max_connections?: number;
 }
 
@@ -547,18 +549,42 @@ export class CrmService {
     estado: string;
   }>> {
     if (!this.isConfigured()) return [];
-    // Usar la caché si está disponible; si no, hacer fetch
     const lineas = this.lineasCache.length > 0 ? this.lineasCache : await this.fetchLineas();
-    return lineas.map((l) => ({
-      username: l.username ?? "",
-      password: l.password ?? "",
-      planNombre: l.package_name ?? "",
-      fechaCreacion: l.created_at ?? "",
-      fechaExpiracion: l.exp_date
-        ? new Date(l.exp_date * 1000).toLocaleDateString("es-BO", { timeZone: "America/La_Paz" })
-        : "",
-      estado: l.is_trial ? "PRUEBA" : "ACTIVA",
-    }));
+
+    function parsearFecha(valor: string | number | undefined): string {
+      if (!valor) return "";
+      const raw = String(valor).trim();
+      if (!raw || raw.startsWith("0000") || raw === "0") return "";
+      const ts = Number(raw);
+      if (!isNaN(ts) && ts > 100_000_000) {
+        const d = new Date(ts * 1000);
+        return isNaN(d.getTime()) ? "" : d.toLocaleString("es-BO", { timeZone: "America/La_Paz" });
+      }
+      const d = new Date(raw.replace(" ", "T"));
+      return (!isNaN(d.getTime()) && d.getFullYear() > 2000)
+        ? d.toLocaleString("es-BO", { timeZone: "America/La_Paz" })
+        : "";
+    }
+
+    return lineas.map((l) => {
+      let estado = "ACTIVA";
+      if (l.is_expired) {
+        estado = "EXPIRADA";
+      } else if (l.enabled === 0 || l.enabled === false) {
+        estado = "DESACTIVADA";
+      } else if (l.is_trial) {
+        estado = "DEMO";
+      }
+
+      return {
+        username: l.username ?? "",
+        password: l.password ?? "",
+        planNombre: l.package_name ?? "",
+        fechaCreacion: parsearFecha(l.created_at),
+        fechaExpiracion: parsearFecha(l.exp_date),
+        estado,
+      };
+    });
   }
 
   private async buscarLinea(
