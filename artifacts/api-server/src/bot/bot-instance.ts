@@ -304,6 +304,7 @@ export class BotInstance {
         this.sheets
           .registrarCuenta(telefono, resultado.usuario, resultado.plan ?? planCmd, dias)
           .catch(() => {});
+        this.agregarContacto(jid, `CLIENTE (${resultado.usuario})`).catch(() => {});
       } else {
         await this.enviarConDelay(
           jid,
@@ -519,6 +520,23 @@ export class BotInstance {
       } else {
         await this.enviarConDelay(jid, `⚠️ Video no disponible temporalmente. Escribe *3* para soporte.`);
       }
+    }
+  }
+
+  private async agregarContacto(jid: string, nombre: string): Promise<void> {
+    if (!this.sock) return;
+    try {
+      let contactJid = jid;
+      if (jid.endsWith("@lid")) {
+        const mapped = this.lidAlPhone.get(jid);
+        if (!mapped || !mapped.endsWith("@s.whatsapp.net")) return;
+        contactJid = mapped;
+      }
+      if (!contactJid.endsWith("@s.whatsapp.net")) return;
+      await this.sock.addOrEditContact(contactJid, { fullName: nombre });
+      console.log(`📇 [BOT][${this.tenant.id}] Contacto guardado: ${nombre} (${contactJid})`);
+    } catch (err) {
+      console.warn(`⚠️ [BOT][${this.tenant.id}] No se pudo guardar contacto ${nombre}:`, err);
     }
   }
 

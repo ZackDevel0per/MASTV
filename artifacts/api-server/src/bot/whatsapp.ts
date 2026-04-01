@@ -46,6 +46,18 @@ async function enviarVideo(jid: string, contenido: string, caption?: string) {
  *
  * Esto reduce significativamente el riesgo de ban por comportamiento automatizado.
  */
+async function agregarContacto(jid: string, nombre: string): Promise<void> {
+  if (!sock) return;
+  try {
+    let contactJid = jid;
+    if (!contactJid.endsWith("@s.whatsapp.net")) return;
+    await sock.addOrEditContact(contactJid, { fullName: nombre });
+    console.log(`📇 [BOT] Contacto guardado: ${nombre} (${contactJid})`);
+  } catch (err) {
+    console.warn(`⚠️ [BOT] No se pudo guardar contacto ${nombre}:`, err);
+  }
+}
+
 async function enviarConDelay(jid: string, texto: string): Promise<void> {
   // Pausa de "reacción" antes de empezar a escribir
   await new Promise(r => setTimeout(r, 300 + Math.random() * 900));
@@ -598,6 +610,7 @@ async function manejarMensaje(jid: string, texto: string) {
         });
         await enviarConDelay(jid, mensajeActivacion);
         await enviarConDelay(jid, `💡 *¿Te gustó la prueba?*\n\nEscribe *1* para ver nuestros planes completos y contratar un servicio permanente. 🚀`);
+        agregarContacto(`${telefono}@s.whatsapp.net`, `CLIENTE (${resultado.usuario})`).catch(() => {});
         conversaciones[jid] = {
           ultimoComando: "DEMO_CREADA",
           planSeleccionado: undefined,
