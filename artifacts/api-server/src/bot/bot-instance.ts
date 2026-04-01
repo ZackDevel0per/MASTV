@@ -607,6 +607,61 @@ export class BotInstance {
     },
   };
 
+  // ── Comando /pagado: confirmación manual de pago ──────────────────────────
+
+  private async ejecutarComandoPagado(args: string[]): Promise<string> {
+    const uso = "Uso: /pagado 591XXXXXXXXX [PLAN]\nEjemplo: /pagado 59169741630\nEjemplo: /pagado 59169741630 P1";
+
+    if (args.length === 0) {
+      return `❌ Falta el número de teléfono.\n\n${uso}`;
+    }
+
+    const telefonoRaw = args[0]!.replace(/\D/g, "");
+    if (!telefonoRaw) {
+      return `❌ Número inválido.\n\n${uso}`;
+    }
+
+    const planArg = args[1]?.toUpperCase();
+    const clienteJid = `${telefonoRaw}@s.whatsapp.net`;
+    const estado = this.conversaciones[clienteJid];
+
+    let planCmd = planArg;
+    let flujo: "nuevo" | "renovar" = "nuevo";
+    let usuarioRenovar: string | undefined;
+
+    if (!planCmd) {
+      const pollData = this.pollingQR.get(clienteJid);
+      if (pollData) {
+        planCmd = pollData.planCmd;
+        flujo = pollData.flujo;
+        usuarioRenovar = pollData.usuarioRenovar;
+      } else if (estado?.planSeleccionado) {
+        planCmd = estado.planSeleccionado;
+        flujo = estado.flujo ?? "nuevo";
+        usuarioRenovar = estado.usuarioRenovar;
+      }
+    }
+
+    if (!planCmd) {
+      return `❌ No hay plan registrado para ${telefonoRaw}.\nEspecifica el plan manualmente:\n\n${uso}`;
+    }
+
+    const tenantPlan = this.getPlanPorComando(planCmd);
+    const planInfo = PLAN_ID_MAP[planCmd];
+    if (!tenantPlan && !planInfo) {
+      return `❌ Plan "${planCmd}" no reconocido.\nPlanes válidos: P1-P4, Q1-Q4, R1-R4`;
+    }
+
+    this.cancelarPollVeriPagos(clienteJid);
+
+    const planNombre = tenantPlan?.nombre ?? planInfo?.nombre ?? planCmd;
+    console.log(`💵 [PAGADO][${this.tenant.id}] Admin confirmó pago manual — tel=${telefonoRaw} plan=${planCmd} flujo=${flujo}`);
+
+    await this.procesarPagoConfirmadoVeriPagos(clienteJid, planCmd, flujo, usuarioRenovar);
+
+    return `✅ Pago confirmado manualmente para *${telefonoRaw}*\n📋 Plan: ${planNombre}${flujo === "renovar" ? " _(renovación)_" : ""}`;
+  }
+
   // ── Planes dinámicos por tenant ───────────────────────────────────────────
 
   private getPlanesPorDispositivos(dispositivos: number): TenantPlan[] {
@@ -1209,11 +1264,19 @@ export class BotInstance {
         if (!texto) continue;
 
         if (msg.key.fromMe) {
-          const comando = texto.trim().toLowerCase();
-          const accion = this.COMANDOS_DUENO[comando];
-          if (accion) {
-            const respuesta = await accion(remitente).catch(() => "❌ Error ejecutando el comando.");
+          const textoLimpio = texto.trim();
+          const partes = textoLimpio.split(/\s+/);
+          const comandoBase = partes[0]!.toLowerCase();
+
+          if (comandoBase === "/pagado") {
+            const respuesta = await this.ejecutarComandoPagado(partes.slice(1)).catch(() => "❌ Error ejecutando /pagado.");
             await this.sock!.sendMessage(remitente, { text: respuesta }).catch(() => {});
+          } else {
+            const accion = this.COMANDOS_DUENO[comandoBase];
+            if (accion) {
+              const respuesta = await accion(remitente).catch(() => "❌ Error ejecutando el comando.");
+              await this.sock!.sendMessage(remitente, { text: respuesta }).catch(() => {});
+            }
           }
           continue;
         }
