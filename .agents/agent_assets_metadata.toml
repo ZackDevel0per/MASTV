@@ -6,3 +6,9 @@ id = "cT2lbEDfoXoYjUqGm9Q0Y"
 uri = "file://CONFIGURACION_GOOGLE.txt"
 type = "text"
 title = "Guía de configuración Google"
+
+[[outputs]]
+id = "uQDpGSn1S3jiddnmqSrBY"
+uri = "file://guia-migracion-vps.txt"
+type = "text"
+title = "Guía de migración a VPS propio"

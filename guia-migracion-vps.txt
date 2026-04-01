@@ -1,0 +1,127 @@
+GUÍA DE MIGRACIÓN A VPS PROPIO
+================================
+
+¿SE GUARDAN LOS DATOS SI REINICIAS EL SERVIDOR?
+-------------------------------------------------
+Sí, todo se guarda. Hay dos mecanismos de persistencia:
+
+PostgreSQL (base de datos):
+- Todos los tenants y su configuración
+- Historial de pagos y cuentas de cada tenant
+- Esto nunca se borra al reiniciar, vive en la base de datos
+  independientemente del servidor
+
+Archivos en disco (auth_info_baileys/):
+- Las sesiones de WhatsApp de cada tenant se guardan como archivos
+  JSON en esta carpeta
+- Al reiniciar, Baileys lee esos archivos y reconecta automáticamente
+  sin pedir QR ni código de pareo de nuevo
+- Mientras esa carpeta exista y no la borres, las sesiones sobreviven
+  cualquier reinicio
+
+En resumen: si reinicias el servidor, en unos segundos todos los bots
+vuelven a conectarse solos y todos los datos siguen intactos.
+
+
+¿NECESITAS DOMINIO?
+-------------------
+No es estrictamente necesario para que funcione, pero sí lo necesitarías
+si quieres acceder al panel admin desde el navegador con una URL bonita
+(ej: admin.tuempresa.com). Con solo la IP del VPS ya puedes acceder al
+panel como http://IP:8080/api/panel.
+
+
+LO QUE NECESITAS INSTALAR EN EL VPS
+-------------------------------------
+1. Node.js v20 o superior (el proyecto usa v24)
+2. pnpm (gestor de paquetes del proyecto)
+3. PostgreSQL 16 (base de datos)
+4. Git (para clonar el código)
+5. Opcionalmente: Nginx como proxy inverso si quieres usar dominio + HTTPS
+
+Cualquier proveedor de VPS sirve: DigitalOcean, Vultr, Contabo, Hetzner, etc.
+Con 1 GB de RAM y 1 CPU funciona, aunque 2 GB es más cómodo si tienes
+varios tenants.
+
+
+PASOS PARA MIGRAR, UNO POR UNO
+--------------------------------
+
+Paso 1 — Preparar el VPS
+  Instala en tu VPS (Ubuntu/Debian recomendado) Node.js, pnpm y PostgreSQL.
+
+Paso 2 — Copiar el código
+  Puedes bajar el proyecto desde Replit como .zip o usar Git si lo tienes
+  en un repositorio. Lo subes al VPS con scp o lo clonas desde GitHub.
+
+Paso 3 — Exportar la base de datos de Replit
+  Esto es lo más crítico. Tienes que hacer un pg_dump de la base de datos
+  de Replit y restaurarla en PostgreSQL de tu VPS. La base de datos contiene
+  toda la configuración de tus tenants. Sin esto tendrías que volver a
+  crear todo desde cero.
+
+  Comando para exportar (en Replit):
+    pg_dump $DATABASE_URL > backup.sql
+
+  Comando para importar (en tu VPS):
+    psql -U postgres -d tu_base_de_datos < backup.sql
+
+Paso 4 — Copiar las sesiones de WhatsApp
+  La carpeta artifacts/api-server/auth_info_baileys/ contiene las sesiones
+  activas de todos los bots. Tienes que copiarla entera al VPS en la misma
+  ruta relativa. Si no la copias, todos los bots pedirán QR o código de
+  pareo de nuevo al arrancar.
+
+  Comando para copiar (desde tu máquina local):
+    scp -r auth_info_baileys/ usuario@IP-DEL-VPS:/ruta/del/proyecto/artifacts/api-server/
+
+Paso 5 — Configurar las variables de entorno
+  Crea un archivo .env en la raíz del proyecto con:
+    DATABASE_URL=postgresql://usuario:password@localhost:5432/tu_base_de_datos
+    PORT=8080
+    ADMIN_TOKEN=tu_token_seguro
+    ADMIN_USER=tu_usuario_admin
+    ADMIN_PASSWORD=tu_password_admin
+    TASKER_TOKEN=tu_tasker_token
+
+Paso 6 — Instalar dependencias y aplicar el schema
+  pnpm install
+  pnpm --filter @workspace/db run push
+
+  Luego arranca el servidor con pm2 para que no se caiga si cierras la terminal:
+    npm install -g pm2
+    pm2 start "pnpm --filter @workspace/api-server run dev" --name api-server
+    pm2 save
+    pm2 startup   ← para que arranque automáticamente si el VPS se reinicia
+
+Paso 7 — (Opcional) Nginx + dominio + HTTPS
+  Si quieres usar un dominio, configuras Nginx como proxy que recibe en el
+  puerto 80/443 y reenvía al puerto 8080. Con Certbot obtienes el certificado
+  SSL gratis en minutos.
+
+  Ejemplo de configuración Nginx:
+    server {
+        listen 80;
+        server_name tudominio.com;
+        location / {
+            proxy_pass http://localhost:8080;
+            proxy_http_version 1.1;
+            proxy_set_header Upgrade $http_upgrade;
+            proxy_set_header Connection 'upgrade';
+            proxy_set_header Host $host;
+        }
+    }
+
+
+RESUMEN: QUÉ SE PIERDE Y QUÉ NO SI HACES LA MIGRACIÓN BIEN
+------------------------------------------------------------
+Dato                          | ¿Se migra? | Cómo
+------------------------------|------------|--------------------------------
+Configuración de tenants      | Sí         | pg_dump → pg_restore
+Historial de pagos y cuentas  | Sí         | pg_dump → pg_restore
+Sesiones WhatsApp (bots)      | Sí         | Copiar carpeta auth_info_baileys/
+Credenciales de cada tenant   | Sí         | Están en la base de datos
+Google Sheets (datos)         | Sí         | Viven en Google, no en el servidor
+
+Si copias bien la base de datos y la carpeta de sesiones, la migración es
+transparente: los bots reconectan solos y los usuarios ni se enteran.
