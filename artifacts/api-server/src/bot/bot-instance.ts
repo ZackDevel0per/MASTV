@@ -702,7 +702,11 @@ export class BotInstance {
           await this.enviarConDelay(jid, `💡 *¿Te gustó la prueba?*\n\nEscribe *1* para ver nuestros planes completos. 🚀`);
           this.conversaciones[jid] = { ultimoComando: "DEMO_CREADA", hora: Date.now() };
         } else {
-          await this.enviarConDelay(jid, `⚠️ *No pudimos crear tu demo en este momento*\n\n${resultado.mensaje}\n\nEscribe *3* para contactar soporte.`);
+          if (resultado.mensaje === "El CRM rechazó la creación de la cuenta") {
+            await this.enviarConDelay(jid, `⚠️ *Las demos están desactivadas temporalmente*\n\nPor un evento importante, las cuentas demo no están disponibles en este momento.\n\nPuedes solicitar tu cuenta demo después de que el evento termine, o adquirir un plan de pago para ver el partido ahora mismo.\n\nEscribe *1* para ver nuestros planes. 🚀`);
+          } else {
+            await this.enviarConDelay(jid, `⚠️ *No pudimos crear tu demo en este momento*\n\n${resultado.mensaje}\n\nEscribe *3* para contactar soporte.`);
+          }
         }
         return;
       }
