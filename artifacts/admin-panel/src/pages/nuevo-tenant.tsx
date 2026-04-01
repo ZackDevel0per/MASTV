@@ -226,6 +226,13 @@ export function NuevoTenant() {
 
         {/* Notificaciones */}
         <Section title="6. Notificaciones" icon={Bell}>
+          <div className="grid grid-cols-1 gap-6 mb-6">
+            <div>
+              <label className="label-base">Enlace del Grupo de Anuncios</label>
+              <input name="enlaceGrupo" className="input-base" placeholder="https://chat.whatsapp.com/..." />
+              <p className="text-xs text-muted-foreground mt-1">Se enviará automáticamente al cliente <strong className="text-white">solo cuando compre un plan nuevo</strong> (no en demos ni renovaciones).</p>
+            </div>
+          </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
             <div><label className="label-base">Pushover User Key</label><input name="pushoverUserKey" className="input-base" /></div>
             <div><label className="label-base">Pushover API Token</label><input name="pushoverApiToken" className="input-base" /></div>

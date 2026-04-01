@@ -44,6 +44,9 @@ export const tenantsTable = pgTable("tenants", {
   // QR de pago (imagen que el bot envía al cliente para que pague)
   qrPagoUrl: text("qr_pago_url"),
 
+  // Enlace del grupo de anuncios (se envía solo cuando el cliente compra un plan nuevo)
+  enlaceGrupo: text("enlace_grupo"),
+
   // Pushover (notificaciones al admin)
   pushoverUserKey: text("pushover_user_key"),
   pushoverApiToken: text("pushover_api_token"),

@@ -295,6 +295,12 @@ export class BotInstance {
           }),
         );
         await this.enviarConDelay(jid, mensajeActivacion);
+        if (this.tenant.enlaceGrupo) {
+          await this.enviarConDelay(
+            jid,
+            `📢 *¡Únete a nuestro grupo de anuncios!*\n\nRecibe novedades, actualizaciones y promociones exclusivas:\n\n${this.tenant.enlaceGrupo}`,
+          );
+        }
         this.sheets
           .registrarCuenta(telefono, resultado.usuario, resultado.plan ?? planCmd, dias)
           .catch(() => {});
