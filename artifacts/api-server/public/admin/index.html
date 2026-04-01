@@ -419,9 +419,6 @@
           <div><label>CRM Prefijo de usuario</label><input type="text" name="crmUsernamePrefix" value="zk" /></div>
 
           <div><label>Google Spreadsheet ID</label><input type="text" name="spreadsheetId" placeholder="1IMij-hFL..." /></div>
-          <div><label>Gmail — Remitente filtro</label><input type="text" name="gmailRemitenteFiltro" placeholder="PagosBcp@bcp.com.bo" /></div>
-          <div><label>Gmail Client ID</label><input type="text" name="gmailClientId" placeholder="xxx.apps.googleusercontent.com" /></div>
-          <div><label>Gmail Client Secret</label><input type="password" name="gmailClientSecret" placeholder="GOCSPX-..." /></div>
           <div><label>Pushover User Key</label><input type="text" name="pushoverUserKey" placeholder="u..." /></div>
           <div><label>Pushover API Token</label><input type="text" name="pushoverApiToken" placeholder="a..." /></div>
           <div class="form-full">
@@ -526,12 +523,9 @@
         <div><label>CRM Password</label><input type="password" name="crmPassword" id="edit-crmPassword" placeholder="Vacío = no cambiar" /></div>
         <div><label>CRM Prefijo</label><input type="text" name="crmUsernamePrefix" id="edit-crmUsernamePrefix" /></div>
       </div>
-      <p style="font-size:12px;color:var(--muted);margin:16px 0 12px;padding-top:12px;border-top:1px solid var(--border)">Google & Gmail</p>
+      <p style="font-size:12px;color:var(--muted);margin:16px 0 12px;padding-top:12px;border-top:1px solid var(--border)">Google</p>
       <div class="form-grid">
         <div class="form-full"><label>Spreadsheet ID</label><input type="text" name="spreadsheetId" id="edit-spreadsheetId" /></div>
-        <div><label>Gmail Client ID</label><input type="text" name="gmailClientId" id="edit-gmailClientId" style="font-size:11px;font-family:monospace" /></div>
-        <div><label>Gmail Client Secret</label><input type="password" name="gmailClientSecret" id="edit-gmailClientSecret" /></div>
-        <div class="form-full"><label>Filtro remitente Gmail</label><input type="text" name="gmailRemitenteFiltro" id="edit-gmailRemitenteFiltro" /></div>
         <div class="form-full"><label>Google Service Account JSON</label><textarea name="googleServiceAccountJson" id="edit-googleServiceAccountJson"></textarea></div>
       </div>
       <p style="font-size:12px;color:var(--muted);margin:16px 0 12px;padding-top:12px;border-top:1px solid var(--border)">💳 VeriPagos — Pagos QR Automáticos</p>
@@ -784,7 +778,6 @@ function renderTenants(tenants) {
         <div style="display:flex;gap:4px;flex-wrap:wrap">
           ${t.tieneSheets ? '<span class="badge badge-green">📊</span>' : '<span class="badge badge-red">Sin Sheets</span>'}
           ${t.tieneCRM ? '<span class="badge badge-green">🎬</span>' : ''}
-          ${t.tieneGmail ? '<span class="badge badge-green">📧</span>' : ''}
         </div>
       </td>
       <td>
@@ -798,7 +791,6 @@ function renderTenants(tenants) {
         <div class="actions-bar">
           <button class="btn btn-ghost btn-sm" title="Ver detalle" onclick="abrirDetalle('${t.id}')">🔍</button>
           <button class="btn btn-ghost btn-sm" title="Editar" onclick='abrirEditar(${JSON.stringify(t)})'>✏️</button>
-          <button class="btn btn-ghost btn-sm" title="Autorizar Gmail (Refresh Token)" onclick="autorizarGmail('${t.id}')">📧🔑</button>
           <button class="btn btn-ghost btn-sm" title="Reiniciar bot" onclick="reiniciarBot('${t.id}')">🔄</button>
           <button class="btn btn-ghost btn-sm" title="Enviar mensaje" onclick="abrirMensaje('${t.id}')">💬</button>
           ${t.activo
@@ -867,7 +859,6 @@ function renderIntegraciones(t) {
   document.getElementById('integraciones-list').innerHTML = [
     { label: '📊 Google Sheets', ok: t.tieneSheets },
     { label: '🎬 CRM Mastv', ok: t.tieneCRM, sub: t.crmUsername ? '@' + t.crmUsername : null },
-    { label: '📧 Gmail OAuth2', ok: t.tieneGmail, action: `<button class="btn btn-ghost btn-sm" onclick="autorizarGmail('${t.id}','${t.tieneGmail ? 'Re-autorizar' : 'Autorizar'}')">🔑 ${t.tieneGmail ? 'Re-autorizar' : 'Autorizar'}</button>` },
     { label: '🔔 Pushover', ok: !!t.pushoverUserKey },
   ].map(i => `
     <div class="integration-row">
@@ -1248,9 +1239,6 @@ async function abrirEditar(t) {
   document.getElementById('edit-crmUsername').value = full.crmUsername || '';
   document.getElementById('edit-crmUsernamePrefix').value = full.crmUsernamePrefix || '';
   document.getElementById('edit-spreadsheetId').value = full.spreadsheetId || '';
-  document.getElementById('edit-gmailClientId').value = full.gmailClientId || '';
-  document.getElementById('edit-gmailClientSecret').value = '';
-  document.getElementById('edit-gmailRemitenteFiltro').value = full.gmailRemitenteFiltro || '';
   document.getElementById('edit-googleServiceAccountJson').value = full.googleServiceAccountJson || '';
   document.getElementById('edit-veripagosUsername').value = full.veripagosUsername || '';
   document.getElementById('edit-veripagosPassword').value = '';
