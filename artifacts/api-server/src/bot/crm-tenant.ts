@@ -46,9 +46,20 @@ function cookieFromHeaders(headers: Record<string, unknown>): string {
   return arr.map((c) => (c as string).split(";")[0]).join("; ");
 }
 
+export interface LineaCRM {
+  username: string;
+  password: string;
+  server_url?: string;
+  package_name?: string;
+  created_at?: string;
+  exp_date?: number;
+  is_trial?: number;
+  max_connections?: number;
+}
+
 /**
  * Clase CRM configurada para un tenant específico.
- * Mantiene su propia sesión cacheada.
+ * Mantiene su propia sesión cacheada y una lista actualizada cada 30 segundos.
  */
 export class CrmService {
   private baseUrl: string;
@@ -58,11 +69,18 @@ export class CrmService {
   private cachedSession: { cookie: string; expiresAt: number } | null = null;
   private readonly SESSION_TTL_MS = 18 * 60 * 1000;
 
+  // ── Caché de líneas ──────────────────────────────────────────────────────
+  private lineasCache: LineaCRM[] = [];
+  private cacheActualizadoEn: number = 0;
+  private pollingInterval: ReturnType<typeof setInterval> | null = null;
+  private readonly POLLING_INTERVAL_MS = 30_000;
+
   constructor(tenant: TenantConfig) {
     this.baseUrl = tenant.crmBaseUrl;
     this.username = tenant.crmUsername ?? "";
     this.password = tenant.crmPassword ?? "";
     this.prefix = tenant.crmUsernamePrefix;
+    this.iniciarPolling();
   }
 
   actualizarConfig(tenant: TenantConfig): void {
@@ -71,10 +89,69 @@ export class CrmService {
     this.password = tenant.crmPassword ?? "";
     this.prefix = tenant.crmUsernamePrefix;
     this.cachedSession = null;
+    this.detenerPolling();
+    this.iniciarPolling();
   }
 
   isConfigured(): boolean {
     return !!(this.username && this.password);
+  }
+
+  // ── Polling de lista de líneas ───────────────────────────────────────────
+
+  iniciarPolling(): void {
+    if (!this.isConfigured()) return;
+    // Carga inmediata al arrancar
+    this.fetchLineas().then((lineas) => {
+      this.lineasCache = lineas;
+      this.cacheActualizadoEn = Date.now();
+      console.log(`✅ [CRM][${this.username}] Caché inicial: ${lineas.length} líneas`);
+    }).catch(() => {});
+
+    this.pollingInterval = setInterval(async () => {
+      try {
+        const lineas = await this.fetchLineas();
+        this.lineasCache = lineas;
+        this.cacheActualizadoEn = Date.now();
+        console.log(`🔄 [CRM][${this.username}] Caché actualizada: ${lineas.length} líneas`);
+      } catch (err) {
+        console.warn(`⚠️ [CRM][${this.username}] Error actualizando caché:`, err instanceof Error ? err.message : err);
+      }
+    }, this.POLLING_INTERVAL_MS);
+  }
+
+  detenerPolling(): void {
+    if (this.pollingInterval) {
+      clearInterval(this.pollingInterval);
+      this.pollingInterval = null;
+    }
+  }
+
+  /** Devuelve la lista cacheada de líneas (actualizada cada 30 segundos) */
+  getLineasCache(): LineaCRM[] {
+    return this.lineasCache;
+  }
+
+  getCacheInfo(): { total: number; actualizadoHace: number } {
+    return {
+      total: this.lineasCache.length,
+      actualizadoHace: this.cacheActualizadoEn ? Math.round((Date.now() - this.cacheActualizadoEn) / 1000) : -1,
+    };
+  }
+
+  private async fetchLineas(): Promise<LineaCRM[]> {
+    if (!this.isConfigured()) return [];
+    const cookie = await this.getSession();
+    const https = (await import("https")).default;
+    const agent = new https.Agent({ rejectUnauthorized: false });
+    const res = await axios.get(`${this.baseUrl}/api/line/list`, {
+      headers: { ...BASE_HEADERS, Cookie: cookie, Accept: "application/json", "X-Requested-With": "XMLHttpRequest" },
+      httpsAgent: agent,
+      validateStatus: () => true,
+      timeout: 15_000,
+    });
+    const raw = res.data;
+    return Array.isArray(raw) ? raw : Array.isArray(raw?.data) ? raw.data : [];
   }
 
   private sessionValida(): boolean {
@@ -145,12 +222,18 @@ export class CrmService {
 
   /**
    * Obtiene el siguiente username disponible con el prefijo del tenant.
-   * Consulta directamente el CRM.
+   * Usa la caché de líneas (actualizada cada 30 s) para evitar colisiones.
    */
   async obtenerSiguienteUsername(usernamesEnUso: Set<string>): Promise<string> {
+    // Combinar la caché de líneas del CRM con el set pasado como argumento
+    const usernamesCRM = new Set(
+      this.lineasCache.map((l) => l.username?.toLowerCase()).filter(Boolean)
+    );
+    const todos = new Set([...usernamesEnUso, ...usernamesCRM]);
+
     for (let n = 1; n <= 99999; n++) {
       const candidato = `${this.prefix}${String(n).padStart(5, "0")}`;
-      if (!usernamesEnUso.has(candidato.toLowerCase())) {
+      if (!todos.has(candidato.toLowerCase())) {
         return candidato;
       }
     }
@@ -179,17 +262,12 @@ export class CrmService {
         const https = (await import("https")).default;
         const agent = new https.Agent({ rejectUnauthorized: false });
 
-        // 1. Obtener lista ANTES de crear (para comparar después y encontrar la nueva)
-        const listAntes = await axios.get(`${this.baseUrl}/api/line/list`, {
-          headers: { ...BASE_HEADERS, Cookie: cookie, Accept: "application/json", "X-Requested-With": "XMLHttpRequest" },
-          httpsAgent: agent,
-          validateStatus: () => true,
-        });
-        const rawAntes = listAntes.data;
-        const lineasAntes: Array<{ username: string; password: string; server_url?: string }> =
-          Array.isArray(rawAntes) ? rawAntes : Array.isArray(rawAntes?.data) ? rawAntes.data : [];
+        // 1. Usar la caché como snapshot "antes" (actualizada cada 30 s)
+        const lineasAntes = this.lineasCache.length > 0
+          ? this.lineasCache
+          : await this.fetchLineas();
         const usernamesAntes = new Set(lineasAntes.map((l) => l.username?.toLowerCase()));
-        console.log(`   [CRM][${this.username}] Antes: ${lineasAntes.length} líneas`);
+        console.log(`   [CRM][${this.username}] Antes (caché): ${lineasAntes.length} líneas`);
 
         // 2. Obtener CSRF de la página de creación
         const createPage = await axios.get(`${this.baseUrl}/lines/create-with-package`, {
@@ -262,15 +340,11 @@ export class CrmService {
         // 4. Esperar brevemente y obtener lista DESPUÉS (usando cookie actualizada)
         await new Promise(r => setTimeout(r, 1500));
 
-        const listDespues = await axios.get(`${this.baseUrl}/api/line/list`, {
-          headers: { ...BASE_HEADERS, Cookie: cookiePost, Accept: "application/json", "X-Requested-With": "XMLHttpRequest" },
-          httpsAgent: agent,
-          validateStatus: () => true,
-        });
-        const rawDespues = listDespues.data;
-        const lineasDespues: Array<{ username: string; password: string; server_url?: string }> =
-          Array.isArray(rawDespues) ? rawDespues : Array.isArray(rawDespues?.data) ? rawDespues.data : [];
-        console.log(`   [CRM][${this.username}] Después: ${lineasDespues.length} líneas`);
+        const lineasDespues = await this.fetchLineas();
+        // Actualizar la caché con la lista fresca post-creación
+        this.lineasCache = lineasDespues;
+        this.cacheActualizadoEn = Date.now();
+        console.log(`   [CRM][${this.username}] Después: ${lineasDespues.length} líneas (caché actualizada)`);
 
         // 5. La cuenta nueva = la que aparece en DESPUÉS pero no en ANTES
         const lineaNueva = lineasDespues.find((l) => !usernamesAntes.has(l.username?.toLowerCase()));
@@ -429,22 +503,8 @@ export class CrmService {
       return { ok: false, mensaje: "CRM no configurado." };
     }
     try {
-      const cookie = await this.getSession();
-      const https = (await import("https")).default;
-      const agent = new https.Agent({ rejectUnauthorized: false });
-      const listRes = await axios.get(`${this.baseUrl}/api/line/list`, {
-        headers: { ...BASE_HEADERS, Cookie: cookie },
-        httpsAgent: agent,
-        validateStatus: (s) => s < 400,
-      });
-      const lineas: Array<{
-        username: string;
-        password: string;
-        package_name?: string;
-        max_connections?: number;
-        exp_date?: number;
-        is_trial?: number;
-      }> = listRes.data?.data ?? listRes.data ?? [];
+      // Usar la caché si está disponible; si no, hacer fetch fresco
+      const lineas = this.lineasCache.length > 0 ? this.lineasCache : await this.fetchLineas();
 
       const linea = lineas.find(
         (l) => l.username?.toLowerCase() === usuarioCRM.toLowerCase(),
@@ -487,52 +547,28 @@ export class CrmService {
     estado: string;
   }>> {
     if (!this.isConfigured()) return [];
-    try {
-      const cookie = await this.getSession();
-      const https = (await import("https")).default;
-      const agent = new https.Agent({ rejectUnauthorized: false });
-      const listRes = await axios.get(`${this.baseUrl}/api/line/list`, {
-        headers: { ...BASE_HEADERS, Cookie: cookie },
-        httpsAgent: agent,
-        validateStatus: (s) => s < 400,
-      });
-      const lineas: Array<{
-        username: string;
-        password: string;
-        package_name?: string;
-        created_at?: string;
-        exp_date?: number;
-        is_trial?: number;
-      }> = listRes.data?.data ?? listRes.data ?? [];
-
-      return lineas.map((l) => ({
-        username: l.username ?? "",
-        password: l.password ?? "",
-        planNombre: l.package_name ?? "",
-        fechaCreacion: l.created_at ?? "",
-        fechaExpiracion: l.exp_date
-          ? new Date(l.exp_date * 1000).toLocaleDateString("es-BO", { timeZone: "America/La_Paz" })
-          : "",
-        estado: l.is_trial ? "PRUEBA" : "ACTIVA",
-      }));
-    } catch {
-      return [];
-    }
+    // Usar la caché si está disponible; si no, hacer fetch
+    const lineas = this.lineasCache.length > 0 ? this.lineasCache : await this.fetchLineas();
+    return lineas.map((l) => ({
+      username: l.username ?? "",
+      password: l.password ?? "",
+      planNombre: l.package_name ?? "",
+      fechaCreacion: l.created_at ?? "",
+      fechaExpiracion: l.exp_date
+        ? new Date(l.exp_date * 1000).toLocaleDateString("es-BO", { timeZone: "America/La_Paz" })
+        : "",
+      estado: l.is_trial ? "PRUEBA" : "ACTIVA",
+    }));
   }
 
   private async buscarLinea(
     username: string,
-    cookie: string,
-    agent: unknown,
+    _cookie: string,
+    _agent: unknown,
   ): Promise<{ password: string; servidor: string } | null> {
     try {
-      const listRes = await axios.get(`${this.baseUrl}/api/line/list`, {
-        headers: { ...BASE_HEADERS, Cookie: cookie },
-        httpsAgent: agent,
-        validateStatus: (s) => s < 400,
-      });
-      const lineas: Array<{ username: string; password: string; server_url?: string }> =
-        listRes.data?.data ?? listRes.data ?? [];
+      // Usar la caché; si está vacía, hacer fetch
+      const lineas = this.lineasCache.length > 0 ? this.lineasCache : await this.fetchLineas();
       const linea = lineas.find((l) => l.username?.toLowerCase() === username.toLowerCase());
       if (!linea) return null;
       return {

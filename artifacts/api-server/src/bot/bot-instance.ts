@@ -1153,6 +1153,7 @@ export class BotInstance {
     this.cancelarTodosLosPolls();
     this.sheets.detenerCache();
     this.gmail.detener();
+    this.crm.detenerPolling();
     this.sock?.end(undefined);
     this.sock = null;
     this.estadoConexion = "desconectado";
