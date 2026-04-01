@@ -117,26 +117,6 @@ export function NuevoTenant() {
         <Section title="3. Google Workspace" icon={KeyRound}>
           <div className="space-y-6">
 
-            {/* GMAIL DESACTIVADO — integración legacy, no se usa en el flujo actual.
-            <div>
-              <p className="text-sm font-semibold text-white mb-1">Gmail OAuth2 — Verificación de pagos</p>
-              <p className="text-xs text-muted-foreground mb-4">El bot leerá los correos del banco desde esta cuenta Gmail para detectar pagos automáticamente.</p>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div><label className="label-base">Gmail Client ID</label><input name="gmailClientId" className="input-base font-mono text-xs" placeholder="xxxx.apps.googleusercontent.com" /></div>
-                <div><label className="label-base">Gmail Client Secret</label><input name="gmailClientSecret" className="input-base font-mono text-xs" placeholder="GOCSPX-..." /></div>
-                <div className="col-span-1 sm:col-span-2">
-                  <label className="label-base">Gmail Refresh Token</label>
-                  <input name="gmailRefreshToken" className="input-base font-mono text-xs" placeholder="1//0g..." />
-                  <p className="text-xs text-muted-foreground mt-1">Se obtiene una sola vez desde /api/gmail/autorizar después de crear el tenant.</p>
-                </div>
-                <div className="col-span-1 sm:col-span-2">
-                  <label className="label-base">Filtro remitente (email del banco)</label>
-                  <input name="gmailRemitenteFiltro" className="input-base" placeholder="notificaciones@bancounion.com.bo" />
-                </div>
-              </div>
-            </div>
-            */}
-
             {/* Google Sheets — historial de pagos */}
             <div>
               <p className="text-sm font-semibold text-white mb-1">Google Sheets — Historial de pagos</p>
