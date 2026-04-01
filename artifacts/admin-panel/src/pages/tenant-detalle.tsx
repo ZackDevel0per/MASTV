@@ -254,6 +254,7 @@ export function TenantDetalle() {
             <div className="space-y-3">
               <IntegrationRow label="Google Sheets" active={!!tenant.spreadsheetId} icon="📊" />
               <IntegrationRow label="CRM Mastv" active={!!tenant.crmUsername} icon="🖥️" sub={tenant.crmUsername ? `@${tenant.crmUsername}` : undefined} />
+              {/* GMAIL DESACTIVADO — integración legacy, no se usa en el flujo actual.
               <IntegrationRow label="Gmail OAuth2" active={!!tenant.gmailRefreshToken} icon="📧"
                 action={
                   <button
@@ -267,6 +268,7 @@ export function TenantDetalle() {
                   </button>
                 }
               />
+              */}
               <IntegrationRow label="VeriPagos QR" active={!!tenant.veripagosUsername} icon="💳" sub={tenant.veripagosUsername ?? undefined} />
               <IntegrationRow label="Pushover" active={!!tenant.pushoverUserKey} icon="🔔" />
             </div>
@@ -465,9 +467,11 @@ function EditModal({ isOpen, onClose, tenant, updateMut, showToast }: any) {
         <Section title="Google" icon={KeyRound}>
           <div className="space-y-3">
             <div><label className="label-base">Spreadsheet ID</label><input name="spreadsheetId" defaultValue={tenant.spreadsheetId} className="input-base" /></div>
+            {/* GMAIL DESACTIVADO — integración legacy, no se usa en el flujo actual.
             <div><label className="label-base">Gmail Client ID</label><input name="gmailClientId" defaultValue={tenant.gmailClientId} className="input-base font-mono text-xs" /></div>
             <div><label className="label-base">Gmail Client Secret</label><input name="gmailClientSecret" defaultValue={tenant.gmailClientSecret} className="input-base font-mono text-xs" /></div>
             <div><label className="label-base">Filtro remitente Gmail</label><input name="gmailRemitenteFiltro" defaultValue={tenant.gmailRemitenteFiltro} className="input-base" /></div>
+            */}
             <div><label className="label-base">Service Account JSON</label><textarea name="googleServiceAccountJson" defaultValue={tenant.googleServiceAccountJson} rows={3} className="input-base font-mono text-xs"></textarea></div>
           </div>
         </Section>

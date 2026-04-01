@@ -1337,13 +1337,15 @@ export class BotInstance {
 
     await this.conectar();
 
-    // Configurar callback Gmail → WhatsApp admin
-    this.gmail.setCallbackPagoDetectado((nombre, monto) => {
-      const jid = `${this.tenant.adminWhatsapp.replace(/\D/g, "")}@s.whatsapp.net`;
-      const msg = `💰 *Nuevo pago detectado*\n\n👤 Nombre: *${nombre}*\n💵 Monto: *Bs ${monto}*\n\n_El cliente debe escribir *COMPROBAR* para activar su cuenta._`;
-      this.enviarMensaje(jid, msg).catch(() => {});
-    });
-
-    await this.gmail.iniciar();
+    // GMAIL DESACTIVADO — integración legacy, no se usa en el flujo actual.
+    // Para reactivar: descomentar el bloque de abajo.
+    //
+    // this.gmail.setCallbackPagoDetectado((nombre, monto) => {
+    //   const jid = `${this.tenant.adminWhatsapp.replace(/\D/g, "")}@s.whatsapp.net`;
+    //   const msg = `💰 *Nuevo pago detectado*\n\n👤 Nombre: *${nombre}*\n💵 Monto: *Bs ${monto}*\n\n_El cliente debe escribir *COMPROBAR* para activar su cuenta._`;
+    //   this.enviarMensaje(jid, msg).catch(() => {});
+    // });
+    //
+    // await this.gmail.iniciar();
   }
 }

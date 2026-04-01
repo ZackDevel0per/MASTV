@@ -117,7 +117,7 @@ export function NuevoTenant() {
         <Section title="3. Google Workspace" icon={KeyRound}>
           <div className="space-y-6">
 
-            {/* Gmail OAuth2 — detección de pagos */}
+            {/* GMAIL DESACTIVADO — integración legacy, no se usa en el flujo actual.
             <div>
               <p className="text-sm font-semibold text-white mb-1">Gmail OAuth2 — Verificación de pagos</p>
               <p className="text-xs text-muted-foreground mb-4">El bot leerá los correos del banco desde esta cuenta Gmail para detectar pagos automáticamente.</p>
@@ -127,7 +127,7 @@ export function NuevoTenant() {
                 <div className="col-span-1 sm:col-span-2">
                   <label className="label-base">Gmail Refresh Token</label>
                   <input name="gmailRefreshToken" className="input-base font-mono text-xs" placeholder="1//0g..." />
-                  <p className="text-xs text-muted-foreground mt-1">Se obtiene una sola vez desde <span className="text-primary font-mono">/api/gmail/autorizar</span> después de crear el tenant.</p>
+                  <p className="text-xs text-muted-foreground mt-1">Se obtiene una sola vez desde /api/gmail/autorizar después de crear el tenant.</p>
                 </div>
                 <div className="col-span-1 sm:col-span-2">
                   <label className="label-base">Filtro remitente (email del banco)</label>
@@ -135,9 +135,7 @@ export function NuevoTenant() {
                 </div>
               </div>
             </div>
-
-            {/* Divisor */}
-            <div className="border-t border-white/5" />
+            */}
 
             {/* Google Sheets — historial de pagos */}
             <div>
