@@ -424,6 +424,81 @@ export class SheetsService {
     }
   }
 
+  async sincronizarLineasCRM(lineas: Array<{
+    username: string;
+    planNombre: string;
+    fechaCreacion: string;
+    fechaExpiracion: string;
+    estado: string;
+  }>): Promise<{ total: number; nuevas: number; actualizadas: number; errores: number }> {
+    if (!this.isConfigured()) return { total: lineas.length, nuevas: 0, actualizadas: 0, errores: 0 };
+    const sheets = await this.getClient();
+
+    // Leer toda la hoja para conocer la posición exacta de cada username
+    const res = await sheets.spreadsheets.values.get({
+      spreadsheetId: this.spreadsheetId,
+      range: `${SHEET_CUENTAS}!A:F`,
+    });
+
+    const filas = res.data.values ?? [];
+    const filasPorUsuario = new Map<string, number>();
+    for (let i = 1; i < filas.length; i++) {
+      const username = (filas[i]?.[1] ?? "").toString().toLowerCase().trim();
+      if (username) filasPorUsuario.set(username, i + 1);
+    }
+
+    const filasNuevas: string[][] = [];
+    const rangesActualizacion: { range: string; values: string[][] }[] = [];
+
+    for (const l of lineas) {
+      const key = l.username.toLowerCase().trim();
+      const filaHoja = filasPorUsuario.get(key);
+
+      if (filaHoja !== undefined) {
+        rangesActualizacion.push({
+          range: `${SHEET_CUENTAS}!C${filaHoja}:F${filaHoja}`,
+          values: [[l.planNombre, l.fechaCreacion, l.fechaExpiracion, l.estado]],
+        });
+      } else {
+        filasNuevas.push(["", l.username, l.planNombre, l.fechaCreacion, l.fechaExpiracion, l.estado]);
+      }
+    }
+
+    let errores = 0;
+
+    if (rangesActualizacion.length > 0) {
+      try {
+        await sheets.spreadsheets.values.batchUpdate({
+          spreadsheetId: this.spreadsheetId,
+          requestBody: { valueInputOption: "RAW", data: rangesActualizacion },
+        });
+        this.cacheListaMs = 0;
+      } catch (err) {
+        console.error(`[SHEETS][${this.tenantId}] Error actualizando líneas CRM:`, err);
+        errores += rangesActualizacion.length;
+      }
+    }
+
+    if (filasNuevas.length > 0) {
+      try {
+        await sheets.spreadsheets.values.append({
+          spreadsheetId: this.spreadsheetId,
+          range: `${SHEET_CUENTAS}!A:F`,
+          valueInputOption: "RAW",
+          requestBody: { values: filasNuevas },
+        });
+        this.cacheListaMs = 0;
+      } catch (err) {
+        console.error(`[SHEETS][${this.tenantId}] Error agregando líneas nuevas CRM:`, err);
+        errores += filasNuevas.length;
+      }
+    }
+
+    const resultado = { total: lineas.length, nuevas: filasNuevas.length, actualizadas: rangesActualizacion.length, errores };
+    console.log(`🔄 [SHEETS][${this.tenantId}] Sync CRM→Sheets: ${resultado.nuevas} nuevas, ${resultado.actualizadas} actualizadas, ${resultado.errores} errores`);
+    return resultado;
+  }
+
   async actualizarTelefonoPorLid(lidNumero: string, telefonoReal: string): Promise<number> {
     if (!this.isConfigured()) return 0;
     const lidLimpio = limpiarTel(lidNumero);

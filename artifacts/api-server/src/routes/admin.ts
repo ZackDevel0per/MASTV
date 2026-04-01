@@ -571,6 +571,38 @@ router.get("/admin/cuentas/:tenantId", async (req, res) => {
 });
 
 // ═══════════════════════════════════════════════════════════════════════
+// SYNC CRM → Google Sheets por tenant
+// ═══════════════════════════════════════════════════════════════════════
+router.post("/admin/tenants/:id/sync-crm", async (req, res) => {
+  if (!verificarAdmin(req, res)) return;
+  try {
+    const instancia = getInstancia(req.params.id as string);
+    if (!instancia) {
+      res.status(404).json({ ok: false, mensaje: "Bot no encontrado o no iniciado" });
+      return;
+    }
+    if (!instancia.crm.isConfigured()) {
+      res.status(400).json({ ok: false, mensaje: "El tenant no tiene CRM configurado" });
+      return;
+    }
+    if (!instancia.sheets.isConfigured()) {
+      res.status(400).json({ ok: false, mensaje: "El tenant no tiene Google Sheets configurado" });
+      return;
+    }
+    const lineas = await instancia.crm.obtenerTodasLasLineas();
+    const resultado = await instancia.sheets.sincronizarLineasCRM(lineas);
+    res.json({
+      ok: true,
+      mensaje: `Sincronización completa: ${resultado.nuevas} líneas nuevas, ${resultado.actualizadas} actualizadas, ${resultado.errores} errores.`,
+      ...resultado,
+    });
+  } catch (err) {
+    console.error("[ADMIN] Error en sync CRM → Sheets:", err);
+    res.status(500).json({ ok: false, mensaje: err instanceof Error ? err.message : "Error desconocido" });
+  }
+});
+
+// ═══════════════════════════════════════════════════════════════════════
 // ENVIAR MENSAJE desde el panel admin
 // ═══════════════════════════════════════════════════════════════════════
 router.post("/admin/tenants/:id/mensaje", async (req, res) => {
