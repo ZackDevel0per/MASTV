@@ -304,7 +304,6 @@ export class BotInstance {
         this.sheets
           .registrarCuenta(telefono, resultado.usuario, resultado.plan ?? planCmd, dias)
           .catch(() => {});
-        this.agregarContacto(jid, `CLIENTE (${resultado.usuario})`).catch(() => {});
       } else {
         await this.enviarConDelay(
           jid,

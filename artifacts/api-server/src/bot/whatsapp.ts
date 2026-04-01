@@ -610,7 +610,6 @@ async function manejarMensaje(jid: string, texto: string) {
         });
         await enviarConDelay(jid, mensajeActivacion);
         await enviarConDelay(jid, `💡 *¿Te gustó la prueba?*\n\nEscribe *1* para ver nuestros planes completos y contratar un servicio permanente. 🚀`);
-        agregarContacto(`${telefono}@s.whatsapp.net`, `CLIENTE (${resultado.usuario})`).catch(() => {});
         conversaciones[jid] = {
           ultimoComando: "DEMO_CREADA",
           planSeleccionado: undefined,
