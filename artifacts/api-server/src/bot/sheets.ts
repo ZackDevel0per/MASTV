@@ -680,13 +680,13 @@ export async function buscarCuentasPorTelefono(telefono: string): Promise<Cuenta
 export interface ResultadoSyncCRM {
   total: number;
   nuevas: number;
-  omitidas: number;
+  actualizadas: number;
   errores: number;
 }
 
 /**
- * Importa líneas del CRM a la hoja "Cuentas".
- * - Si el username ya existe en la hoja → lo omite (no duplica).
+ * Sincroniza líneas del CRM con la hoja "Cuentas".
+ * - Si el username ya existe en la hoja → actualiza plan, fechas y estado en la misma fila.
  * - Si no existe → lo agrega como fila nueva.
  * Retorna un resumen del resultado.
  */
@@ -702,36 +702,68 @@ export async function sincronizarLineasCRMEnSheets(
 ): Promise<ResultadoSyncCRM> {
   const sheets = await getSheetsClient();
 
-  // Leer todos los usernames ya registrados en la hoja (columna B)
+  // Leer toda la hoja (A:F) para saber username y número de fila de cada registro
   const existentes = await sheets.spreadsheets.values.get({
     spreadsheetId: SPREADSHEET_ID,
-    range: `${SHEET_CUENTAS}!B:B`,
+    range: `${SHEET_CUENTAS}!A:F`,
   });
-  const usuariosExistentes = new Set<string>();
-  for (const row of existentes.data.values ?? []) {
-    const u = (row[0] ?? "").toString().toLowerCase().trim();
-    if (u) usuariosExistentes.add(u);
+
+  // Mapa: username.toLowerCase() → número de fila en la hoja (1-based, fila 1 = cabecera)
+  const filasPorUsuario = new Map<string, number>();
+  const filas = existentes.data.values ?? [];
+  for (let i = 1; i < filas.length; i++) {
+    // fila 0 = cabecera, datos empiezan en índice 1 → fila de hoja = i + 1
+    const username = (filas[i]?.[1] ?? "").toString().toLowerCase().trim();
+    if (username) filasPorUsuario.set(username, i + 1);
   }
 
   const filasNuevas: string[][] = [];
-  let omitidas = 0;
+  const rangesActualizacion: { range: string; values: string[][] }[] = [];
 
   for (const l of lineas) {
-    if (usuariosExistentes.has(l.username.toLowerCase().trim())) {
-      omitidas++;
-      continue;
+    const key = l.username.toLowerCase().trim();
+    const filaHoja = filasPorUsuario.get(key);
+
+    if (filaHoja !== undefined) {
+      // Ya existe: actualizar columnas C–F (plan, fechas, estado) en su fila
+      rangesActualizacion.push({
+        range: `${SHEET_CUENTAS}!C${filaHoja}:F${filaHoja}`,
+        values: [[l.planNombre, l.fechaCreacion, l.fechaExpiracion, l.estado]],
+      });
+    } else {
+      // No existe: agregar como fila nueva
+      filasNuevas.push([
+        "",               // A: Teléfono (desconocido desde CRM)
+        l.username,       // B: Usuario
+        l.planNombre,     // C: Plan
+        l.fechaCreacion,  // D: Fecha Creación
+        l.fechaExpiracion,// E: Fecha Expiración
+        l.estado,         // F: Estado
+      ]);
     }
-    filasNuevas.push([
-      "",                          // A: Teléfono (desconocido, viene del CRM)
-      l.username,                  // B: Usuario
-      l.planNombre,                // C: Plan
-      l.fechaCreacion,             // D: Fecha Creación
-      l.fechaExpiracion,           // E: Fecha Expiración
-      l.estado,                    // F: Estado
-    ]);
   }
 
   let errores = 0;
+
+  // Actualizar filas existentes en lote
+  if (rangesActualizacion.length > 0) {
+    try {
+      await sheets.spreadsheets.values.batchUpdate({
+        spreadsheetId: SPREADSHEET_ID,
+        requestBody: {
+          valueInputOption: "RAW",
+          data: rangesActualizacion,
+        },
+      });
+      // Invalidar caché para que la próxima lectura refleje los cambios
+      cacheListaMs = 0;
+    } catch (err) {
+      console.error("[SHEETS] Error al actualizar líneas del CRM:", err);
+      errores += rangesActualizacion.length;
+    }
+  }
+
+  // Agregar filas nuevas
   if (filasNuevas.length > 0) {
     try {
       await sheets.spreadsheets.values.append({
@@ -754,20 +786,20 @@ export async function sincronizarLineasCRMEnSheets(
         cacheSheets.set("", lista);
       }
     } catch (err) {
-      console.error("[SHEETS] Error al importar líneas del CRM:", err);
-      errores = filasNuevas.length;
+      console.error("[SHEETS] Error al importar líneas nuevas del CRM:", err);
+      errores += filasNuevas.length;
     }
   }
 
   const resultado: ResultadoSyncCRM = {
     total: lineas.length,
-    nuevas: filasNuevas.length - errores,
-    omitidas,
+    nuevas: filasNuevas.length,
+    actualizadas: rangesActualizacion.length,
     errores,
   };
 
   console.log(
-    `🔄 [SHEETS] Sync CRM→Sheets: ${resultado.nuevas} nuevas, ${resultado.omitidas} omitidas, ${resultado.errores} errores (total CRM: ${resultado.total})`,
+    `🔄 [SHEETS] Sync CRM→Sheets: ${resultado.nuevas} nuevas, ${resultado.actualizadas} actualizadas, ${resultado.errores} errores (total CRM: ${resultado.total})`,
   );
 
   return resultado;

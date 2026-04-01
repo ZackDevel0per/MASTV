@@ -471,7 +471,7 @@ router.post("/bot/sync-crm", async (req, res) => {
     const resultado = await sincronizarLineasCRMEnSheets(lineas);
     res.json({
       ok: true,
-      mensaje: `Sincronización completa: ${resultado.nuevas} líneas nuevas importadas, ${resultado.omitidas} ya existían, ${resultado.errores} errores.`,
+      mensaje: `Sincronización completa: ${resultado.nuevas} líneas nuevas, ${resultado.actualizadas} actualizadas, ${resultado.errores} errores.`,
       ...resultado,
     });
   } catch (err) {
